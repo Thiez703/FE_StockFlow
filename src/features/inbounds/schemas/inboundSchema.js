@@ -1,17 +1,16 @@
 import { z } from 'zod';
 
 /**
- * Schema kiểm tra phiếu nhập kho.
- * Dùng preprocess để đưa undefined/null (Select chưa chọn) về '' -> có thông báo
- * thân thiện thay vì lỗi "expected string, received undefined".
+ * Schema kiểm tra phiếu nhập kho (RHF + Zod).
+ * preprocess đưa undefined/null (Select/Date chưa chọn) về '' để có thông báo thân thiện.
  */
 const requiredSelect = (message) =>
   z.preprocess((v) => (v == null ? '' : v), z.string().min(1, message));
 
-// Dòng hàng rỗng để append khi thêm dòng mới (đặt ở schema — file không phải component).
+// Dòng hàng rỗng để append khi thêm dòng mới.
 export const emptyItem = { productId: undefined, quantity: 1, unitPrice: 0 };
 
-export const receiptItemSchema = z.object({
+export const inboundItemSchema = z.object({
   productId: requiredSelect('Chọn sản phẩm'),
   quantity: z
     .number()
@@ -23,11 +22,11 @@ export const receiptItemSchema = z.object({
     .refine((v) => v != null && v >= 0, 'Đơn giá không hợp lệ'),
 });
 
-export const goodsReceiptSchema = z.object({
+export const inboundSchema = z.object({
   code: z.string().min(1, 'Thiếu mã phiếu'),
   supplierId: requiredSelect('Vui lòng chọn nhà cung cấp'),
   warehouseId: requiredSelect('Vui lòng chọn kho nhận'),
   receiptDate: z.any().refine((v) => !!v, 'Vui lòng chọn ngày nhập'),
   note: z.string().optional(),
-  items: z.array(receiptItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),
+  items: z.array(inboundItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),
 });

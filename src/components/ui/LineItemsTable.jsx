@@ -2,33 +2,25 @@ import { Card, Button, Select, InputNumber, Empty } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useFormContext, useFieldArray, Controller, useWatch } from 'react-hook-form';
 import { formatCurrency } from '@/utils/formatCurrency';
-import { emptyItem } from '@/features/goods-receipt/schemas/goodsReceiptSchema';
+import { PRODUCT_OPTIONS } from '@/mock/products';
 
-// Dữ liệu mẫu — thay bằng API sau. `price` dùng để tự điền đơn giá khi chọn sản phẩm.
-const PRODUCTS = [
-  { value: 'CC-330', label: 'Coca-Cola lon 330ml', price: 8000 },
-  { value: 'PP-15L', label: 'Pepsi chai 1.5L', price: 15000 },
-  { value: 'ST-330', label: 'Sting dâu lon 330ml', price: 9000 },
-  { value: 'AQ-500', label: 'Aquafina 500ml', price: 5000 },
-  { value: 'RB-250', label: 'Red Bull lon 250ml', price: 12000 },
-];
+const DEFAULT_ITEM = { productId: undefined, quantity: 1, unitPrice: 0 };
 
-// Một dòng sản phẩm. Tách riêng để dùng hook useWatch tính thành tiền theo dòng.
-function ItemRow({ index, control, errors, setValue, onRemove, removable }) {
+// Một dòng hàng — useWatch để tính thành tiền theo dòng ngay tại UI.
+function ItemRow({ name, index, control, errors, setValue, onRemove, removable }) {
   const [quantity, unitPrice] = useWatch({
     control,
-    name: [`items.${index}.quantity`, `items.${index}.unitPrice`],
+    name: [`${name}.${index}.quantity`, `${name}.${index}.unitPrice`],
   });
   const lineTotal = (Number(quantity) || 0) * (Number(unitPrice) || 0);
-  const rowErr = errors?.items?.[index];
+  const rowErr = errors?.[name]?.[index];
 
   return (
     <div className="grid grid-cols-12 items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 hover:bg-slate-50/60">
-      {/* Sản phẩm */}
       <div className="col-span-12 md:col-span-5">
         <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Sản phẩm</span>
         <Controller
-          name={`items.${index}.productId`}
+          name={`${name}.${index}.productId`}
           control={control}
           render={({ field }) => (
             <Select
@@ -36,41 +28,34 @@ function ItemRow({ index, control, errors, setValue, onRemove, removable }) {
               showSearch
               optionFilterProp="label"
               placeholder="Chọn sản phẩm"
-              options={PRODUCTS}
+              options={PRODUCT_OPTIONS}
               status={rowErr?.productId ? 'error' : ''}
               className="w-full"
               onChange={(value) => {
                 field.onChange(value);
-                const product = PRODUCTS.find((p) => p.value === value);
-                if (product) setValue(`items.${index}.unitPrice`, product.price);
+                const product = PRODUCT_OPTIONS.find((p) => p.value === value);
+                if (product) setValue(`${name}.${index}.unitPrice`, product.price);
               }}
             />
           )}
         />
       </div>
 
-      {/* Số lượng */}
       <div className="col-span-4 md:col-span-2">
         <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Số lượng</span>
         <Controller
-          name={`items.${index}.quantity`}
+          name={`${name}.${index}.quantity`}
           control={control}
           render={({ field }) => (
-            <InputNumber
-              {...field}
-              min={1}
-              className="w-full"
-              status={rowErr?.quantity ? 'error' : ''}
-            />
+            <InputNumber {...field} min={1} className="w-full" status={rowErr?.quantity ? 'error' : ''} />
           )}
         />
       </div>
 
-      {/* Đơn giá */}
       <div className="col-span-8 md:col-span-2">
         <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Đơn giá</span>
         <Controller
-          name={`items.${index}.unitPrice`}
+          name={`${name}.${index}.unitPrice`}
           control={control}
           render={({ field }) => (
             <InputNumber
@@ -86,13 +71,11 @@ function ItemRow({ index, control, errors, setValue, onRemove, removable }) {
         />
       </div>
 
-      {/* Thành tiền */}
       <div className="col-span-8 self-center md:col-span-2 md:text-right">
         <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Thành tiền</span>
-        <span className="font-semibold text-slate-800">{formatCurrency(lineTotal)}</span>
+        <span className="font-semibold text-ink">{formatCurrency(lineTotal)}</span>
       </div>
 
-      {/* Xóa */}
       <div className="col-span-4 flex justify-end self-center md:col-span-1">
         <Button
           type="text"
@@ -108,35 +91,33 @@ function ItemRow({ index, control, errors, setValue, onRemove, removable }) {
 }
 
 /**
- * Bảng danh sách sản phẩm của phiếu nhập — thêm/xóa dòng động bằng useFieldArray.
+ * Bảng dòng hàng dùng chung cho phiếu nhập & phiếu xuất (RHF useFieldArray).
+ * Thành tiền từng dòng và trạng thái lỗi hiển thị ngay tại UI.
+ *
+ * @param {string} [name]        Tên field mảng trong form (mặc định 'items').
+ * @param {object} [emptyItem]   Giá trị dòng mới khi bấm "Thêm dòng".
+ * @param {string} [title]
  */
-export default function ReceiptItemsTable() {
+export default function LineItemsTable({ name = 'items', emptyItem = DEFAULT_ITEM, title = 'Danh sách sản phẩm' }) {
   const {
     control,
     setValue,
     formState: { errors },
   } = useFormContext();
-  const { fields, append, remove } = useFieldArray({ control, name: 'items' });
-
-  const itemsError = errors?.items?.message || errors?.items?.root?.message;
+  const { fields, append, remove } = useFieldArray({ control, name });
+  const arrErr = errors?.[name]?.message || errors?.[name]?.root?.message;
 
   return (
     <Card
-      title="Danh sách sản phẩm"
-      className="border-slate-200/80 shadow-sm"
+      title={title}
+      className="border-hair"
       styles={{ header: { borderBottom: '1px solid #f1f5f9' }, body: { padding: 0 } }}
       extra={
-        <Button
-          type="primary"
-          ghost
-          icon={<PlusOutlined />}
-          onClick={() => append(emptyItem)}
-        >
+        <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => append(emptyItem)}>
           Thêm dòng
         </Button>
       }
     >
-      {/* Tiêu đề cột (chỉ hiện trên màn hình rộng) */}
       <div className="hidden grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
         <span className="col-span-5">Sản phẩm</span>
         <span className="col-span-2">Số lượng</span>
@@ -153,6 +134,7 @@ export default function ReceiptItemsTable() {
         fields.map((field, index) => (
           <ItemRow
             key={field.id}
+            name={name}
             index={index}
             control={control}
             errors={errors}
@@ -163,9 +145,7 @@ export default function ReceiptItemsTable() {
         ))
       )}
 
-      {itemsError && (
-        <p className="m-0 px-4 py-3 text-sm text-rose-600">{itemsError}</p>
-      )}
+      {arrErr && <p className="m-0 px-4 py-3 text-sm text-rose-600">{arrErr}</p>}
     </Card>
   );
 }

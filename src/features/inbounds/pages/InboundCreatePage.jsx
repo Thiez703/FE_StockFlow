@@ -4,12 +4,9 @@ import { Button, Card, App } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CheckOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
-import ReceiptGeneralInfo from '@/features/goods-receipt/components/ReceiptGeneralInfo';
-import ReceiptItemsTable from '@/features/goods-receipt/components/ReceiptItemsTable';
-import {
-  goodsReceiptSchema,
-  emptyItem,
-} from '@/features/goods-receipt/schemas/goodsReceiptSchema';
+import InboundGeneralInfo from '@/features/inbounds/components/InboundGeneralInfo';
+import LineItemsTable from '@/components/ui/LineItemsTable';
+import { inboundSchema, emptyItem } from '@/features/inbounds/schemas/inboundSchema';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
 
 // Sinh mã phiếu tạm cho demo.
@@ -28,34 +25,34 @@ function OrderSummary({ control }) {
 
   const rows = [
     { label: 'Số mặt hàng', value: `${items.length} sản phẩm` },
-    { label: 'Tổng số lượng', value: `${formatNumber(totalQty)} thùng/lon` },
+    { label: 'Tổng số lượng', value: `${formatNumber(totalQty)} đơn vị` },
   ];
 
   return (
-    <Card className="border-slate-200/80 shadow-sm" styles={{ body: { padding: 22 } }}>
-      <h3 className="m-0 text-base font-semibold text-slate-900">Tổng kết phiếu</h3>
+    <Card className="border-hair" styles={{ body: { padding: 22 } }}>
+      <h3 className="m-0 text-base font-semibold text-ink">Tổng kết phiếu</h3>
       <div className="mt-4 flex flex-col gap-3">
         {rows.map((r) => (
           <div key={r.label} className="flex items-center justify-between text-sm">
-            <span className="text-slate-500">{r.label}</span>
-            <span className="font-medium text-slate-800">{r.value}</span>
+            <span className="text-ink-sub">{r.label}</span>
+            <span className="font-medium text-ink">{r.value}</span>
           </div>
         ))}
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-dashed border-slate-200 pt-4">
-        <span className="text-sm font-medium text-slate-600">Tổng giá trị</span>
-        <span className="text-xl font-bold text-blue-600">{formatCurrency(totalAmount)}</span>
+        <span className="text-sm font-medium text-ink-sub">Tổng giá trị</span>
+        <span className="text-xl font-bold text-royal">{formatCurrency(totalAmount)}</span>
       </div>
     </Card>
   );
 }
 
-export default function GoodsReceiptCreatePage() {
+export default function InboundCreatePage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
 
   const methods = useForm({
-    resolver: zodResolver(goodsReceiptSchema),
+    resolver: zodResolver(inboundSchema),
     defaultValues: {
       code: generateCode(),
       supplierId: undefined,
@@ -67,9 +64,9 @@ export default function GoodsReceiptCreatePage() {
   });
 
   const onSubmit = (values) => {
-    // Demo: log dữ liệu hợp lệ. Thực tế sẽ gọi API tạo phiếu.
-    console.log('Goods receipt payload:', values);
+    console.log('Inbound payload:', values);
     message.success('Đã tạo phiếu nhập kho thành công!');
+    navigate('/inbounds');
   };
 
   const onError = () => {
@@ -79,15 +76,15 @@ export default function GoodsReceiptCreatePage() {
   return (
     <FormProvider {...methods}>
       <PageHeader
-        title="Tạo phiếu nhập kho"
-        subtitle="Ghi nhận hàng hóa nhập vào kho từ nhà cung cấp"
+        title="Lập phiếu nhập kho"
+        subtitle="Ghi nhận hàng hoá nhập vào kho từ nhà cung cấp"
         breadcrumb={[
-          { title: 'Bảng điều khiển', href: '/dashboard' },
-          { title: 'Nhập kho' },
-          { title: 'Tạo phiếu' },
+          { title: 'Nghiệp vụ kho' },
+          { title: 'Phiếu nhập', href: '/inbounds' },
+          { title: 'Lập phiếu' },
         ]}
         extra={
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/inbounds')}>
             Quay lại
           </Button>
         }
@@ -96,18 +93,15 @@ export default function GoodsReceiptCreatePage() {
       <form onSubmit={methods.handleSubmit(onSubmit, onError)}>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="flex flex-col gap-4 xl:col-span-2">
-            <ReceiptGeneralInfo />
-            <ReceiptItemsTable />
+            <InboundGeneralInfo />
+            <LineItemsTable emptyItem={emptyItem} />
           </div>
 
           <div className="xl:col-span-1">
-            <div className="flex flex-col gap-4 xl:sticky xl:top-6">
+            <div className="flex flex-col gap-4 xl:sticky xl:top-24">
               <OrderSummary control={methods.control} />
 
-              <Card
-                className="border-slate-200/80 shadow-sm"
-                styles={{ body: { padding: 22 } }}
-              >
+              <Card className="border-hair" styles={{ body: { padding: 22 } }}>
                 <Button
                   type="primary"
                   htmlType="submit"

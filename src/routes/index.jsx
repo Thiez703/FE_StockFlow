@@ -4,7 +4,9 @@ import AuthLayout from '@/components/layout/AuthLayout';
 import ComingSoon from '@/components/feedback/ComingSoon';
 import { authRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
-import { goodsReceiptRoutes } from '@/features/goods-receipt/routes';
+import { inboundRoutes } from '@/features/inbounds/routes';
+import { outboundRoutes } from '@/features/outbounds/routes';
+import { retailRoutes } from '@/features/retail/routes';
 import { categoryRoutes } from '@/features/categories/routes';
 import { productRoutes } from '@/features/products/routes';
 import { unitRoutes } from '@/features/units/routes';
@@ -34,7 +36,9 @@ export const router = createBrowserRouter([
       ...partnerRoutes,
       ...locationRoutes,
       // Nghiệp vụ kho
-      ...goodsReceiptRoutes,
+      ...inboundRoutes,
+      ...outboundRoutes,
+      ...retailRoutes,
       // Các mục menu chưa xây dựng -> màn hình "đang phát triển".
       { path: '*', element: <ComingSoon /> },
     ],
