@@ -9,6 +9,10 @@ import { outboundRoutes } from '@/features/outbounds/routes';
 import { retailRoutes } from '@/features/retail/routes';
 import { stocktakeRoutes } from '@/features/stocktakes/routes';
 import { abnormalRoutes } from '@/features/abnormal-stocks/routes';
+import { inventoryRoutes } from '@/features/inventory/routes';
+import { stockCardRoutes } from '@/features/stock-card/routes';
+import { alertRoutes } from '@/features/alerts/routes';
+import { reportRoutes } from '@/features/reports/routes';
 import { categoryRoutes } from '@/features/categories/routes';
 import { productRoutes } from '@/features/products/routes';
 import { unitRoutes } from '@/features/units/routes';
@@ -44,6 +48,11 @@ export const router = createBrowserRouter([
       // Kiểm soát
       ...stocktakeRoutes,
       ...abnormalRoutes,
+      // Tồn kho & Báo cáo
+      ...inventoryRoutes,
+      ...stockCardRoutes,
+      ...alertRoutes,
+      ...reportRoutes,
       // Các mục menu chưa xây dựng -> màn hình "đang phát triển".
       { path: '*', element: <ComingSoon /> },
     ],
