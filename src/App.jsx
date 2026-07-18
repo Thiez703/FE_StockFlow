@@ -1,27 +1,20 @@
+import { ConfigProvider, App as AntdApp } from 'antd';
+import viVN from 'antd/locale/vi_VN';
 import { RouterProvider } from 'react-router-dom';
-import { Provider } from 'react-redux';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import store from '@/store';
-import router from '@/routes';
-import ErrorBoundary from '@/components/feedback/ErrorBoundary';
+import antdTheme from '@/constants/antdTheme';
+import { router } from '@/routes';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
+/**
+ * Gốc ứng dụng. Bản demo là UI TĨNH: không server state, không React Query —
+ * mọi dữ liệu lấy từ src/mock/*.js. Chỉ bọc theme (ConfigProvider), context của
+ * AntD (message/modal) và router.
+ */
 export default function App() {
   return (
-    <ErrorBoundary>
-      <Provider store={store}>
-        <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
-        </QueryClientProvider>
-      </Provider>
-    </ErrorBoundary>
+    <ConfigProvider theme={antdTheme} locale={viVN}>
+      <AntdApp>
+        <RouterProvider router={router} />
+      </AntdApp>
+    </ConfigProvider>
   );
 }

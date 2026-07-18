@@ -1,8 +1,97 @@
-@import "tailwindcss";
+/**
+ * Tailwind CSS v4.
+ *
+ * Ant Design là UI library chính của dự án. AntD (v5+) inject style bằng `:where()`
+ * để hạ độ ưu tiên, nên nếu bật Tailwind Preflight (reset base) thì các reset đó sẽ
+ * ĐÈ LÊN component AntD và gây lỗi hiển thị (border, margin, list...).
+ * => Chỉ import layer `theme` + `utilities`, BỎ layer `base` (preflight).
+ * Ta tự khai báo phần base tối thiểu ở dưới.
+ */
+@layer theme, base, components, utilities;
 
-body {
-  margin: 0;
-  background-color: #f9fafb; /* Màu nền nhạt cho đẹp */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/**
+ * Design tokens dùng chung (Tailwind v4 sinh utility từ đây: bg-navy-900, text-royal...).
+ * Đồng bộ với src/constants/antdTheme.js — sửa 1 chỗ nhớ sửa chỗ kia.
+ * Hệ màu: deep enterprise blue (navy nav/brand, royal blue CTA), accent amber tiết chế.
+ */
+@theme {
+  --color-navy-900: #0a1e3f;
+  --color-navy-800: #0d2a55;
+  --color-navy-700: #12356b;
+  --color-royal: #1e5af0;
+  --color-royal-500: #3b74f5;
+  --color-tint: #e8efff;
+  --color-amber: #f59e0b;
+
+  --color-ok: #16a34a;
+  --color-warn: #f59e0b;
+  --color-danger: #dc2626;
+
+  --color-ink: #0f172a;
+  --color-ink-sub: #64748b;
+  --color-hair: #e2e8f0;
+  --color-page: #f6f8fc;
+  --color-surface: #ffffff;
 }
 
-/* Ghi đè cấu hình font mặc định của Ant Design nếu cần thiết */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #f6f8fc;
+    color: #0f172a;
+  }
+}
+
+@layer utilities {
+  /* Thanh cuộn mảnh, hiện đại cho các vùng nội dung */
+  .app-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  .app-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .app-scroll::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .app-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: #94a3b8;
+  }
+
+  /* Font mono cho mã chứng từ / mã lô — tạo cảm giác "hệ thống kho" */
+  .mono {
+    font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo,
+      Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+
+  /* Chữ ký thị giác: đường kẻ ngang mảnh gợi thanh kệ kho (dùng dưới tiêu đề trang) */
+  .shelf-line {
+    height: 3px;
+    width: 44px;
+    border-radius: 9999px;
+    background-image: linear-gradient(90deg, #1e5af0 0%, #1e5af0 62%, #f59e0b 62%, #f59e0b 100%);
+  }
+}
