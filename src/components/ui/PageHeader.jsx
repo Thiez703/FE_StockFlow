@@ -2,8 +2,8 @@ import { Breadcrumb } from 'antd';
 import { Link } from 'react-router-dom';
 
 /**
- * Tiêu đề đầu trang: breadcrumb + tiêu đề + mô tả + vùng nút hành động bên phải.
- * Dùng chung cho các trang trong MainLayout để bố cục đồng nhất.
+ * Tiêu đề đầu trang dùng chung: breadcrumb nhỏ + tiêu đề lớn + mô tả 1 dòng, kèm
+ * dải accent mảnh (gợi thanh kệ kho) dưới tiêu đề; vùng nút hành động bên phải.
  *
  * @param {string} title
  * @param {string} [subtitle]
@@ -16,17 +16,18 @@ export default function PageHeader({ title, subtitle, breadcrumb, extra }) {
   }));
 
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         {breadcrumbItems?.length > 0 && (
           <Breadcrumb className="mb-2" items={breadcrumbItems} />
         )}
-        <h1 className="m-0 truncate text-2xl font-bold tracking-tight text-slate-900">
+        <h1 className="m-0 truncate text-2xl font-bold tracking-tight text-ink">
           {title}
         </h1>
-        {subtitle && <p className="mt-1 mb-0 text-sm text-slate-500">{subtitle}</p>}
+        <div className="shelf-line mt-2.5" />
+        {subtitle && <p className="mt-2 mb-0 text-sm text-ink-sub">{subtitle}</p>}
       </div>
-      {extra && <div className="flex shrink-0 items-center gap-2">{extra}</div>}
+      {extra && <div className="flex shrink-0 flex-wrap items-center gap-2">{extra}</div>}
     </div>
   );
 }

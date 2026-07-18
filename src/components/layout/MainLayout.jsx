@@ -1,29 +1,19 @@
-import { useState } from 'react';
-import { Layout } from 'antd';
 import { Outlet } from 'react-router-dom';
-import Header from '@/components/layout/Header';
-import Sidebar from '@/components/layout/Sidebar';
-
-const { Content } = Layout;
+import TopNav from '@/components/layout/TopNav';
 
 /**
- * Layout chính: Header full-width trên cùng, Sidebar bên trái phía dưới header,
- * vùng nội dung cuộn độc lập. Dùng cho toàn bộ trang nội bộ (đã đăng nhập).
+ * Layout chính (đã đăng nhập): TopNav ngang trên cùng, phần dưới là vùng nội dung
+ * nền xám rất nhạt, khung căn giữa max-width. Dùng cho toàn bộ trang nội bộ.
  */
 export default function MainLayout() {
-  const [collapsed, setCollapsed] = useState(false);
-
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Header collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
-      <Layout hasSider>
-        <Sidebar collapsed={collapsed} />
-        <Content className="app-scroll min-w-0 p-4 sm:p-6">
-          <div className="mx-auto w-full max-w-[1440px]">
-            <Outlet />
-          </div>
-        </Content>
-      </Layout>
-    </Layout>
+    <div className="flex min-h-screen flex-col bg-page">
+      <TopNav />
+      <main className="flex-1">
+        <div className="mx-auto w-full max-w-[1440px] px-4 py-6 xl:px-6">
+          <Outlet />
+        </div>
+      </main>
+    </div>
   );
 }
