@@ -1,78 +1,96 @@
-import { Card, Segmented } from 'antd';
 import { useState } from 'react';
+import { Card, Segmented } from 'antd';
+import { TREND } from '@/mock/dashboard';
 
-// Dữ liệu mẫu — thay bằng API sau. Mỗi phần tử: nhập (in) / xuất (out) trong ngày.
-const DATA = [
-  { label: 'T2', in: 120, out: 90 },
-  { label: 'T3', in: 150, out: 110 },
-  { label: 'T4', in: 90, out: 140 },
-  { label: 'T5', in: 180, out: 120 },
-  { label: 'T6', in: 210, out: 160 },
-  { label: 'T7', in: 160, out: 130 },
-  { label: 'CN', in: 80, out: 60 },
-];
+const MAX = Math.max(...TREND.flatMap((d) => [d.inbound, d.outbound, d.stock]));
+const n = TREND.length;
 
-const MAX = Math.max(...DATA.flatMap((d) => [d.in, d.out]));
+// Toạ độ đường "Tồn cuối kỳ" (0..100) cho SVG overlay.
+const stockPoints = TREND.map((d, i) => {
+  const x = ((i + 0.5) / n) * 100;
+  const y = (1 - d.stock / MAX) * 100;
+  return `${x},${y}`;
+}).join(' ');
 
-function Bar({ value, className }) {
+function LegendDot({ className, label }) {
   return (
-    <div
-      className={`w-3.5 rounded-t-md transition-all sm:w-5 ${className}`}
-      style={{ height: `${(value / MAX) * 100}%` }}
-      title={`${value}`}
-    />
+    <span className="flex items-center gap-1.5 text-xs text-ink-sub">
+      <span className={`h-2.5 w-2.5 rounded-full ${className}`} /> {label}
+    </span>
   );
 }
 
 /**
- * Biểu đồ cột nhập/xuất kho theo ngày. Tự vẽ bằng CSS (không thêm thư viện chart).
+ * Biểu đồ Nhập – Xuất – Tồn theo tháng (đơn vị triệu VND). Nhập/Xuất là cột nhóm,
+ * Tồn cuối kỳ là đường phủ lên. Vẽ tĩnh bằng div + SVG, không dùng thư viện chart.
  */
 export default function InventoryTrendChart() {
-  const [range, setRange] = useState('Tuần này');
+  const [range, setRange] = useState('6 tháng');
 
   return (
-    <Card
-      className="h-full border-slate-200/80 shadow-sm"
-      styles={{ body: { padding: 22 } }}
-    >
+    <Card className="h-full border-hair" styles={{ body: { padding: 22 } }}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="m-0 text-base font-semibold text-slate-900">
-            Biến động nhập / xuất kho
-          </h3>
-          <p className="mt-1 mb-0 text-sm text-slate-500">Số lượng thùng theo ngày</p>
+          <h3 className="m-0 text-base font-semibold text-ink">Nhập – Xuất – Tồn</h3>
+          <p className="mt-1 mb-0 text-sm text-ink-sub">Giá trị theo tháng (triệu VND)</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden items-center gap-4 sm:flex">
-            <span className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="h-2.5 w-2.5 rounded-full bg-blue-600" /> Nhập
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="h-2.5 w-2.5 rounded-full bg-sky-300" /> Xuất
-            </span>
+            <LegendDot className="bg-royal" label="Nhập" />
+            <LegendDot className="bg-[#93b4fb]" label="Xuất" />
+            <LegendDot className="bg-amber" label="Tồn" />
           </div>
-          <Segmented
-            size="small"
-            value={range}
-            onChange={setRange}
-            options={['Tuần này', 'Tháng này']}
-          />
+          <Segmented size="small" value={range} onChange={setRange} options={['6 tháng', 'Năm']} />
         </div>
       </div>
 
-      <div className="flex h-56 items-end justify-between gap-2 border-b border-slate-100 pb-0">
-        {DATA.map((d) => (
-          <div key={d.label} className="flex flex-1 flex-col items-center gap-2">
-            <div className="flex h-full w-full items-end justify-center gap-1">
-              <Bar value={d.in} className="bg-blue-600" />
-              <Bar value={d.out} className="bg-sky-300" />
+      <div className="relative h-56">
+        {/* Cột Nhập / Xuất */}
+        <div className="flex h-full items-end justify-between gap-3 border-b border-slate-100">
+          {TREND.map((d) => (
+            <div key={d.label} className="flex h-full flex-1 items-end justify-center gap-1.5">
+              <div
+                className="w-4 rounded-t-md bg-royal sm:w-6"
+                style={{ height: `${(d.inbound / MAX) * 100}%` }}
+                title={`Nhập: ${d.inbound}`}
+              />
+              <div
+                className="w-4 rounded-t-md bg-[#93b4fb] sm:w-6"
+                style={{ height: `${(d.outbound / MAX) * 100}%` }}
+                title={`Xuất: ${d.outbound}`}
+              />
             </div>
-          </div>
+          ))}
+        </div>
+
+        {/* Đường Tồn cuối kỳ */}
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          <polyline
+            points={stockPoints}
+            fill="none"
+            stroke="#F59E0B"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {/* Điểm mốc trên đường Tồn */}
+        {TREND.map((d, i) => (
+          <span
+            key={d.label}
+            className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-amber"
+            style={{ left: `${((i + 0.5) / n) * 100}%`, top: `${(1 - d.stock / MAX) * 100}%` }}
+          />
         ))}
       </div>
-      <div className="flex justify-between gap-2 pt-2">
-        {DATA.map((d) => (
-          <span key={d.label} className="flex-1 text-center text-xs text-slate-400">
+
+      <div className="flex justify-between gap-3 pt-2">
+        {TREND.map((d) => (
+          <span key={d.label} className="flex-1 text-center text-xs text-ink-sub">
             {d.label}
           </span>
         ))}

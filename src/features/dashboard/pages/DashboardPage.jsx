@@ -1,18 +1,20 @@
 import { Button, Select } from 'antd';
 import {
-  DropboxOutlined,
-  ImportOutlined,
-  ExportOutlined,
   WarningOutlined,
+  FieldTimeOutlined,
+  FileSyncOutlined,
+  ExportOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
+import KpiHero from '@/features/dashboard/components/KpiHero';
 import StatCard from '@/features/dashboard/components/StatCard';
 import InventoryTrendChart from '@/features/dashboard/components/InventoryTrendChart';
-import LowStockList from '@/features/dashboard/components/LowStockList';
-import RecentReceiptsTable from '@/features/dashboard/components/RecentReceiptsTable';
-import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
+import AlertsPanel from '@/features/dashboard/components/AlertsPanel';
+import RecentActivities from '@/features/dashboard/components/RecentActivities';
+import { formatNumber } from '@/utils/formatCurrency';
+import { KPIS } from '@/mock/dashboard';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -22,6 +24,7 @@ export default function DashboardPage() {
       <PageHeader
         title="Bảng điều khiển"
         subtitle="Tổng quan hoạt động kho hàng hôm nay, 18/07/2026"
+        breadcrumb={[{ title: 'Tổng quan' }, { title: 'Bảng điều khiển' }]}
         extra={
           <>
             <Select
@@ -33,66 +36,68 @@ export default function DashboardPage() {
                 { value: 'month', label: 'Tháng này' },
               ]}
             />
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => navigate('/goods-receipt/create')}
-            >
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/inbounds/create')}>
               Tạo phiếu nhập
             </Button>
           </>
         }
       />
 
-      {/* Thẻ số liệu */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Tổng sản phẩm"
-          value={formatNumber(1284)}
-          icon={<DropboxOutlined />}
-          tone="blue"
-          delta={4.2}
-          deltaLabel="so với tháng trước"
-        />
-        <StatCard
-          title="Nhập kho hôm nay"
-          value={formatNumber(342)}
-          icon={<ImportOutlined />}
-          tone="green"
-          delta={12.5}
-          deltaLabel="so với hôm qua"
-        />
-        <StatCard
-          title="Xuất kho hôm nay"
-          value={formatNumber(268)}
-          icon={<ExportOutlined />}
-          tone="amber"
-          delta={-3.1}
-          deltaLabel="so với hôm qua"
-        />
-        <StatCard
-          title="Giá trị tồn kho"
-          value={formatCurrency(2480000000)}
-          icon={<WarningOutlined />}
-          tone="red"
-          delta={1.8}
-          deltaLabel="so với tuần trước"
-        />
+      {/* Hàng 1: KPI hero + 4 KPI phụ */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-5">
+          <KpiHero />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:col-span-7">
+          <StatCard
+            title="Tồn dưới định mức"
+            value={formatNumber(KPIS.lowStockCount)}
+            suffix="mặt hàng"
+            icon={<WarningOutlined />}
+            tone="amber"
+            hint="Cần lên đơn nhập bổ sung"
+          />
+          <StatCard
+            title="Hàng cận hạn"
+            value={formatNumber(KPIS.nearExpiryCount)}
+            suffix="lô"
+            icon={<FieldTimeOutlined />}
+            tone="red"
+            hint="Ưu tiên xuất theo FEFO"
+          />
+          <StatCard
+            title="Phiếu chờ duyệt"
+            value={formatNumber(KPIS.pendingDocs)}
+            suffix="phiếu"
+            icon={<FileSyncOutlined />}
+            tone="blue"
+            hint="Nhập / xuất / kiểm kê"
+          />
+          <StatCard
+            title="Xuất hôm nay"
+            value={formatNumber(KPIS.outboundToday)}
+            suffix="thùng"
+            icon={<ExportOutlined />}
+            tone="green"
+            delta={8.2}
+            deltaLabel="so với hôm qua"
+          />
+        </div>
       </div>
 
-      {/* Biểu đồ + cảnh báo tồn kho */}
+      {/* Hàng 2: biểu đồ + cảnh báo */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <InventoryTrendChart />
         </div>
         <div>
-          <LowStockList />
+          <AlertsPanel />
         </div>
       </div>
 
-      {/* Bảng phiếu nhập gần đây */}
+      {/* Hàng 3: hoạt động gần đây */}
       <div className="mt-4">
-        <RecentReceiptsTable />
+        <RecentActivities />
       </div>
     </>
   );
