@@ -28,7 +28,7 @@ export default function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Chưa có tài khoản?{' '}
-        <a className="font-semibold text-blue-600 hover:text-blue-700">
+        <a className="font-semibold text-royal hover:text-royal-500">
           Liên hệ quản trị viên
         </a>
       </p>

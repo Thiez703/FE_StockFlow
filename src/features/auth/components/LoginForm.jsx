@@ -82,7 +82,7 @@ export default function LoginForm() {
             </Checkbox>
           )}
         />
-        <a className="text-sm font-medium text-blue-600 hover:text-blue-700">
+        <a className="text-sm font-medium text-royal hover:text-royal-500">
           Quên mật khẩu?
         </a>
       </div>

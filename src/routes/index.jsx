@@ -13,6 +13,8 @@ import { inventoryRoutes } from '@/features/inventory/routes';
 import { stockCardRoutes } from '@/features/stock-card/routes';
 import { alertRoutes } from '@/features/alerts/routes';
 import { reportRoutes } from '@/features/reports/routes';
+import { userRoutes } from '@/features/users/routes';
+import { logRoutes } from '@/features/logs/routes';
 import { categoryRoutes } from '@/features/categories/routes';
 import { productRoutes } from '@/features/products/routes';
 import { unitRoutes } from '@/features/units/routes';
@@ -53,7 +55,10 @@ export const router = createBrowserRouter([
       ...stockCardRoutes,
       ...alertRoutes,
       ...reportRoutes,
-      // Các mục menu chưa xây dựng -> màn hình "đang phát triển".
+      // Hệ thống
+      ...userRoutes,
+      ...logRoutes,
+      // Đường dẫn không khớp -> trang 404 tối giản.
       { path: '*', element: <ComingSoon /> },
     ],
   },
