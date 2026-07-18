@@ -7,6 +7,8 @@ import { dashboardRoutes } from '@/features/dashboard/routes';
 import { inboundRoutes } from '@/features/inbounds/routes';
 import { outboundRoutes } from '@/features/outbounds/routes';
 import { retailRoutes } from '@/features/retail/routes';
+import { stocktakeRoutes } from '@/features/stocktakes/routes';
+import { abnormalRoutes } from '@/features/abnormal-stocks/routes';
 import { categoryRoutes } from '@/features/categories/routes';
 import { productRoutes } from '@/features/products/routes';
 import { unitRoutes } from '@/features/units/routes';
@@ -39,6 +41,9 @@ export const router = createBrowserRouter([
       ...inboundRoutes,
       ...outboundRoutes,
       ...retailRoutes,
+      // Kiểm soát
+      ...stocktakeRoutes,
+      ...abnormalRoutes,
       // Các mục menu chưa xây dựng -> màn hình "đang phát triển".
       { path: '*', element: <ComingSoon /> },
     ],
