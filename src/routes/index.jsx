@@ -5,6 +5,12 @@ import ComingSoon from '@/components/feedback/ComingSoon';
 import { authRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
 import { goodsReceiptRoutes } from '@/features/goods-receipt/routes';
+import { categoryRoutes } from '@/features/categories/routes';
+import { productRoutes } from '@/features/products/routes';
+import { unitRoutes } from '@/features/units/routes';
+import { lotRoutes } from '@/features/lots/routes';
+import { partnerRoutes } from '@/features/partners/routes';
+import { locationRoutes } from '@/features/locations/routes';
 
 /**
  * Router trung tâm. Quy tắc: chỉ import và spread `routes.jsx` của từng feature,
@@ -20,6 +26,14 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       ...dashboardRoutes,
+      // Dữ liệu nền
+      ...categoryRoutes,
+      ...productRoutes,
+      ...unitRoutes,
+      ...lotRoutes,
+      ...partnerRoutes,
+      ...locationRoutes,
+      // Nghiệp vụ kho
       ...goodsReceiptRoutes,
       // Các mục menu chưa xây dựng -> màn hình "đang phát triển".
       { path: '*', element: <ComingSoon /> },
