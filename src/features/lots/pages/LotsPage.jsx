@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, InputNumber, DatePicker, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -23,6 +24,7 @@ function expiryInfo(expDate) {
 
 export default function LotsPage() {
   const { message } = App.useApp();
+  const { canManageMasterData } = usePermissions();
   const [rows, setRows] = useState(LOTS);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
@@ -108,9 +110,11 @@ export default function LotsPage() {
         subtitle="Theo dõi NSX – HSD, cảnh báo lô cận hạn"
         breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Lô hàng' }]}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
-            Thêm lô
-          </Button>
+          canManageMasterData && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
+              Thêm lô
+            </Button>
+          )
         }
       />
 

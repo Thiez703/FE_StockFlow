@@ -1,6 +1,8 @@
 import { DatePicker, Button, App } from 'antd';
 import { FileExcelOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
+import AccessDenied from '@/components/feedback/AccessDenied';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
@@ -21,6 +23,10 @@ function DiffValue({ value }) {
 
 export default function ReportsPage() {
   const { message } = App.useApp();
+  const { canViewReports } = usePermissions();
+
+  // FIX 5f — STAFF không được xem báo cáo.
+  if (!canViewReports) return <AccessDenied />;
 
   const nxtColumns = [
     { title: 'Kỳ', dataIndex: 'label', render: (l) => <span className="font-medium text-ink">Tháng {l.replace('T', '')}</span> },
@@ -49,9 +55,11 @@ export default function ReportsPage() {
         extra={
           <>
             <RangePicker format="DD/MM/YYYY" />
-            <Button icon={<FileExcelOutlined />} onClick={exportExcel}>
-              Xuất Excel
-            </Button>
+            {canViewReports && (
+              <Button icon={<FileExcelOutlined />} onClick={exportExcel}>
+                Xuất Excel
+              </Button>
+            )}
           </>
         }
       />

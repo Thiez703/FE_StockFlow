@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Select, Progress, Form, Modal, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -12,6 +13,7 @@ const ZONE_OPTIONS = ['Khu A', 'Khu B', 'Khu C', 'Khu tạm'].map((z) => ({ valu
 
 export default function LocationsPage() {
   const { message } = App.useApp();
+  const { canManageMasterData } = usePermissions();
   const [rows, setRows] = useState(LOCATIONS);
   const [keyword, setKeyword] = useState('');
   const [zone, setZone] = useState(null);
@@ -76,6 +78,7 @@ export default function LocationsPage() {
           <Button
             type="text"
             icon={<EditOutlined />}
+            disabled={!canManageMasterData}
             onClick={() => {
               setEditing(r);
               setOpen(true);
@@ -93,16 +96,18 @@ export default function LocationsPage() {
         subtitle="Sơ đồ khu – kệ – ô và mức lấp đầy trong kho"
         breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Vị trí lưu trữ' }]}
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            Thêm vị trí
-          </Button>
+          canManageMasterData && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              Thêm vị trí
+            </Button>
+          )
         }
       />
 

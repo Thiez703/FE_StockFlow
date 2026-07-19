@@ -3,6 +3,7 @@ import { Button, Input, Select, DatePicker, Tag, Tooltip, Modal, App } from 'ant
 import { PlusOutlined, SearchOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -51,6 +52,7 @@ function ItemsDetail({ items }) {
 export default function OutboundsPage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const { canCreateOutbound } = usePermissions();
   const [rows, setRows] = useState(OUTBOUNDS);
   const [keyword, setKeyword] = useState('');
   const [type, setType] = useState(null);
@@ -118,13 +120,20 @@ export default function OutboundsPage() {
   return (
     <>
       <PageHeader
-        title="Phiếu xuất"
+        title={
+          <span className="flex items-center gap-3">
+            Phiếu xuất
+            {!canCreateOutbound && <Tag color="default">Chỉ xem</Tag>}
+          </span>
+        }
         subtitle="Danh sách phiếu xuất kho: sỉ, trả NCC, huỷ, nội bộ"
         breadcrumb={[{ title: 'Nghiệp vụ kho' }, { title: 'Phiếu xuất' }]}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/outbounds/create')}>
-            Lập phiếu xuất
-          </Button>
+          canCreateOutbound && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/outbounds/create')}>
+              Lập phiếu xuất
+            </Button>
+          )
         }
       />
 

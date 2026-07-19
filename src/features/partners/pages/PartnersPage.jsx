@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Tabs, Input, Form, Modal, Select, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -10,6 +11,7 @@ import { SUPPLIERS, CUSTOMERS } from '@/mock/partners';
 
 export default function PartnersPage() {
   const { message } = App.useApp();
+  const { canManageMasterData } = usePermissions();
   const [tab, setTab] = useState('suppliers');
   const [suppliers, setSuppliers] = useState(SUPPLIERS);
   const [customers, setCustomers] = useState(CUSTOMERS);
@@ -54,6 +56,7 @@ export default function PartnersPage() {
         <Button
           type="text"
           icon={<EditOutlined />}
+          disabled={!canManageMasterData}
           onClick={() => {
             setEditing(r);
             setOpen(true);
@@ -100,16 +103,18 @@ export default function PartnersPage() {
         subtitle="Quản lý đối tác nhập hàng và khách hàng tiêu thụ"
         breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Đối tác' }]}
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            {isSupplier ? 'Thêm nhà cung cấp' : 'Thêm khách hàng'}
-          </Button>
+          canManageMasterData && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              {isSupplier ? 'Thêm nhà cung cấp' : 'Thêm khách hàng'}
+            </Button>
+          )
         }
       />
 

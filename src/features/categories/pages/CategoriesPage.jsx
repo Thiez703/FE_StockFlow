@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Form, Input, Modal, Select, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, FolderOpenOutlined, TagOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
@@ -31,6 +32,7 @@ const addNode = (nodes, parentId, node) => {
 
 export default function CategoriesPage() {
   const { message } = App.useApp();
+  const { canManageMasterData } = usePermissions();
   const [tree, setTree] = useState(CATEGORY_TREE);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -99,6 +101,7 @@ export default function CategoriesPage() {
           <Button
             type="text"
             icon={<EditOutlined />}
+            disabled={!canManageMasterData}
             onClick={() => {
               setEditing(r);
               setOpen(true);
@@ -116,16 +119,18 @@ export default function CategoriesPage() {
         subtitle="Cây nhóm hàng cha – con của kho phân phối"
         breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Danh mục' }]}
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            Thêm danh mục
-          </Button>
+          canManageMasterData && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              Thêm danh mục
+            </Button>
+          )
         }
       />
 

@@ -4,7 +4,8 @@ import { Button, Card, App } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
-import LineItemsTable from '@/components/ui/LineItemsTable';
+import OutboundLineItemsTable from '@/features/outbounds/components/OutboundLineItemsTable';
+import { LOTS } from '@/mock/lots';
 import OutboundGeneralInfo from '@/features/outbounds/components/OutboundGeneralInfo';
 import { outboundSchema, emptyItem } from '@/features/outbounds/schemas/outboundSchema';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
@@ -60,6 +61,19 @@ export default function OutboundCreatePage() {
   });
 
   const onSubmit = (values) => {
+    // Kiểm tra lý do override FEFO trước khi submit
+    const items = values.items ?? [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it.productId || !it.lotId) continue;
+      const fefo = LOTS
+        .filter((l) => l.productId === it.productId && l.status === 'active')
+        .sort((a, b) => a.expDate.localeCompare(b.expDate))[0];
+      if (fefo && it.lotId !== fefo.code && (!it.overrideReason || !it.overrideReason.trim())) {
+        message.error(`Dòng ${i + 1}: Bắt buộc nhập lý do khi chọn lô khác lô FEFO`);
+        return;
+      }
+    }
     console.log('Outbound payload:', values);
     message.success('Đã tạo phiếu xuất kho thành công!');
     navigate('/outbounds');
@@ -88,7 +102,7 @@ export default function OutboundCreatePage() {
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="flex flex-col gap-4 xl:col-span-2">
             <OutboundGeneralInfo />
-            <LineItemsTable emptyItem={emptyItem} />
+            <OutboundLineItemsTable emptyItem={emptyItem} />
           </div>
 
           <div className="xl:col-span-1">

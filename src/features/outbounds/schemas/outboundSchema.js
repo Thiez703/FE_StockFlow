@@ -3,10 +3,12 @@ import { z } from 'zod';
 const requiredSelect = (message) =>
   z.preprocess((v) => (v == null ? '' : v), z.string().min(1, message));
 
-export const emptyItem = { productId: undefined, quantity: 1, unitPrice: 0 };
+export const emptyItem = { productId: undefined, lotId: undefined, overrideReason: '', quantity: 1, unitPrice: 0 };
 
 const outboundItemSchema = z.object({
   productId: requiredSelect('Chọn sản phẩm'),
+  lotId: requiredSelect('Vui lòng chọn lô hàng'),
+  overrideReason: z.string().optional().default(''),
   quantity: z.number().nullable().refine((v) => v != null && v > 0, 'Số lượng phải lớn hơn 0'),
   unitPrice: z.number().nullable().refine((v) => v != null && v >= 0, 'Đơn giá không hợp lệ'),
 });

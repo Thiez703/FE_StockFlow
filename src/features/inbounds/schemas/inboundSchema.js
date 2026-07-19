@@ -8,10 +8,11 @@ const requiredSelect = (message) =>
   z.preprocess((v) => (v == null ? '' : v), z.string().min(1, message));
 
 // Dòng hàng rỗng để append khi thêm dòng mới.
-export const emptyItem = { productId: undefined, quantity: 1, unitPrice: 0 };
+export const emptyItem = { productId: undefined, lotId: undefined, quantity: 1, unitPrice: 0 };
 
 export const inboundItemSchema = z.object({
   productId: requiredSelect('Chọn sản phẩm'),
+  lotId: requiredSelect('Vui lòng chọn hoặc nhập mã lô'),
   quantity: z
     .number()
     .nullable()

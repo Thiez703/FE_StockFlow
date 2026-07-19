@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Input, Select, Tag, Form, Modal, InputNumber, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -17,6 +18,7 @@ const TYPE_COLOR = { Hỏng: 'orange', Vỡ: 'volcano', Mất: 'red', 'Hết h�
 
 export default function AbnormalStocksPage() {
   const { message } = App.useApp();
+  const { canCreateAbnormal, canApproveDocs } = usePermissions();
   const [rows, setRows] = useState(ABNORMAL_STOCKS);
   const [keyword, setKeyword] = useState('');
   const [type, setType] = useState(null);
@@ -84,7 +86,8 @@ export default function AbnormalStocksPage() {
     { title: 'Lý do', dataIndex: 'reason', className: '!text-ink-sub', ellipsis: true },
     { title: 'Ngày', dataIndex: 'date', align: 'center', width: 115, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
-    {
+    // FIX 5b: Ẩn cột Duyệt nếu không có quyền
+    ...(canApproveDocs ? [{
       title: 'Duyệt',
       key: 'action',
       align: 'center',
@@ -96,19 +99,26 @@ export default function AbnormalStocksPage() {
           onReject={(id) => setStatusOf(id, 'REJECTED', 'Đã từ chối phiếu')}
         />
       ),
-    },
+    }] : []),
   ];
 
   return (
     <>
       <PageHeader
-        title="Hàng bất thường"
+        title={
+          <span className="flex items-center gap-3">
+            Hàng bất thường
+            {!canCreateAbnormal && <Tag color="default">Chỉ xem</Tag>}
+          </span>
+        }
         subtitle="Ghi nhận hàng hỏng / vỡ / mất / hết hạn"
         breadcrumb={[{ title: 'Kiểm soát' }, { title: 'Hàng bất thường' }]}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
-            Thêm phiếu
-          </Button>
+          canCreateAbnormal && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
+              Thêm phiếu
+            </Button>
+          )
         }
       />
 

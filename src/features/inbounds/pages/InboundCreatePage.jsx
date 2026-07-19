@@ -5,7 +5,7 @@ import { ArrowLeftOutlined, SaveOutlined, CheckOutlined } from '@ant-design/icon
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
 import InboundGeneralInfo from '@/features/inbounds/components/InboundGeneralInfo';
-import LineItemsTable from '@/components/ui/LineItemsTable';
+import InboundLineItemsTable from '@/features/inbounds/components/InboundLineItemsTable';
 import { inboundSchema, emptyItem } from '@/features/inbounds/schemas/inboundSchema';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
 
@@ -94,7 +94,7 @@ export default function InboundCreatePage() {
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="flex flex-col gap-4 xl:col-span-2">
             <InboundGeneralInfo />
-            <LineItemsTable emptyItem={emptyItem} />
+            <InboundLineItemsTable emptyItem={emptyItem} />
           </div>
 
           <div className="xl:col-span-1">

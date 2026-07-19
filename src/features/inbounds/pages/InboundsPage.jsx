@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, DatePicker, Modal, Tooltip, App } from 'antd';
+import { Button, Input, Select, DatePicker, Modal, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, SearchOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -51,6 +52,7 @@ function ItemsDetail({ items }) {
 export default function InboundsPage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const { canCreateInbound } = usePermissions();
   const [rows, setRows] = useState(INBOUNDS);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
@@ -110,13 +112,20 @@ export default function InboundsPage() {
   return (
     <>
       <PageHeader
-        title="Phiếu nhập"
+        title={
+          <span className="flex items-center gap-3">
+            Phiếu nhập
+            {!canCreateInbound && <Tag color="default">Chỉ xem</Tag>}
+          </span>
+        }
         subtitle="Danh sách phiếu nhập hàng từ nhà cung cấp"
         breadcrumb={[{ title: 'Nghiệp vụ kho' }, { title: 'Phiếu nhập' }]}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/inbounds/create')}>
-            Lập phiếu nhập
-          </Button>
+          canCreateInbound && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/inbounds/create')}>
+              Lập phiếu nhập
+            </Button>
+          )
         }
       />
 

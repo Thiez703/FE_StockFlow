@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, App } from 'antd';
+import { Button, Input, Select, Tag, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -56,6 +57,7 @@ function ItemsDetail({ items }) {
 export default function StocktakesPage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const { canCreateStocktake, canApproveDocs } = usePermissions();
   const [rows, setRows] = useState(STOCKTAKES);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
@@ -88,7 +90,8 @@ export default function StocktakesPage() {
       render: (items) => <DiffValue value={totalDiff(items)} />,
     },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
-    {
+    // FIX 5b: Ẩn cột Duyệt nếu không có quyền
+    ...(canApproveDocs ? [{
       title: 'Duyệt',
       key: 'action',
       align: 'center',
@@ -100,19 +103,26 @@ export default function StocktakesPage() {
           onReject={(id) => setStatusOf(id, 'REJECTED', 'Đã từ chối phiếu kiểm kê')}
         />
       ),
-    },
+    }] : []),
   ];
 
   return (
     <>
       <PageHeader
-        title="Kiểm kê"
+        title={
+          <span className="flex items-center gap-3">
+            Kiểm kê
+            {!canCreateStocktake && <Tag color="default">Chỉ xem</Tag>}
+          </span>
+        }
         subtitle="Đối chiếu tồn hệ thống với số đếm thực tế"
         breadcrumb={[{ title: 'Kiểm soát' }, { title: 'Kiểm kê' }]}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/stocktakes/create')}>
-            Lập phiếu kiểm kê
-          </Button>
+          canCreateStocktake && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/stocktakes/create')}>
+              Lập phiếu kiểm kê
+            </Button>
+          )
         }
       />
 

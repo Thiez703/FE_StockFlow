@@ -10,6 +10,8 @@ import {
   KeyOutlined,
 } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
+import AccessDenied from '@/components/feedback/AccessDenied';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -21,6 +23,7 @@ const initials = (name) => name.split(' ').slice(-2).map((w) => w[0]).join('').t
 
 export default function UsersPage() {
   const { message, modal } = App.useApp();
+  const { canManageUsers } = usePermissions();
   const [rows, setRows] = useState(USERS);
   const [keyword, setKeyword] = useState('');
   const [role, setRole] = useState(null);
@@ -123,6 +126,9 @@ export default function UsersPage() {
       ),
     },
   ];
+
+  // FIX 5d — chỉ ADMIN mới xem được trang người dùng.
+  if (!canManageUsers) return <AccessDenied />;
 
   return (
     <>

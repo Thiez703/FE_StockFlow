@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Input, Select, Tooltip, App } from 'antd';
 import { PlusOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
+import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -13,6 +14,7 @@ import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
 
 export default function ProductsPage() {
   const { message } = App.useApp();
+  const { canManageMasterData } = usePermissions();
   const [rows, setRows] = useState(PRODUCTS);
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState(null);
@@ -102,7 +104,7 @@ export default function ProductsPage() {
       width: 56,
       render: (_, r) => (
         <Tooltip title="Sửa">
-          <Button type="text" icon={<EditOutlined />} onClick={() => openEdit(getProduct(r.id) ?? r)} />
+          <Button type="text" icon={<EditOutlined />} disabled={!canManageMasterData} onClick={() => openEdit(getProduct(r.id) ?? r)} />
         </Tooltip>
       ),
     },
@@ -115,9 +117,11 @@ export default function ProductsPage() {
         subtitle="Danh mục hàng hoá bia – nước giải khát đang kinh doanh"
         breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Sản phẩm' }]}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-            Thêm sản phẩm
-          </Button>
+          canManageMasterData && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+              Thêm sản phẩm
+            </Button>
+          )
         }
       />
 
