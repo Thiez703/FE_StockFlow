@@ -62,7 +62,7 @@ export default function TopNav() {
                 <button
                   type="button"
                   onClick={() => navigate(group.items[0].key)}
-                  className={`relative flex items-center gap-1.5 px-3 text-[14px] font-medium transition-colors xl:px-4 ${
+                  className={`relative flex items-center gap-1.5 border-0 bg-transparent px-3 text-[14px] font-medium transition-colors xl:px-4 ${
                     isActive ? 'text-white' : 'text-[#c7d6f5] hover:text-white'
                   }`}
                 >
@@ -89,8 +89,8 @@ export default function TopNav() {
                             key={item.key}
                             type="button"
                             onClick={() => navigate(item.key)}
-                            className={`flex items-start gap-3 rounded-xl p-3 text-left transition-colors ${
-                              itemActive ? 'bg-tint' : 'hover:bg-slate-50'
+                            className={`flex items-start gap-3 rounded-xl border-0 p-3 text-left transition-colors ${
+                              itemActive ? 'bg-tint' : 'bg-transparent hover:bg-slate-50'
                             }`}
                           >
                             <span
@@ -147,7 +147,7 @@ export default function TopNav() {
             <button
               type="button"
               aria-label="Thông báo"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-white/85 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border-0 bg-transparent text-white/85 transition-colors hover:bg-white/10 hover:text-white"
             >
               <BellOutlined className="text-[18px]" />
             </button>
@@ -162,7 +162,7 @@ export default function TopNav() {
           >
             <button
               type="button"
-              className="flex items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-white/10"
+              className="flex items-center gap-2 rounded-lg border-0 bg-transparent px-1 py-1 transition-colors hover:bg-white/10"
             >
               <Avatar
                 size={34}
