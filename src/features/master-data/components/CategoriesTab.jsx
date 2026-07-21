@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Form, Input, Modal, Select, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, FolderOpenOutlined, TagOutlined } from '@ant-design/icons';
-import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
@@ -30,7 +29,7 @@ const addNode = (nodes, parentId, node) => {
   );
 };
 
-export default function CategoriesPage() {
+export default function CategoriesTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const [tree, setTree] = useState(CATEGORY_TREE);
@@ -114,25 +113,21 @@ export default function CategoriesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Danh mục"
-        subtitle="Cây nhóm hàng cha – con của kho phân phối"
-        breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Danh mục' }]}
-        extra={
-          canManageMasterData && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              Thêm danh mục
-            </Button>
-          )
-        }
-      />
+      <div className="mb-4 flex items-center justify-between">
+        <p className="m-0 text-sm text-ink-sub">Cây nhóm hàng cha – con của kho phân phối</p>
+        {canManageMasterData && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            Thêm danh mục
+          </Button>
+        )}
+      </div>
 
       <DataTable
         columns={columns}

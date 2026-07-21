@@ -25,37 +25,39 @@ export default function StatCard({ title, value, suffix, icon, tone = 'blue', de
   const isUp = (delta ?? 0) >= 0;
 
   return (
-    <Card className="h-full border-hair" styles={{ body: { padding: 20 } }}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="m-0 text-sm font-medium text-ink-sub">{title}</p>
-          <p className="mt-2 mb-0 flex items-baseline gap-1 leading-none">
-            <span className="text-[26px] font-bold tracking-tight text-ink">{value}</span>
-            {suffix && <span className="text-sm font-medium text-ink-sub">{suffix}</span>}
-          </p>
-        </div>
-        <span
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${TONES[tone]}`}
-        >
-          {icon}
-        </span>
-      </div>
-
-      {delta !== undefined ? (
-        <div className="mt-4 flex items-center gap-1.5 text-xs">
+    <Card className="h-full border-hair" styles={{ body: { padding: 20, height: '100%' } }}>
+      <div className="flex h-full flex-col justify-center">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="m-0 text-sm font-medium text-ink-sub">{title}</p>
+            <p className="mt-2 mb-0 flex items-baseline gap-1 leading-none">
+              <span className="text-[26px] font-bold tracking-tight text-ink">{value}</span>
+              {suffix && <span className="text-sm font-medium text-ink-sub">{suffix}</span>}
+            </p>
+          </div>
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-semibold ${
-              isUp ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]'
-            }`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${TONES[tone]}`}
           >
-            {isUp ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-            {Math.abs(delta)}%
+            {icon}
           </span>
-          {deltaLabel && <span className="text-ink-sub">{deltaLabel}</span>}
         </div>
-      ) : (
-        hint && <p className="mt-4 mb-0 text-xs text-ink-sub">{hint}</p>
-      )}
+
+        {delta !== undefined ? (
+          <div className="mt-4 flex items-center gap-1.5 text-xs">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-semibold ${
+                isUp ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]'
+              }`}
+            >
+              {isUp ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+              {Math.abs(delta)}%
+            </span>
+            {deltaLabel && <span className="text-ink-sub">{deltaLabel}</span>}
+          </div>
+        ) : (
+          hint && <p className="mt-4 mb-0 text-xs text-ink-sub">{hint}</p>
+        )}
+      </div>
     </Card>
   );
 }

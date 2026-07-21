@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, InputNumber, DatePicker, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
@@ -22,7 +21,7 @@ function expiryInfo(expDate) {
   return { tone: 'text-ink', dot: 'bg-[#16a34a]', label: `Còn ${d} ngày` };
 }
 
-export default function LotsPage() {
+export default function LotsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const [rows, setRows] = useState(LOTS);
@@ -105,20 +104,18 @@ export default function LotsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Lô hàng"
-        subtitle="Theo dõi NSX – HSD, cảnh báo lô cận hạn"
-        breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Lô hàng' }]}
+      <FilterBar
         extra={
-          canManageMasterData && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
-              Thêm lô
-            </Button>
-          )
+          <>
+            <span className="text-sm text-ink-sub">{data.length} lô</span>
+            {canManageMasterData && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
+                Thêm lô
+              </Button>
+            )}
+          </>
         }
-      />
-
-      <FilterBar extra={<span className="text-sm text-ink-sub">{data.length} lô</span>}>
+      >
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}

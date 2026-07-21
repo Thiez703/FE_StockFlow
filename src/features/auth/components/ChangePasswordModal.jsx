@@ -1,8 +1,9 @@
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Modal, Form, Input, App } from 'antd';
 import { LockOutlined } from '@ant-design/icons';
 import { changePasswordSchema } from '@/features/auth/schemas/changePasswordSchema';
+import RhfTextField from '@/components/form/RhfTextField';
 
 const DEFAULTS = { oldPassword: '', newPassword: '', confirm: '' };
 
@@ -34,24 +35,16 @@ export default function ChangePasswordModal({ open, onClose }) {
   };
 
   const field = (name, label, placeholder) => (
-    <Controller
-      name={name}
+    <RhfTextField
       control={control}
-      render={({ field: f }) => (
-        <Form.Item
-          label={label}
-          validateStatus={errors[name] ? 'error' : ''}
-          help={errors[name]?.message}
-        >
-          <Input.Password
-            {...f}
-            size="large"
-            prefix={<LockOutlined className="text-slate-400" />}
-            placeholder={placeholder}
-            autoComplete="new-password"
-          />
-        </Form.Item>
-      )}
+      errors={errors}
+      name={name}
+      label={label}
+      as={Input.Password}
+      size="large"
+      prefix={<LockOutlined className="text-slate-400" />}
+      placeholder={placeholder}
+      autoComplete="new-password"
     />
   );
 

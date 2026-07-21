@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Button, Form, Input, InputNumber, Modal, Select, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined } from '@ant-design/icons';
-import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import { UNITS } from '@/mock/units';
 
-export default function UnitsPage() {
+export default function UnitsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const [rows, setRows] = useState(UNITS);
@@ -86,25 +85,21 @@ export default function UnitsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Đơn vị tính"
-        subtitle="Đơn vị đóng gói và tỷ lệ quy đổi về đơn vị cơ sở"
-        breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Đơn vị tính' }]}
-        extra={
-          canManageMasterData && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              Thêm đơn vị
-            </Button>
-          )
-        }
-      />
+      <div className="mb-4 flex items-center justify-between">
+        <p className="m-0 text-sm text-ink-sub">Đơn vị đóng gói và tỷ lệ quy đổi về đơn vị cơ sở</p>
+        {canManageMasterData && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            Thêm đơn vị
+          </Button>
+        )}
+      </div>
 
       <DataTable columns={columns} dataSource={rows} pagination={false} />
 

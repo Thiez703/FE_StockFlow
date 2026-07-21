@@ -1,4 +1,5 @@
-import { createElement, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Badge, Avatar, Dropdown } from 'antd';
 import {
   BellOutlined,
@@ -38,6 +39,40 @@ export default function TopNav() {
     ).sort((a, b) => b.length - a.length)[0];
   }, [pathname]);
 
+  // Nhóm đang chứa item active — dùng để xác định nút nào cần gạch chân.
+  const activeGroupKey = useMemo(
+    () => NAV_GROUPS.find((g) => g.items.some((i) => i.key === activeItemKey))?.key,
+    [activeItemKey],
+  );
+
+  // Gạch chân dùng 1 phần tử duy nhất, luôn tồn tại trong DOM — chỉ đo lại vị trí/kích
+  // thước của nút đang active rồi animate x/width. Tránh dùng layoutId (mount/unmount
+  // qua lại giữa các nút) vì gây lỗi "bay" sai vị trí khi chuyển nhóm cách xa nhau.
+  const navRef = useRef(null);
+  const itemRefs = useRef({});
+  const [underline, setUnderline] = useState({ left: 0, width: 0, ready: false });
+
+  const measureUnderline = useCallback(() => {
+    const navEl = navRef.current;
+    const activeEl = activeGroupKey ? itemRefs.current[activeGroupKey] : null;
+    if (!navEl || !activeEl) {
+      setUnderline((prev) => ({ ...prev, ready: false }));
+      return;
+    }
+    const navRect = navEl.getBoundingClientRect();
+    const elRect = activeEl.getBoundingClientRect();
+    setUnderline({ left: elRect.left - navRect.left + 12, width: elRect.width - 24, ready: true });
+  }, [activeGroupKey]);
+
+  useLayoutEffect(() => {
+    measureUnderline();
+  }, [measureUnderline]);
+
+  useEffect(() => {
+    window.addEventListener('resize', measureUnderline);
+    return () => window.removeEventListener('resize', measureUnderline);
+  }, [measureUnderline]);
+
   const warehouseLabel = WAREHOUSES.find((w) => w.value === warehouse)?.label;
 
   const onUserMenuClick = ({ key }) => {
@@ -51,15 +86,17 @@ export default function TopNav() {
         <Logo variant="dark" />
 
         {/* Menu nhóm — hover sổ mega-dropdown */}
-        <nav className="hidden h-full flex-1 items-stretch justify-center gap-0.5 lg:flex">
+        <nav ref={navRef} className="relative hidden h-full flex-1 items-stretch justify-center gap-0.5 lg:flex">
           {NAV_GROUPS.map((group) => {
             const isMulti = group.items.length > 1;
             const isActive = group.items.some((i) => i.key === activeItemKey);
-            const cols = group.items.length > 3 ? 2 : 1;
 
             return (
               <div key={group.key} className="group relative flex items-stretch">
                 <button
+                  ref={(el) => {
+                    itemRefs.current[group.key] = el;
+                  }}
                   type="button"
                   onClick={() => navigate(group.items[0].key)}
                   className={`relative flex items-center gap-1.5 border-0 bg-transparent px-3 text-[14px] font-medium transition-colors xl:px-4 ${
@@ -70,18 +107,11 @@ export default function TopNav() {
                   {isMulti && (
                     <DownOutlined className="text-[9px] opacity-70 transition-transform group-hover:rotate-180" />
                   )}
-                  {isActive && (
-                    <span className="absolute inset-x-3 bottom-0 h-[3px] rounded-full bg-[linear-gradient(90deg,#3B74F5,#F59E0B)]" />
-                  )}
                 </button>
 
                 {isMulti && (
                   <div className="pointer-events-none absolute left-1/2 top-full z-40 -translate-x-1/2 pt-2 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100">
-                    <div
-                      className={`grid gap-1 rounded-2xl border border-hair bg-white p-2 text-ink shadow-[0_16px_40px_rgba(10,30,63,0.18)] ${
-                        cols === 2 ? 'w-[540px] grid-cols-2' : 'w-72 grid-cols-1'
-                      }`}
-                    >
+                    <div className="grid w-72 grid-cols-1 gap-1 rounded-2xl border border-hair bg-white p-2 text-ink shadow-[0_16px_40px_rgba(10,30,63,0.18)]">
                       {group.items.map((item) => {
                         const itemActive = item.key === activeItemKey;
                         return (
@@ -119,6 +149,13 @@ export default function TopNav() {
               </div>
             );
           })}
+
+          <motion.span
+            className="pointer-events-none absolute bottom-0 h-[3px] rounded-full bg-[linear-gradient(90deg,#3B74F5,#F59E0B)]"
+            initial={false}
+            animate={{ left: underline.left, width: underline.width, opacity: underline.ready ? 1 : 0 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+          />
         </nav>
 
         {/* Cụm bên phải: chọn kho + chuông + avatar */}

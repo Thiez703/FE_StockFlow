@@ -4,6 +4,7 @@ import {
   ExportOutlined,
   AuditOutlined,
   WarningOutlined,
+  FileSyncOutlined,
   RightOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +20,19 @@ const KIND = {
   stocktake: { icon: <AuditOutlined />, tone: 'bg-[#fef3c7] text-[#b45309]', to: '/stocktakes' },
   abnormal: { icon: <WarningOutlined />, tone: 'bg-[#fee2e2] text-[#b91c1c]', to: '/abnormal-stocks' },
 };
+
+// Dự phòng khi gặp loại hoạt động chưa được khai báo trong KIND — không bao giờ
+// crash UI. Ở dev, in cảnh báo để phát hiện thiếu ánh xạ ngay khi code, tránh
+// việc lỗi âm thầm trôi vào production.
+const DEFAULT_KIND = { icon: <FileSyncOutlined />, tone: 'bg-slate-100 text-slate-500', to: '/logs' };
+
+function resolveKind(kind) {
+  const found = KIND[kind];
+  if (!found && import.meta.env.DEV) {
+    console.warn(`[RecentActivities] Chưa khai báo icon/màu cho loại hoạt động "${kind}" trong KIND.`);
+  }
+  return found ?? DEFAULT_KIND;
+}
 
 /**
  * Bảng "Hoạt động gần đây" trên Dashboard — dòng thời gian nghiệp vụ nhập/xuất/kiểm kê.
@@ -37,7 +51,7 @@ export default function RecentActivities() {
 
       <ul className="m-0 flex list-none flex-col p-0">
         {RECENT_ACTIVITIES.map((a) => {
-          const kind = KIND[a.kind];
+          const kind = resolveKind(a.kind);
           return (
             <li
               key={a.id}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Input, Select, Tooltip } from 'antd';
 import { SearchOutlined, WarningFilled } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
@@ -12,7 +13,10 @@ const CATEGORY_OPTS = [...new Set(INVENTORY.map((i) => i.categoryName))].map((c)
 const LOCATION_OPTS = [...new Set(INVENTORY.map((i) => i.location))].map((l) => ({ value: l, label: l }));
 
 export default function InventoryPage() {
-  const [keyword, setKeyword] = useState('');
+  const [searchParams] = useSearchParams();
+  // Cho phép nhảy thẳng tới đây với 1 sản phẩm đã lọc sẵn (vd từ ô tìm kiếm nhanh
+  // trên Dashboard): /inventory?q=<sku hoặc tên sản phẩm>.
+  const [keyword, setKeyword] = useState(searchParams.get('q') ?? '');
   const [category, setCategory] = useState(null);
   const [location, setLocation] = useState(null);
 

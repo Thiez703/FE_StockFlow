@@ -1,17 +1,13 @@
 import { INVENTORY } from '@/mock/inventory';
-import { LOW_STOCK, NEAR_EXPIRY } from '@/mock/alerts';
 
 /**
- * Số liệu tổng hợp cho Dashboard. Giá trị tồn & số cảnh báo lấy trực tiếp từ mock
- * tồn kho / cảnh báo để nhất quán giữa các trang.
+ * Số liệu tổng hợp cho Dashboard. Giá trị tồn lấy trực tiếp từ mock tồn kho để
+ * nhất quán giữa các trang.
  */
 export const KPIS = {
   totalInventoryValue: INVENTORY.reduce((sum, r) => sum + r.value, 0),
-  lowStockCount: LOW_STOCK.length,
-  nearExpiryCount: NEAR_EXPIRY.length,
   pendingDocs: 6,
   outboundToday: 214, // số thùng đã xuất trong ngày
-  inboundToday: 160,
 };
 
 // Chuỗi Nhập – Xuất – Tồn theo tháng (triệu VND) cho biểu đồ cột tĩnh.

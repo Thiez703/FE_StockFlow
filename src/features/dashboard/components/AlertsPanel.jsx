@@ -22,9 +22,14 @@ export default function AlertsPanel() {
         </Button>
       </div>
 
-      <p className="m-0 mb-2 text-xs font-semibold uppercase tracking-wide text-ink-sub">
-        Tồn dưới định mức
-      </p>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="m-0 text-xs font-semibold uppercase tracking-wide text-ink-sub">
+          Tồn dưới định mức
+        </p>
+        <span className="rounded-full bg-[#fef3c7] px-2 py-0.5 text-xs font-semibold text-[#b45309]">
+          {LOW_STOCK.length} mặt hàng
+        </span>
+      </div>
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {LOW_STOCK.slice(0, 3).map((item) => {
           const percent = Math.min(100, Math.round((item.onHand / item.minStock) * 100));
@@ -49,9 +54,14 @@ export default function AlertsPanel() {
         })}
       </ul>
 
-      <p className="m-0 mt-5 mb-2 text-xs font-semibold uppercase tracking-wide text-ink-sub">
-        Hàng cận hạn
-      </p>
+      <div className="mb-2 mt-5 flex items-center justify-between">
+        <p className="m-0 text-xs font-semibold uppercase tracking-wide text-ink-sub">
+          Hàng cận hạn
+        </p>
+        <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-xs font-semibold text-[#b91c1c]">
+          {NEAR_EXPIRY.length} lô
+        </span>
+      </div>
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {NEAR_EXPIRY.slice(0, 3).map((item) => {
           const d = daysUntil(item.expDate);

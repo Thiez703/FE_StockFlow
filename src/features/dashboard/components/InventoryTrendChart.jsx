@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Card, Segmented } from 'antd';
 import { TREND } from '@/mock/dashboard';
+import { formatNumber } from '@/utils/formatCurrency';
 
 const MAX = Math.max(...TREND.flatMap((d) => [d.inbound, d.outbound, d.stock]));
 const n = TREND.length;
@@ -23,9 +25,13 @@ function LegendDot({ className, label }) {
 /**
  * Biểu đồ Nhập – Xuất – Tồn theo tháng (đơn vị triệu VND). Nhập/Xuất là cột nhóm,
  * Tồn cuối kỳ là đường phủ lên. Vẽ tĩnh bằng div + SVG, không dùng thư viện chart.
+ * Hover vào cụm cột của 1 tháng hiện tooltip đủ 3 chỉ số, trượt mượt bằng Framer Motion.
  */
 export default function InventoryTrendChart() {
   const [range, setRange] = useState('6 tháng');
+  const [hoverIndex, setHoverIndex] = useState(null);
+  const activeIndex = hoverIndex ?? 0;
+  const active = TREND[activeIndex];
 
   return (
     <Card className="h-full border-hair" styles={{ body: { padding: 22 } }}>
@@ -44,20 +50,26 @@ export default function InventoryTrendChart() {
         </div>
       </div>
 
-      <div className="relative h-56">
-        {/* Cột Nhập / Xuất */}
+      <div className="relative h-56" onMouseLeave={() => setHoverIndex(null)}>
+        {/* Cột Nhập / Xuất — hover cả cụm của 1 tháng */}
         <div className="flex h-full items-end justify-between gap-3 border-b border-slate-100">
-          {TREND.map((d) => (
-            <div key={d.label} className="flex h-full flex-1 items-end justify-center gap-1.5">
+          {TREND.map((d, i) => (
+            <div
+              key={d.label}
+              className="flex h-full flex-1 items-end justify-center gap-1.5"
+              onMouseEnter={() => setHoverIndex(i)}
+            >
               <div
-                className="w-4 rounded-t-md bg-royal sm:w-6"
+                className={`w-4 rounded-t-md transition-colors sm:w-6 ${
+                  hoverIndex === i ? 'bg-[#5b8bfb]' : 'bg-royal'
+                }`}
                 style={{ height: `${(d.inbound / MAX) * 100}%` }}
-                title={`Nhập: ${d.inbound}`}
               />
               <div
-                className="w-4 rounded-t-md bg-[#93b4fb] sm:w-6"
+                className={`w-4 rounded-t-md transition-colors sm:w-6 ${
+                  hoverIndex === i ? 'bg-[#c3d7fd]' : 'bg-[#93b4fb]'
+                }`}
                 style={{ height: `${(d.outbound / MAX) * 100}%` }}
-                title={`Xuất: ${d.outbound}`}
               />
             </div>
           ))}
@@ -78,19 +90,54 @@ export default function InventoryTrendChart() {
             strokeLinejoin="round"
           />
         </svg>
-        {/* Điểm mốc trên đường Tồn */}
+        {/* Điểm mốc trên đường Tồn — to lên khi tháng đó đang hover */}
         {TREND.map((d, i) => (
           <span
             key={d.label}
-            className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-amber"
+            className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-amber transition-all ${
+              hoverIndex === i ? 'h-3 w-3' : 'h-2 w-2'
+            }`}
             style={{ left: `${((i + 0.5) / n) * 100}%`, top: `${(1 - d.stock / MAX) * 100}%` }}
           />
         ))}
+
+        {/* Tooltip dùng chung, trượt mượt theo tháng đang hover */}
+        <motion.div
+          className="pointer-events-none absolute top-0 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-hair bg-white px-3 py-2 text-xs shadow-lg"
+          initial={false}
+          animate={{
+            left: `${((activeIndex + 0.5) / n) * 100}%`,
+            opacity: hoverIndex !== null ? 1 : 0,
+          }}
+          transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+        >
+          <p className="m-0 mb-1 font-semibold text-ink">{active.label}</p>
+          <div className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1.5 text-ink-sub">
+              <span className="h-2 w-2 rounded-full bg-royal" /> Nhập:{' '}
+              <span className="font-semibold text-ink">{formatNumber(active.inbound)} tr</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-ink-sub">
+              <span className="h-2 w-2 rounded-full bg-[#93b4fb]" /> Xuất:{' '}
+              <span className="font-semibold text-ink">{formatNumber(active.outbound)} tr</span>
+            </span>
+            <span className="flex items-center gap-1.5 text-ink-sub">
+              <span className="h-2 w-2 rounded-full bg-amber" /> Tồn:{' '}
+              <span className="font-semibold text-ink">{formatNumber(active.stock)} tr</span>
+            </span>
+          </div>
+          <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white" />
+        </motion.div>
       </div>
 
       <div className="flex justify-between gap-3 pt-2">
-        {TREND.map((d) => (
-          <span key={d.label} className="flex-1 text-center text-xs text-ink-sub">
+        {TREND.map((d, i) => (
+          <span
+            key={d.label}
+            className={`flex-1 text-center text-xs transition-colors ${
+              hoverIndex === i ? 'font-semibold text-royal' : 'text-ink-sub'
+            }`}
+          >
             {d.label}
           </span>
         ))}

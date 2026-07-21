@@ -15,12 +15,7 @@ import { alertRoutes } from '@/features/alerts/routes';
 import { reportRoutes } from '@/features/reports/routes';
 import { userRoutes } from '@/features/users/routes';
 import { logRoutes } from '@/features/logs/routes';
-import { categoryRoutes } from '@/features/categories/routes';
-import { productRoutes } from '@/features/products/routes';
-import { unitRoutes } from '@/features/units/routes';
-import { lotRoutes } from '@/features/lots/routes';
-import { partnerRoutes } from '@/features/partners/routes';
-import { locationRoutes } from '@/features/locations/routes';
+import { masterDataRoutes } from '@/features/master-data/routes';
 
 /**
  * Router trung tâm. Quy tắc: chỉ import và spread `routes.jsx` của từng feature,
@@ -37,12 +32,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       ...dashboardRoutes,
       // Dữ liệu nền
-      ...categoryRoutes,
-      ...productRoutes,
-      ...unitRoutes,
-      ...lotRoutes,
-      ...partnerRoutes,
-      ...locationRoutes,
+      ...masterDataRoutes,
       // Nghiệp vụ kho
       ...inboundRoutes,
       ...outboundRoutes,

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, Select, Progress, Form, Modal, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
-import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
@@ -11,7 +10,7 @@ import { LOCATIONS } from '@/mock/locations';
 
 const ZONE_OPTIONS = ['Khu A', 'Khu B', 'Khu C', 'Khu tạm'].map((z) => ({ value: z, label: z }));
 
-export default function LocationsPage() {
+export default function LocationsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const [rows, setRows] = useState(LOCATIONS);
@@ -91,27 +90,25 @@ export default function LocationsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Vị trí lưu trữ"
-        subtitle="Sơ đồ khu – kệ – ô và mức lấp đầy trong kho"
-        breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Vị trí lưu trữ' }]}
+      <FilterBar
         extra={
-          canManageMasterData && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              Thêm vị trí
-            </Button>
-          )
+          <>
+            <span className="text-sm text-ink-sub">{data.length} vị trí</span>
+            {canManageMasterData && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+              >
+                Thêm vị trí
+              </Button>
+            )}
+          </>
         }
-      />
-
-      <FilterBar extra={<span className="text-sm text-ink-sub">{data.length} vị trí</span>}>
+      >
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}

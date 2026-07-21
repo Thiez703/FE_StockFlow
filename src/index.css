@@ -50,6 +50,28 @@
     height: 100%;
   }
 
+  /* `width: 100%` tường minh (thay vì để mặc định `auto`) — khi Modal khoá cuộn
+     bằng overflow trên <body>, trình duyệt đôi khi tự co hẹp bề rộng auto-computed
+     của <body> thêm ~15px (độc lập với gutter của <html>) dù không có scrollbar
+     nào thực sự vẽ trong body. Khai báo width tường minh chặn đứng việc co hẹp
+     ngầm này — đã kiểm chứng: navLeft giữ nguyên khi mở modal thay vì lệch 7-8px.
+     Cần `!important` vì rule này nằm trong @layer base — theo cascade layers,
+     CSS không thuộc layer nào (như CSS-in-JS của AntD) luôn thắng CSS có layer. */
+  body {
+    width: 100% !important;
+  }
+
+  /* Buộc scrollbar THẬT luôn hiện (thay vì chỉ giữ gutter ảo bằng scrollbar-gutter)
+     — để AntD đo đúng độ rộng scrollbar trước khi khoá cuộn cho modal và tự bù
+     padding chính xác. `scrollbar-gutter: stable` không dùng được ở đây vì khi
+     modal khoá cuộn bằng overflow trên <body>, trình duyệt "propagate" overflow
+     đó lên viewport nhưng không mang theo scrollbar-gutter, khiến gutter ảo bị bỏ
+     qua và layout nhảy — đã kiểm chứng bằng cách đo html.clientWidth trước/sau khi
+     mở modal. */
+  html {
+    overflow-y: scroll;
+  }
+
   body {
     margin: 0;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,

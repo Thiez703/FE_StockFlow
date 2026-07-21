@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Tabs, Input, Form, Modal, Select, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
-import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
@@ -9,7 +8,7 @@ import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { SUPPLIERS, CUSTOMERS } from '@/mock/partners';
 
-export default function PartnersPage() {
+export default function PartnersTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const [tab, setTab] = useState('suppliers');
@@ -98,37 +97,32 @@ export default function PartnersPage() {
 
   return (
     <>
-      <PageHeader
-        title="Nhà cung cấp & Khách hàng"
-        subtitle="Quản lý đối tác nhập hàng và khách hàng tiêu thụ"
-        breadcrumb={[{ title: 'Dữ liệu nền' }, { title: 'Đối tác' }]}
-        extra={
-          canManageMasterData && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              {isSupplier ? 'Thêm nhà cung cấp' : 'Thêm khách hàng'}
-            </Button>
-          )
-        }
-      />
-
-      <Tabs
-        activeKey={tab}
-        onChange={(k) => {
-          setTab(k);
-          setKeyword('');
-        }}
-        items={[
-          { key: 'suppliers', label: `Nhà cung cấp (${suppliers.length})` },
-          { key: 'customers', label: `Khách hàng (${customers.length})` },
-        ]}
-      />
+      <div className="mb-4 flex items-center justify-between">
+        <Tabs
+          activeKey={tab}
+          onChange={(k) => {
+            setTab(k);
+            setKeyword('');
+          }}
+          items={[
+            { key: 'suppliers', label: `Nhà cung cấp (${suppliers.length})` },
+            { key: 'customers', label: `Khách hàng (${customers.length})` },
+          ]}
+          className="!mb-0"
+        />
+        {canManageMasterData && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            {isSupplier ? 'Thêm nhà cung cấp' : 'Thêm khách hàng'}
+          </Button>
+        )}
+      </div>
 
       <FilterBar extra={<span className="text-sm text-ink-sub">{data.length} đối tác</span>}>
         <Input
