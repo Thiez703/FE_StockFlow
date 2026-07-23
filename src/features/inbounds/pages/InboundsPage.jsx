@@ -1,53 +1,23 @@
 import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Button, Input, Select, DatePicker, Modal, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, SearchOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useColumnSort } from '@/hooks/useColumnSort';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
+import TableEmptyState from '@/components/ui/TableEmptyState';
+import DocItemsDetail from '@/components/ui/DocItemsDetail';
 import { INBOUNDS } from '@/mock/inbounds';
 import { statusOptions, DOC_STATUSES } from '@/constants/status';
-import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
+import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
 
 const { RangePicker } = DatePicker;
-
-// Chi tiết dòng hàng khi mở rộng 1 phiếu.
-function ItemsDetail({ items }) {
-  return (
-    <div className="rounded-lg bg-slate-50/70 p-1">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-ink-sub">
-            <th className="px-3 py-2 font-semibold">Sản phẩm</th>
-            <th className="px-3 py-2 font-semibold">Lô</th>
-            <th className="px-3 py-2 font-semibold">ĐVT</th>
-            <th className="px-3 py-2 text-right font-semibold">SL</th>
-            <th className="px-3 py-2 text-right font-semibold">Đơn giá</th>
-            <th className="px-3 py-2 text-right font-semibold">Thành tiền</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => (
-            <tr key={i} className="border-t border-slate-200/70">
-              <td className="px-3 py-2 text-ink">{it.productName}</td>
-              <td className="px-3 py-2"><DocCode muted>{it.lot}</DocCode></td>
-              <td className="px-3 py-2 text-ink-sub">{it.unit}</td>
-              <td className="px-3 py-2 text-right mono">{formatNumber(it.quantity)}</td>
-              <td className="px-3 py-2 text-right mono">{formatCurrency(it.unitPrice)}</td>
-              <td className="px-3 py-2 text-right font-semibold text-ink">
-                {formatCurrency(it.quantity * it.unitPrice)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 export default function InboundsPage() {
   const { message } = App.useApp();
@@ -59,16 +29,18 @@ export default function InboundsPage() {
   const [range, setRange] = useState(null);
   const [cancelId, setCancelId] = useState(null);
   const [reason, setReason] = useState('');
+  const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return rows.filter((r) => {
+    const filtered = rows.filter((r) => {
       const okKw = !kw || [r.code, r.supplierName].some((v) => v.toLowerCase().includes(kw));
       const okStatus = !status || r.status === status;
       const okDate = !range || (r.date >= range[0] && r.date <= range[1]);
       return okKw && okStatus && okDate;
     });
-  }, [rows, keyword, status, range]);
+    return sortRows(filtered);
+  }, [rows, keyword, status, range, sortRows]);
 
   const confirmCancel = () => {
     setRows((prev) => prev.map((r) => (r.id === cancelId ? { ...r, status: 'VOIDED', note: reason } : r)));
@@ -84,14 +56,19 @@ export default function InboundsPage() {
       dataIndex: 'supplierName',
       render: (n) => <span className="font-medium text-ink">{n}</span>,
     },
-    { title: 'Kho nhận', dataIndex: 'warehouse', className: '!text-ink-sub', width: 170 },
-    { title: 'Ngày nhập', dataIndex: 'date', align: 'center', width: 120, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
+    {
+      title: sortableTitle('Ngày nhập', 'date'),
+      dataIndex: 'date',
+      align: 'center',
+      width: 130,
+      render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span>,
+    },
     { title: 'Mặt hàng', dataIndex: 'items', align: 'center', width: 100, render: (items) => `${items.length} SP` },
     {
-      title: 'Tổng tiền',
+      title: sortableTitle('Tổng tiền', 'total'),
       dataIndex: 'total',
       align: 'right',
-      width: 150,
+      width: 160,
       render: (v) => <span className="font-semibold text-ink">{formatCurrency(v)}</span>,
     },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
@@ -153,14 +130,23 @@ export default function InboundsPage() {
         />
       </FilterBar>
 
-      <DataTable
-        columns={columns}
-        dataSource={data}
-        expandable={{
-          expandedRowRender: (r) => <ItemsDetail items={r.items} />,
-          rowExpandable: (r) => r.items?.length > 0,
-        }}
-      />
+      <motion.div
+        key={data.map((r) => r.id).join(',')}
+        initial={{ opacity: 0.4 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        <DataTable
+          columns={columns}
+          dataSource={data}
+          rowClassName={(r) => (r.status === 'VOIDED' ? 'opacity-50' : '')}
+          expandable={{
+            expandedRowRender: (r) => <DocItemsDetail items={r.items} />,
+            rowExpandable: (r) => r.items?.length > 0,
+          }}
+          locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu nhập phù hợp" /> }}
+        />
+      </motion.div>
 
       <Modal
         open={!!cancelId}

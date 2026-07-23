@@ -1,22 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Form, Input, InputNumber, Modal, Select, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useColumnSort } from '@/hooks/useColumnSort';
+import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import { UNITS } from '@/mock/units';
+
+const BASE_UNIT_COLOR = { Lon: 'gold', Chai: 'blue' };
 
 export default function UnitsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const [rows, setRows] = useState(UNITS);
+  const [baseUnit, setBaseUnit] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form] = Form.useForm();
+  const { sortableTitle, sortRows } = useColumnSort();
 
   useEffect(() => {
     if (open) form.setFieldsValue(editing ?? { baseUnit: 'Lon', ratio: 1 });
   }, [open, editing, form]);
+
+  const data = useMemo(() => {
+    const filtered = rows.filter((u) => !baseUnit || u.baseUnit === baseUnit);
+    return sortRows(filtered);
+  }, [rows, baseUnit, sortRows]);
+
+  const openAdd = () => {
+    setEditing(null);
+    setOpen(true);
+  };
 
   const handleOk = async () => {
     const values = await form.validateFields();
@@ -49,12 +65,22 @@ export default function UnitsTab() {
         </span>
       ),
     },
-    { title: 'Quy về', dataIndex: 'baseUnit', align: 'center', width: 120 },
     {
-      title: 'Tỷ lệ quy đổi',
+      title: 'Quy về',
+      dataIndex: 'baseUnit',
+      align: 'center',
+      width: 120,
+      render: (b) => (
+        <Tag bordered={false} color={BASE_UNIT_COLOR[b]}>
+          {b}
+        </Tag>
+      ),
+    },
+    {
+      title: sortableTitle('Tỷ lệ quy đổi', 'ratio'),
       dataIndex: 'ratio',
       align: 'right',
-      width: 150,
+      width: 170,
       render: (ratio, r) => (
         <span className="mono text-ink">
           1 {r.name} = {ratio} {r.baseUnit}
@@ -85,23 +111,36 @@ export default function UnitsTab() {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="m-0 text-sm text-ink-sub">Đơn vị đóng gói và tỷ lệ quy đổi về đơn vị cơ sở</p>
-        {canManageMasterData && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            Thêm đơn vị
-          </Button>
-        )}
-      </div>
+      <FilterBar
+        extra={
+          canManageMasterData && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+              Thêm đơn vị
+            </Button>
+          )
+        }
+      >
+        <span className="text-sm text-ink-sub">Đơn vị đóng gói và tỷ lệ quy đổi về đơn vị cơ sở</span>
+        <Select
+          allowClear
+          placeholder="Quy về"
+          className="w-full sm:w-40"
+          options={[
+            { value: 'Lon', label: 'Lon' },
+            { value: 'Chai', label: 'Chai' },
+          ]}
+          value={baseUnit}
+          onChange={setBaseUnit}
+        />
+      </FilterBar>
 
-      <DataTable columns={columns} dataSource={rows} pagination={false} />
+      <DataTable
+        className="units-table"
+        rowClassName={(r) => (r.isBase ? 'unit-row-base' : '')}
+        columns={columns}
+        dataSource={data}
+        pagination={false}
+      />
 
       <Modal
         open={open}

@@ -4,7 +4,6 @@ import {
   SwapOutlined,
   ImportOutlined,
   ExportOutlined,
-  ShoppingCartOutlined,
   SafetyCertificateOutlined,
   AuditOutlined,
   WarningOutlined,
@@ -68,12 +67,6 @@ export const NAV_GROUPS = [
         label: 'Phiếu xuất',
         icon: ExportOutlined,
         desc: 'Xuất sỉ / trả NCC / nội bộ',
-      },
-      {
-        key: '/retail',
-        label: 'Bán lẻ tại kho',
-        icon: ShoppingCartOutlined,
-        desc: 'Màn hình POS bán nhanh',
       },
     ],
   },
@@ -146,13 +139,6 @@ export const NAV_GROUPS = [
       },
     ],
   },
-];
-
-// Danh sách kho (mock) cho ô "chọn kho" trên TopNav.
-export const WAREHOUSES = [
-  { value: 'kho-tong', label: 'Kho Tổng — Bình Tân' },
-  { value: 'kho-q7', label: 'Kho Quận 7' },
-  { value: 'kho-thu-duc', label: 'Kho Thủ Đức' },
 ];
 
 // Tất cả key (đường dẫn) phẳng — tiện dò nhóm đang active theo path hiện tại.

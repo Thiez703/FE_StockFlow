@@ -1,7 +1,6 @@
 import { Card, Form, Input, Select, DatePicker } from 'antd';
 import { useFormContext, Controller, useWatch } from 'react-hook-form';
 import { CUSTOMER_OPTIONS, SUPPLIER_OPTIONS } from '@/mock/partners';
-import { WAREHOUSES } from '@/constants/navigation';
 import { OUTBOUND_TYPES } from '@/mock/outbounds';
 
 const { TextArea } = Input;
@@ -90,22 +89,6 @@ export default function OutboundGeneralInfo() {
                   options={partner.options}
                   disabled={partner.disabled}
                 />
-              </Form.Item>
-            )}
-          />
-
-          <Controller
-            name="warehouseId"
-            control={control}
-            render={({ field }) => (
-              <Form.Item
-                label="Kho xuất"
-                required
-                validateStatus={errors.warehouseId ? 'error' : ''}
-                help={errors.warehouseId?.message}
-                className="sm:col-span-2"
-              >
-                <Select {...field} placeholder="Chọn kho xuất" options={WAREHOUSES} />
               </Form.Item>
             )}
           />

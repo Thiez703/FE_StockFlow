@@ -6,7 +6,6 @@ import PageHeader from '@/components/ui/PageHeader';
 import DocCode from '@/components/ui/DocCode';
 import { PRODUCT_OPTIONS } from '@/mock/products';
 import { INVENTORY } from '@/mock/inventory';
-import { WAREHOUSES } from '@/constants/navigation';
 
 let rowSeq = 1;
 const newRow = () => ({ key: `r${rowSeq++}`, productId: undefined, productName: '', lot: '', systemQty: 0, countedQty: 0 });
@@ -59,10 +58,7 @@ export default function StocktakeCreatePage() {
       <div className="flex flex-col gap-4">
         <Card title="Thông tin chung" className="border-hair" styles={{ header: { borderBottom: '1px solid #f1f5f9' } }}>
           <Form layout="vertical" component={false}>
-            <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-3">
-              <Form.Item label="Kho kiểm kê" required>
-                <Select placeholder="Chọn kho" options={WAREHOUSES} defaultValue={WAREHOUSES[0].value} />
-              </Form.Item>
+            <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2">
               <Form.Item label="Ngày kiểm kê" required>
                 <DatePicker className="w-full" format="DD/MM/YYYY" placeholder="Chọn ngày" />
               </Form.Item>

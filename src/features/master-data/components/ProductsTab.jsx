@@ -1,16 +1,12 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Input, Select, Checkbox, Tag, Tooltip, Popconfirm, App } from 'antd';
-import {
-  PlusOutlined,
-  SearchOutlined,
-  EditOutlined,
-  InboxOutlined,
-  CaretUpOutlined,
-  CaretDownOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
+import FilterSidebar from '@/components/ui/FilterSidebar';
+import TableEmptyState from '@/components/ui/TableEmptyState';
 import StatusPill from '@/components/ui/StatusPill';
 import ProductFormModal from '@/features/master-data/components/ProductFormModal';
 import { PRODUCTS, getProduct } from '@/mock/products';
@@ -42,46 +38,7 @@ export default function ProductsTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [sortState, setSortState] = useState({ field: null, order: null });
-
-  // Sắp xếp hoàn toàn thủ công (không dùng `sorter` của AntD, vì cột có `sorter`
-  // sẽ tự thêm icon riêng, chồng lên chỉ báo tự vẽ bên dưới). Bấm tiêu đề đổi
-  // chiều: asc -> desc -> tắt.
-  const toggleSort = (field) => {
-    setSortState((prev) => {
-      if (prev.field !== field) return { field, order: 'asc' };
-      if (prev.order === 'asc') return { field, order: 'desc' };
-      return { field: null, order: null };
-    });
-  };
-
-  const sortableTitle = (label, field) => {
-    const active = sortState.field === field;
-    return (
-      <span
-        className="inline-flex cursor-pointer select-none items-center gap-2"
-        onClick={() => toggleSort(field)}
-      >
-        {label}
-        <span className="flex flex-col leading-[10px]">
-          <CaretUpOutlined
-            className="text-sm"
-            style={{
-              color: active && sortState.order === 'asc' ? '#1E5AF0' : '#CBD5E1',
-              transition: 'color 0.15s ease',
-            }}
-          />
-          <CaretDownOutlined
-            className="text-sm"
-            style={{
-              color: active && sortState.order === 'desc' ? '#1E5AF0' : '#CBD5E1',
-              transition: 'color 0.15s ease',
-            }}
-          />
-        </span>
-      </span>
-    );
-  };
+  const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -93,10 +50,8 @@ export default function ProductsTab() {
       const okBelowMin = !belowMin || (ONHAND_BY_PRODUCT[p.id] ?? 0) < p.minStock;
       return okKw && okCat && okStatus && okUnit && okBelowMin;
     });
-    if (!sortState.field) return filtered;
-    const dir = sortState.order === 'asc' ? 1 : -1;
-    return [...filtered].sort((a, b) => (a[sortState.field] - b[sortState.field]) * dir);
-  }, [rows, keyword, category, status, unit, belowMin, sortState]);
+    return sortRows(filtered);
+  }, [rows, keyword, category, status, unit, belowMin, sortRows]);
 
   const hasActiveFilters = Boolean(keyword || category || status || unit || belowMin);
   const clearFilters = () => {
@@ -202,65 +157,45 @@ export default function ProductsTab() {
   return (
     <>
       <div className="flex flex-col gap-4 lg:flex-row">
-        {/* Sidebar bộ lọc */}
-        <aside className="w-full shrink-0 lg:w-64">
-          <div className="flex flex-col gap-3 rounded-2xl border border-hair bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h4 className="m-0 text-sm font-semibold text-ink">Bộ lọc</h4>
-              <AnimatePresence>
-                {hasActiveFilters && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Button type="link" size="small" className="!px-0" onClick={clearFilters}>
-                      Xoá lọc
-                    </Button>
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </div>
-            <Input
-              allowClear
-              prefix={<SearchOutlined className="text-slate-400" />}
-              placeholder="Tìm theo tên, SKU, barcode..."
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-            />
-            <Select
-              allowClear
-              placeholder="Danh mục"
-              className="w-full"
-              options={CATEGORY_OPTIONS}
-              value={category}
-              onChange={setCategory}
-            />
-            <Select
-              allowClear
-              placeholder="Trạng thái"
-              className="w-full"
-              options={[
-                { value: 'active', label: 'Hoạt động' },
-                { value: 'inactive', label: 'Ngừng kinh doanh' },
-              ]}
-              value={status}
-              onChange={setStatus}
-            />
-            <Select
-              allowClear
-              placeholder="ĐVT"
-              className="w-full"
-              options={UNIT_OPTIONS}
-              value={unit}
-              onChange={setUnit}
-            />
-            <Checkbox checked={belowMin} onChange={(e) => setBelowMin(e.target.checked)}>
-              Đang dưới định mức tồn
-            </Checkbox>
-          </div>
-        </aside>
+        <FilterSidebar hasActiveFilters={hasActiveFilters} onClear={clearFilters}>
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-slate-400" />}
+            placeholder="Tìm theo tên, SKU, barcode..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+          <Select
+            allowClear
+            placeholder="Danh mục"
+            className="w-full"
+            options={CATEGORY_OPTIONS}
+            value={category}
+            onChange={setCategory}
+          />
+          <Select
+            allowClear
+            placeholder="Trạng thái"
+            className="w-full"
+            options={[
+              { value: 'active', label: 'Hoạt động' },
+              { value: 'inactive', label: 'Ngừng kinh doanh' },
+            ]}
+            value={status}
+            onChange={setStatus}
+          />
+          <Select
+            allowClear
+            placeholder="ĐVT"
+            className="w-full"
+            options={UNIT_OPTIONS}
+            value={unit}
+            onChange={setUnit}
+          />
+          <Checkbox checked={belowMin} onChange={(e) => setBelowMin(e.target.checked)}>
+            Đang dưới định mức tồn
+          </Checkbox>
+        </FilterSidebar>
 
         {/* Danh sách sản phẩm */}
         <div className="min-w-0 flex-1">
@@ -331,14 +266,7 @@ export default function ProductsTab() {
                   ? { selectedRowKeys, onChange: setSelectedRowKeys }
                   : undefined
               }
-              locale={{
-                emptyText: (
-                  <div className="flex flex-col items-center gap-3 py-10">
-                    <InboxOutlined className="text-3xl text-slate-300" />
-                    <p className="m-0 text-sm text-ink-sub">Không tìm thấy sản phẩm phù hợp</p>
-                  </div>
-                ),
-              }}
+              locale={{ emptyText: <TableEmptyState message="Không tìm thấy sản phẩm phù hợp" /> }}
             />
           </motion.div>
         </div>

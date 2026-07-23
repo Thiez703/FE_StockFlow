@@ -12,7 +12,6 @@ export function usePermissions() {
     role,
     canCreateInbound:    ['MANAGER', 'STAFF'].includes(role),
     canCreateOutbound:   ['MANAGER', 'STAFF'].includes(role),
-    canCreateRetail:     ['MANAGER', 'STAFF'].includes(role),
     canCreateStocktake:  ['MANAGER', 'ACCOUNTANT', 'STAFF'].includes(role),
     canCreateAbnormal:   ['MANAGER', 'ACCOUNTANT', 'STAFF'].includes(role),
     canApproveDocs:      ['ADMIN', 'MANAGER', 'ACCOUNTANT'].includes(role),

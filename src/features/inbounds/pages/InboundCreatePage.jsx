@@ -56,7 +56,6 @@ export default function InboundCreatePage() {
     defaultValues: {
       code: generateCode(),
       supplierId: undefined,
-      warehouseId: undefined,
       receiptDate: null,
       note: '',
       items: [emptyItem],

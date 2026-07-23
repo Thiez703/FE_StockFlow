@@ -4,7 +4,7 @@
  */
 export const INBOUNDS = [
   {
-    id: 'IN-142', code: 'PN-2026-0142', supplierId: 'NCC-001', supplierName: 'SABECO', warehouse: 'Kho Tổng — Bình Tân',
+    id: 'IN-142', code: 'PN-2026-0142', supplierId: 'NCC-001', supplierName: 'SABECO',
     date: '2026-07-17', createdBy: 'Thiên Nguyễn', status: 'POSTED', note: 'Nhập bia Tết trung tuần 7',
     items: [
       { productId: 'SP-001', productName: 'Bia Saigon Lager lon 330ml', lot: 'L2405-SG', unit: 'Thùng (lon)', quantity: 100, unitPrice: 240000 },
@@ -13,7 +13,7 @@ export const INBOUNDS = [
     total: 100 * 240000 + 60 * 264000,
   },
   {
-    id: 'IN-141', code: 'PN-2026-0141', supplierId: 'NCC-002', supplierName: 'Heineken VN', warehouse: 'Kho Tổng — Bình Tân',
+    id: 'IN-141', code: 'PN-2026-0141', supplierId: 'NCC-002', supplierName: 'Heineken VN',
     date: '2026-07-16', createdBy: 'Thủ kho A', status: 'POSTED', note: '',
     items: [
       { productId: 'SP-005', productName: 'Bia Heineken lon 330ml', lot: 'L2312-HK', unit: 'Thùng (lon)', quantity: 80, unitPrice: 396000 },
@@ -21,7 +21,7 @@ export const INBOUNDS = [
     total: 80 * 396000,
   },
   {
-    id: 'IN-140', code: 'PN-2026-0140', supplierId: 'NCC-003', supplierName: 'Suntory PepsiCo', warehouse: 'Kho Quận 7',
+    id: 'IN-140', code: 'PN-2026-0140', supplierId: 'NCC-003', supplierName: 'Suntory PepsiCo',
     date: '2026-07-15', createdBy: 'Thủ kho B', status: 'PENDING', note: 'Chờ kế toán duyệt',
     items: [
       { productId: 'SP-009', productName: 'Pepsi lon 330ml', lot: 'L2402-PP', unit: 'Thùng (lon)', quantity: 120, unitPrice: 180000 },
@@ -30,7 +30,7 @@ export const INBOUNDS = [
     total: 120 * 180000 + 40 * 216000,
   },
   {
-    id: 'IN-139', code: 'PN-2026-0139', supplierId: 'NCC-004', supplierName: 'Coca-Cola VN', warehouse: 'Kho Tổng — Bình Tân',
+    id: 'IN-139', code: 'PN-2026-0139', supplierId: 'NCC-004', supplierName: 'Coca-Cola VN',
     date: '2026-07-14', createdBy: 'Thiên Nguyễn', status: 'POSTED', note: '',
     items: [
       { productId: 'SP-008', productName: 'Coca-Cola lon 330ml', lot: 'L2401-CC', unit: 'Thùng (lon)', quantity: 150, unitPrice: 192000 },
@@ -39,7 +39,7 @@ export const INBOUNDS = [
     total: 150 * 192000 + 50 * 192000,
   },
   {
-    id: 'IN-138', code: 'PN-2026-0138', supplierId: 'NCC-001', supplierName: 'SABECO', warehouse: 'Kho Thủ Đức',
+    id: 'IN-138', code: 'PN-2026-0138', supplierId: 'NCC-001', supplierName: 'SABECO',
     date: '2026-07-12', createdBy: 'Thủ kho A', status: 'VOIDED', note: 'Huỷ do sai nhà cung cấp',
     items: [
       { productId: 'SP-002', productName: 'Bia Saigon Special lon 330ml', lot: 'L2405-SG', unit: 'Thùng (lon)', quantity: 40, unitPrice: 300000 },
@@ -47,7 +47,7 @@ export const INBOUNDS = [
     total: 40 * 300000,
   },
   {
-    id: 'IN-137', code: 'PN-2026-0137', supplierId: 'NCC-002', supplierName: 'Heineken VN', warehouse: 'Kho Tổng — Bình Tân',
+    id: 'IN-137', code: 'PN-2026-0137', supplierId: 'NCC-002', supplierName: 'Heineken VN',
     date: '2026-07-11', createdBy: 'Thủ kho B', status: 'POSTED', note: '',
     items: [
       { productId: 'SP-003', productName: 'Bia Tiger Bạc lon 330ml', lot: 'L2404-TG', unit: 'Thùng (lon)', quantity: 90, unitPrice: 384000 },
@@ -56,7 +56,7 @@ export const INBOUNDS = [
     total: 90 * 384000 + 45 * 408000,
   },
   {
-    id: 'IN-136', code: 'PN-2026-0136', supplierId: 'NCC-005', supplierName: 'La Vie', warehouse: 'Kho Quận 7',
+    id: 'IN-136', code: 'PN-2026-0136', supplierId: 'NCC-005', supplierName: 'La Vie',
     date: '2026-07-10', createdBy: 'Thiên Nguyễn', status: 'PENDING', note: '',
     items: [
       { productId: 'SP-016', productName: 'Lavie 500ml', lot: 'L2405-LV', unit: 'Thùng (chai)', quantity: 200, unitPrice: 66000 },
@@ -64,7 +64,7 @@ export const INBOUNDS = [
     total: 200 * 66000,
   },
   {
-    id: 'IN-135', code: 'PN-2026-0135', supplierId: 'NCC-003', supplierName: 'Suntory PepsiCo', warehouse: 'Kho Tổng — Bình Tân',
+    id: 'IN-135', code: 'PN-2026-0135', supplierId: 'NCC-003', supplierName: 'Suntory PepsiCo',
     date: '2026-07-08', createdBy: 'Thủ kho A', status: 'POSTED', note: '',
     items: [
       { productId: 'SP-014', productName: 'Red Bull lon 250ml', lot: 'L2403-RB', unit: 'Thùng (lon)', quantity: 70, unitPrice: 336000 },

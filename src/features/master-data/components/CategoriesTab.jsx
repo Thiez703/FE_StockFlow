@@ -1,8 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Button, Form, Input, Modal, Select, Tooltip, App } from 'antd';
-import { PlusOutlined, EditOutlined, FolderOpenOutlined, TagOutlined } from '@ant-design/icons';
+import {
+  PlusOutlined,
+  EditOutlined,
+  FolderOpenOutlined,
+  TagOutlined,
+  SearchOutlined,
+  ShrinkOutlined,
+  ArrowsAltOutlined,
+} from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
+import FilterSidebar from '@/components/ui/FilterSidebar';
+import TableEmptyState from '@/components/ui/TableEmptyState';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { CATEGORY_TREE } from '@/mock/categories';
@@ -29,19 +40,66 @@ const addNode = (nodes, parentId, node) => {
   );
 };
 
+// Id của mọi node có con — dùng cho mở/thu gọn cây.
+const getParentKeys = (nodes) =>
+  nodes.reduce((acc, n) => {
+    if (n.children?.length) acc.push(n.id, ...getParentKeys(n.children));
+    return acc;
+  }, []);
+
+// Đếm toàn bộ node (cha + con) đang hiển thị.
+const countNodes = (nodes) =>
+  nodes.reduce((acc, n) => acc + 1 + (n.children ? countNodes(n.children) : 0), 0);
+
+// Lọc cây theo từ khoá + trạng thái. Node cha khớp -> giữ nguyên cả nhánh con
+// (để không mất ngữ cảnh); node cha không khớp nhưng có con khớp -> giữ cha,
+// chỉ hiện các con khớp.
+const filterTree = (nodes, kw, status) =>
+  nodes.reduce((acc, n) => {
+    const selfMatchKw = !kw || [n.name, n.code].some((v) => v.toLowerCase().includes(kw));
+    const selfMatchStatus = !status || n.status === status;
+    if (selfMatchKw && selfMatchStatus) {
+      acc.push(n);
+      return acc;
+    }
+    const childMatches = n.children ? filterTree(n.children, kw, status) : [];
+    if (childMatches.length > 0) acc.push({ ...n, children: childMatches });
+    return acc;
+  }, []);
+
 export default function CategoriesTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const [tree, setTree] = useState(CATEGORY_TREE);
+  const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [quickParentId, setQuickParentId] = useState(null);
+  const [expandedKeys, setExpandedKeys] = useState(() => getParentKeys(CATEGORY_TREE));
   const [form] = Form.useForm();
 
+  const data = useMemo(
+    () => filterTree(tree, keyword.trim().toLowerCase(), status),
+    [tree, keyword, status],
+  );
+
+  const hasActiveFilters = Boolean(keyword || status);
+  const clearFilters = () => {
+    setKeyword('');
+    setStatus(null);
+  };
+
+  // Đang tìm kiếm -> luôn mở hết nhánh có kết quả để không phải bấm thủ công
+  // (tính trực tiếp khi render, không setState trong effect, để tránh render kép).
+  const allParentKeys = useMemo(() => getParentKeys(tree), [tree]);
+  const visibleExpandedKeys = hasActiveFilters ? getParentKeys(data) : expandedKeys;
+  const allExpanded = visibleExpandedKeys.length > 0;
+  const toggleExpandAll = () => setExpandedKeys(allExpanded ? [] : allParentKeys);
+
   useEffect(() => {
-    if (open) {
-      form.setFieldsValue(editing ?? { parentId: null, status: 'active' });
-    }
-  }, [open, editing, form]);
+    if (open) form.setFieldsValue(editing ?? { parentId: quickParentId, status: 'active' });
+  }, [open, editing, quickParentId, form]);
 
   const parentOptions = [
     { value: null, label: 'Danh mục gốc' },
@@ -67,20 +125,47 @@ export default function CategoriesTab() {
     setOpen(false);
   };
 
+  const openAdd = (parentId = null) => {
+    setEditing(null);
+    setQuickParentId(parentId);
+    setOpen(true);
+  };
+
   const columns = [
     {
       title: 'Tên danh mục',
       dataIndex: 'name',
-      render: (name, r) => (
-        <span className="flex items-center gap-2 font-medium text-ink">
-          {r.parentId ? (
-            <TagOutlined className="text-ink-sub" />
-          ) : (
-            <FolderOpenOutlined className="text-royal" />
-          )}
-          {name}
-        </span>
-      ),
+      render: (name, r) => {
+        const isParent = !r.parentId;
+        return (
+          <div className="flex items-center gap-2">
+            <span className={`flex items-center gap-2 text-ink ${isParent ? 'font-semibold' : 'font-medium'}`}>
+              {isParent ? (
+                <FolderOpenOutlined className="text-royal" />
+              ) : (
+                <TagOutlined className="text-ink-sub" />
+              )}
+              {name}
+            </span>
+            {r.children?.length > 0 && (
+              <span className="rounded-full bg-slate-100 px-1.5 text-xs font-medium text-ink-sub">
+                {r.children.length}
+              </span>
+            )}
+            {isParent && canManageMasterData && (
+              <Tooltip title="Thêm danh mục con">
+                <Button
+                  type="text"
+                  size="small"
+                  className="!h-5 !w-5 !min-w-0"
+                  icon={<PlusOutlined className="text-xs" />}
+                  onClick={() => openAdd(r.id)}
+                />
+              </Tooltip>
+            )}
+          </div>
+        );
+      },
     },
     { title: 'Mã', dataIndex: 'code', width: 200, render: (c) => <DocCode muted>{c}</DocCode> },
     {
@@ -113,28 +198,73 @@ export default function CategoriesTab() {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="m-0 text-sm text-ink-sub">Cây nhóm hàng cha – con của kho phân phối</p>
-        {canManageMasterData && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            Thêm danh mục
-          </Button>
-        )}
-      </div>
+      <div className="flex flex-col gap-4 lg:flex-row">
+        {/* Sidebar bộ lọc */}
+        <FilterSidebar hasActiveFilters={hasActiveFilters} onClear={clearFilters}>
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-slate-400" />}
+            placeholder="Tìm tên, mã danh mục..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+          <Select
+            allowClear
+            placeholder="Trạng thái"
+            className="w-full"
+            options={[
+              { value: 'active', label: 'Hoạt động' },
+              { value: 'inactive', label: 'Ngừng' },
+            ]}
+            value={status}
+            onChange={setStatus}
+          />
+          <p className="m-0 text-xs text-ink-sub">Cây nhóm hàng cha – con của kho phân phối.</p>
+        </FilterSidebar>
 
-      <DataTable
-        columns={columns}
-        dataSource={tree}
-        pagination={false}
-        expandable={{ defaultExpandAllRows: true }}
-      />
+        {/* Danh sách danh mục */}
+        <div className="min-w-0 flex-1">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-ink-sub">{countNodes(data)} danh mục</span>
+              <Button
+                type="text"
+                size="small"
+                icon={allExpanded ? <ShrinkOutlined /> : <ArrowsAltOutlined />}
+                disabled={hasActiveFilters}
+                onClick={toggleExpandAll}
+              >
+                {allExpanded ? 'Thu gọn tất cả' : 'Mở rộng tất cả'}
+              </Button>
+            </div>
+            {canManageMasterData && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => openAdd(null)}>
+                Thêm danh mục
+              </Button>
+            )}
+          </div>
+
+          <motion.div
+            key={data.map((n) => n.id).join(',')}
+            initial={{ opacity: 0.4 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <DataTable
+              className="category-tree-table"
+              rowClassName={(record) => (record.parentId ? 'category-row-child' : 'category-row-parent')}
+              columns={columns}
+              dataSource={data}
+              pagination={false}
+              expandable={{
+                expandedRowKeys: visibleExpandedKeys,
+                onExpandedRowsChange: setExpandedKeys,
+              }}
+              locale={{ emptyText: <TableEmptyState message="Không tìm thấy danh mục phù hợp" /> }}
+            />
+          </motion.div>
+        </div>
+      </div>
 
       <Modal
         open={open}

@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Button, Tabs, Input, Form, Modal, Select, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
-import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
+import FilterSidebar from '@/components/ui/FilterSidebar';
+import TableEmptyState from '@/components/ui/TableEmptyState';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { SUPPLIERS, CUSTOMERS } from '@/mock/partners';
+
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Hoạt động' },
+  { value: 'inactive', label: 'Ngừng hợp tác' },
+];
+const TYPE_OPTIONS = [
+  { value: 'Sỉ', label: 'Sỉ' },
+  { value: 'Lẻ', label: 'Lẻ' },
+];
 
 export default function PartnersTab() {
   const { message } = App.useApp();
@@ -15,6 +26,8 @@ export default function PartnersTab() {
   const [suppliers, setSuppliers] = useState(SUPPLIERS);
   const [customers, setCustomers] = useState(CUSTOMERS);
   const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState(null);
+  const [type, setType] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form] = Form.useForm();
@@ -22,9 +35,24 @@ export default function PartnersTab() {
   const isSupplier = tab === 'suppliers';
   const rows = isSupplier ? suppliers : customers;
   const kw = keyword.trim().toLowerCase();
-  const data = rows.filter(
-    (r) => !kw || [r.name, r.code, r.phone].some((v) => String(v).toLowerCase().includes(kw)),
-  );
+  const data = rows.filter((r) => {
+    const okKw = !kw || [r.name, r.code, r.phone].some((v) => String(v).toLowerCase().includes(kw));
+    const okStatus = !status || r.status === status;
+    const okType = isSupplier || !type || r.type === type;
+    return okKw && okStatus && okType;
+  });
+
+  const hasActiveFilters = Boolean(keyword || status || (!isSupplier && type));
+  const clearFilters = () => {
+    setKeyword('');
+    setStatus(null);
+    setType(null);
+  };
+
+  const changeTab = (k) => {
+    setTab(k);
+    clearFilters();
+  };
 
   useEffect(() => {
     if (open) form.setFieldsValue(editing ?? { status: 'active', type: 'Sỉ' });
@@ -97,45 +125,66 @@ export default function PartnersTab() {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <Tabs
-          activeKey={tab}
-          onChange={(k) => {
-            setTab(k);
-            setKeyword('');
-          }}
-          items={[
-            { key: 'suppliers', label: `Nhà cung cấp (${suppliers.length})` },
-            { key: 'customers', label: `Khách hàng (${customers.length})` },
-          ]}
-          className="!mb-0"
-        />
-        {canManageMasterData && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
+      <div className="flex flex-col gap-4 lg:flex-row">
+        {/* Sidebar bộ lọc */}
+        <FilterSidebar hasActiveFilters={hasActiveFilters} onClear={clearFilters}>
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-slate-400" />}
+            placeholder="Tìm theo tên, mã, điện thoại..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+          <Select allowClear placeholder="Trạng thái" className="w-full" options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+          {!isSupplier && (
+            <Select allowClear placeholder="Loại khách" className="w-full" options={TYPE_OPTIONS} value={type} onChange={setType} />
+          )}
+        </FilterSidebar>
+
+        {/* Danh sách đối tác */}
+        <div className="min-w-0 flex-1">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <Tabs
+              activeKey={tab}
+              onChange={changeTab}
+              items={[
+                { key: 'suppliers', label: `Nhà cung cấp (${suppliers.length})` },
+                { key: 'customers', label: `Khách hàng (${customers.length})` },
+              ]}
+              className="!mb-0"
+            />
+            {canManageMasterData && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditing(null);
+                  setOpen(true);
+                }}
+              >
+                {isSupplier ? 'Thêm nhà cung cấp' : 'Thêm khách hàng'}
+              </Button>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <span className="text-sm text-ink-sub">{data.length} đối tác</span>
+          </div>
+
+          <motion.div
+            key={`${tab}-${data.map((r) => r.id).join(',')}`}
+            initial={{ opacity: 0.4 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
           >
-            {isSupplier ? 'Thêm nhà cung cấp' : 'Thêm khách hàng'}
-          </Button>
-        )}
+            <DataTable
+              columns={isSupplier ? supplierColumns : customerColumns}
+              dataSource={data}
+              locale={{ emptyText: <TableEmptyState message="Không tìm thấy đối tác phù hợp" /> }}
+            />
+          </motion.div>
+        </div>
       </div>
-
-      <FilterBar extra={<span className="text-sm text-ink-sub">{data.length} đối tác</span>}>
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Tìm theo tên, mã, điện thoại..."
-          className="w-full sm:w-80"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-        />
-      </FilterBar>
-
-      <DataTable columns={isSupplier ? supplierColumns : customerColumns} dataSource={data} />
 
       <Modal
         open={open}
@@ -162,12 +211,7 @@ export default function PartnersTab() {
               </Form.Item>
             ) : (
               <Form.Item name="type" label="Loại khách">
-                <Select
-                  options={[
-                    { value: 'Sỉ', label: 'Sỉ' },
-                    { value: 'Lẻ', label: 'Lẻ' },
-                  ]}
-                />
+                <Select options={TYPE_OPTIONS} />
               </Form.Item>
             )}
           </div>
@@ -180,12 +224,7 @@ export default function PartnersTab() {
             <Input placeholder="Số nhà, đường, quận, thành phố" />
           </Form.Item>
           <Form.Item name="status" label="Trạng thái">
-            <Select
-              options={[
-                { value: 'active', label: 'Hoạt động' },
-                { value: 'inactive', label: 'Ngừng hợp tác' },
-              ]}
-            />
+            <Select options={STATUS_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>

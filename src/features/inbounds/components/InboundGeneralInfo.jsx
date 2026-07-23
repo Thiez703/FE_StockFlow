@@ -1,7 +1,6 @@
 import { Card, Form, Input, Select, DatePicker } from 'antd';
 import { useFormContext, Controller } from 'react-hook-form';
 import { SUPPLIER_OPTIONS } from '@/mock/partners';
-import { WAREHOUSES } from '@/constants/navigation';
 
 const { TextArea } = Input;
 
@@ -58,21 +57,6 @@ export default function InboundGeneralInfo() {
                 help={errors.supplierId?.message}
               >
                 <Select {...field} showSearch optionFilterProp="label" placeholder="Chọn nhà cung cấp" options={SUPPLIER_OPTIONS} />
-              </Form.Item>
-            )}
-          />
-
-          <Controller
-            name="warehouseId"
-            control={control}
-            render={({ field }) => (
-              <Form.Item
-                label="Kho nhận"
-                required
-                validateStatus={errors.warehouseId ? 'error' : ''}
-                help={errors.warehouseId?.message}
-              >
-                <Select {...field} placeholder="Chọn kho nhận" options={WAREHOUSES} />
               </Form.Item>
             )}
           />

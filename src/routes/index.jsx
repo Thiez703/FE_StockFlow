@@ -6,7 +6,6 @@ import { authRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
 import { inboundRoutes } from '@/features/inbounds/routes';
 import { outboundRoutes } from '@/features/outbounds/routes';
-import { retailRoutes } from '@/features/retail/routes';
 import { stocktakeRoutes } from '@/features/stocktakes/routes';
 import { abnormalRoutes } from '@/features/abnormal-stocks/routes';
 import { inventoryRoutes } from '@/features/inventory/routes';
@@ -36,7 +35,6 @@ export const router = createBrowserRouter([
       // Nghiệp vụ kho
       ...inboundRoutes,
       ...outboundRoutes,
-      ...retailRoutes,
       // Kiểm soát
       ...stocktakeRoutes,
       ...abnormalRoutes,

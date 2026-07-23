@@ -26,7 +26,6 @@ export const inboundItemSchema = z.object({
 export const inboundSchema = z.object({
   code: z.string().min(1, 'Thiếu mã phiếu'),
   supplierId: requiredSelect('Vui lòng chọn nhà cung cấp'),
-  warehouseId: requiredSelect('Vui lòng chọn kho nhận'),
   receiptDate: z.any().refine((v) => !!v, 'Vui lòng chọn ngày nhập'),
   note: z.string().optional(),
   items: z.array(inboundItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),

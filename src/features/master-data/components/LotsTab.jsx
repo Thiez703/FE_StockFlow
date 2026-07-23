@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, InputNumber, DatePicker, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
-import FilterBar from '@/components/ui/FilterBar';
+import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
+import FilterSidebar from '@/components/ui/FilterSidebar';
+import TableEmptyState from '@/components/ui/TableEmptyState';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { LOTS } from '@/mock/lots';
@@ -30,16 +33,25 @@ export default function LotsTab() {
   const [nearOnly, setNearOnly] = useState(false);
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
+  const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return rows.filter((l) => {
+    const filtered = rows.filter((l) => {
       const okKw = !kw || [l.code, l.productName].some((v) => v.toLowerCase().includes(kw));
       const okStatus = !status || l.status === status;
       const okNear = !nearOnly || daysUntil(l.expDate) <= 30;
       return okKw && okStatus && okNear;
     });
-  }, [rows, keyword, status, nearOnly]);
+    return sortRows(filtered);
+  }, [rows, keyword, status, nearOnly, sortRows]);
+
+  const hasActiveFilters = Boolean(keyword || status || nearOnly);
+  const clearFilters = () => {
+    setKeyword('');
+    setStatus(null);
+    setNearOnly(false);
+  };
 
   const handleOk = async () => {
     const v = await form.validateFields();
@@ -69,7 +81,7 @@ export default function LotsTab() {
     },
     { title: 'NSX', dataIndex: 'mfgDate', align: 'center', width: 120, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
     {
-      title: 'HSD',
+      title: sortableTitle('HSD', 'expDate'),
       dataIndex: 'expDate',
       align: 'center',
       width: 170,
@@ -86,10 +98,10 @@ export default function LotsTab() {
       },
     },
     {
-      title: 'Tồn lô',
+      title: sortableTitle('Tồn lô', 'quantity'),
       dataIndex: 'quantity',
       align: 'right',
-      width: 110,
+      width: 130,
       render: (q) => <span className="mono text-ink">{formatNumber(q)}</span>,
     },
     { title: 'Vị trí', dataIndex: 'location', align: 'center', width: 110, render: (l) => <DocCode muted>{l}</DocCode> },
@@ -104,47 +116,58 @@ export default function LotsTab() {
 
   return (
     <>
-      <FilterBar
-        extra={
-          <>
+      <div className="flex flex-col gap-4 lg:flex-row">
+        {/* Sidebar bộ lọc */}
+        <FilterSidebar hasActiveFilters={hasActiveFilters} onClear={clearFilters}>
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-slate-400" />}
+            placeholder="Tìm theo mã lô, sản phẩm..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+          <Select
+            allowClear
+            placeholder="Trạng thái"
+            className="w-full"
+            options={[
+              { value: 'active', label: 'Còn hạn' },
+              { value: 'expired', label: 'Quá hạn' },
+            ]}
+            value={status}
+            onChange={setStatus}
+          />
+          <Checkbox checked={nearOnly} onChange={(e) => setNearOnly(e.target.checked)}>
+            Chỉ cận hạn (≤ 30 ngày)
+          </Checkbox>
+        </FilterSidebar>
+
+        {/* Danh sách lô hàng */}
+        <div className="min-w-0 flex-1">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <span className="text-sm text-ink-sub">{data.length} lô</span>
             {canManageMasterData && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
                 Thêm lô
               </Button>
             )}
-          </>
-        }
-      >
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Tìm theo mã lô, sản phẩm..."
-          className="w-full sm:w-72"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-        />
-        <Select
-          allowClear
-          placeholder="Trạng thái"
-          className="w-full sm:w-44"
-          options={[
-            { value: 'active', label: 'Còn hạn' },
-            { value: 'expired', label: 'Quá hạn' },
-          ]}
-          value={status}
-          onChange={setStatus}
-        />
-        <Checkbox checked={nearOnly} onChange={(e) => setNearOnly(e.target.checked)}>
-          Chỉ cận hạn (≤ 30 ngày)
-        </Checkbox>
-      </FilterBar>
+          </div>
 
-      <DataTable
-        columns={columns}
-        dataSource={data}
-        rowClassName={(r) => (daysUntil(r.expDate) < 0 ? '!bg-[#fef2f2]' : '')}
-      />
+          <motion.div
+            key={data.map((l) => l.id).join(',')}
+            initial={{ opacity: 0.4 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <DataTable
+              columns={columns}
+              dataSource={data}
+              rowClassName={(r) => (daysUntil(r.expDate) < 0 ? '!bg-[#fef2f2]' : '')}
+              locale={{ emptyText: <TableEmptyState message="Không tìm thấy lô hàng phù hợp" /> }}
+            />
+          </motion.div>
+        </div>
+      </div>
 
       <Modal
         open={open}

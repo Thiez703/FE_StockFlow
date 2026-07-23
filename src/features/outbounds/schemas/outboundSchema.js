@@ -18,7 +18,6 @@ export const outboundSchema = z
     code: z.string().min(1, 'Thiếu mã phiếu'),
     type: requiredSelect('Chọn loại xuất'),
     partnerId: z.any().optional(),
-    warehouseId: requiredSelect('Vui lòng chọn kho xuất'),
     issueDate: z.any().refine((v) => !!v, 'Vui lòng chọn ngày xuất'),
     note: z.string().optional(),
     items: z.array(outboundItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),

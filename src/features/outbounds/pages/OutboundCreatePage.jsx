@@ -53,7 +53,6 @@ export default function OutboundCreatePage() {
       code: generateCode(),
       type: 'Sỉ',
       partnerId: undefined,
-      warehouseId: undefined,
       issueDate: null,
       note: '',
       items: [emptyItem],

@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Button, Input, Select, Tag, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useColumnSort } from '@/hooks/useColumnSort';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
+import TableEmptyState from '@/components/ui/TableEmptyState';
 import ApprovalActions from '@/components/ui/ApprovalActions';
 import { STOCKTAKES } from '@/mock/stocktakes';
 import { statusOptions, APPROVAL_STATUSES } from '@/constants/status';
@@ -61,15 +64,18 @@ export default function StocktakesPage() {
   const [rows, setRows] = useState(STOCKTAKES);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
+  const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return rows.filter((r) => {
-      const okKw = !kw || [r.code, r.warehouse].some((v) => v.toLowerCase().includes(kw));
+    const filtered = rows.filter((r) => {
+      const okKw = !kw || r.code.toLowerCase().includes(kw);
       const okStatus = !status || r.status === status;
       return okKw && okStatus;
     });
-  }, [rows, keyword, status]);
+    const withDiff = filtered.map((r) => ({ ...r, diff: totalDiff(r.items) }));
+    return sortRows(withDiff);
+  }, [rows, keyword, status, sortRows]);
 
   const setStatusOf = (id, next, msg) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: next } : r)));
@@ -78,16 +84,20 @@ export default function StocktakesPage() {
 
   const columns = [
     { title: 'Mã phiếu', dataIndex: 'code', width: 150, render: (c) => <DocCode>{c}</DocCode> },
-    { title: 'Kho', dataIndex: 'warehouse', render: (w) => <span className="font-medium text-ink">{w}</span> },
-    { title: 'Ngày', dataIndex: 'date', align: 'center', width: 120, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
+    {
+      title: sortableTitle('Ngày', 'date'),
+      dataIndex: 'date',
+      align: 'center',
+      width: 130,
+      render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span>,
+    },
     { title: 'Số dòng', dataIndex: 'items', align: 'center', width: 90, render: (items) => items.length },
     {
-      title: 'Chênh lệch',
-      dataIndex: 'items',
-      key: 'diff',
+      title: sortableTitle('Chênh lệch', 'diff'),
+      dataIndex: 'diff',
       align: 'right',
-      width: 120,
-      render: (items) => <DiffValue value={totalDiff(items)} />,
+      width: 130,
+      render: (diff) => <DiffValue value={diff} />,
     },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
     // FIX 5b: Ẩn cột Duyệt nếu không có quyền
@@ -130,7 +140,7 @@ export default function StocktakesPage() {
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Tìm mã phiếu, kho..."
+          placeholder="Tìm mã phiếu..."
           className="w-full sm:w-64"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
@@ -145,14 +155,23 @@ export default function StocktakesPage() {
         />
       </FilterBar>
 
-      <DataTable
-        columns={columns}
-        dataSource={data}
-        expandable={{
-          expandedRowRender: (r) => <ItemsDetail items={r.items} />,
-          rowExpandable: (r) => r.items?.length > 0,
-        }}
-      />
+      <motion.div
+        key={data.map((r) => r.id).join(',')}
+        initial={{ opacity: 0.4 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        <DataTable
+          columns={columns}
+          dataSource={data}
+          rowClassName={(r) => (r.diff !== 0 ? '!bg-[#fffbeb]' : '')}
+          expandable={{
+            expandedRowRender: (r) => <ItemsDetail items={r.items} />,
+            rowExpandable: (r) => r.items?.length > 0,
+          }}
+          locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu kiểm kê phù hợp" /> }}
+        />
+      </motion.div>
     </>
   );
 }

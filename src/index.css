@@ -126,6 +126,57 @@
   background-color: #fafbff;
 }
 .enterprise-table .ant-table-tbody > tr.ant-table-row:hover > td {
-  background-color: #eef4ff;
+  background-color: #cddaf9;
+}
+
+/**
+ * Dòng bảng khi vừa mount vào DOM (thêm mới, đổi trang, lọc ra kết quả mới,
+ * xổ cây, xổ chi tiết dòng hàng qua expandedRowRender...): AntD mount thẳng
+ * vào DOM (không có state mở/đóng để transition), nên giả lập hiệu ứng
+ * "trượt xuống" bằng keyframe chạy lúc mount. `ant-table-expanded-row` là
+ * class riêng AntD dùng cho nội dung expandedRowRender, khác với
+ * `ant-table-row` của dòng cây (tree data), nên phải khai cả hai.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .enterprise-table .ant-table-tbody > tr.ant-table-row,
+  .enterprise-table .ant-table-tbody > tr.ant-table-expanded-row {
+    animation: tableRowIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+/**
+ * Bảng cây danh mục (tab Danh mục): tô nền theo cấp cha/con thay vì sọc
+ * chẵn/lẻ theo vị trí dòng — !important để thắng rule sọc chẵn/lẻ ở trên.
+ */
+.category-tree-table .ant-table-tbody > tr.category-row-parent > td {
+  background-color: #eef4ff !important;
+}
+.category-tree-table .ant-table-tbody > tr.category-row-child > td {
+  background-color: #ffffff !important;
+}
+.category-tree-table .ant-table-tbody > tr.ant-table-row:hover > td {
+  background-color: #cddaf9 !important;
+}
+
+/**
+ * Bảng đơn vị tính (tab Đơn vị tính): highlight nhẹ cho đơn vị cơ sở (isBase)
+ * để phân biệt với đơn vị quy đổi — cùng tông màu với dòng "cha" ở Danh mục.
+ */
+.units-table .ant-table-tbody > tr.unit-row-base > td {
+  background-color: #eef4ff !important;
+}
+.units-table .ant-table-tbody > tr.ant-table-row:hover > td {
+  background-color: #cddaf9 !important;
+}
+
+@keyframes tableRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 

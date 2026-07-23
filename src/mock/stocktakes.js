@@ -5,7 +5,7 @@
  */
 export const STOCKTAKES = [
   {
-    id: 'ST-007', code: 'KK-2026-0007', warehouse: 'Kho Tổng — Bình Tân', date: '2026-07-17',
+    id: 'ST-007', code: 'KK-2026-0007', date: '2026-07-17',
     status: 'PENDING', createdBy: 'Thủ kho A', note: 'Kiểm kê định kỳ khu A',
     items: [
       { productName: 'Bia Saigon Lager lon 330ml', lot: 'L2405-SG', unit: 'Lon', systemQty: 3200, countedQty: 3188 },
@@ -14,7 +14,7 @@ export const STOCKTAKES = [
     ],
   },
   {
-    id: 'ST-006', code: 'KK-2026-0006', warehouse: 'Kho Quận 7', date: '2026-07-14',
+    id: 'ST-006', code: 'KK-2026-0006', date: '2026-07-14',
     status: 'APPROVED', createdBy: 'Thủ kho B', note: '',
     items: [
       { productName: 'Pepsi lon 330ml', lot: 'L2402-PP', unit: 'Lon', systemQty: 880, countedQty: 872 },
@@ -22,14 +22,14 @@ export const STOCKTAKES = [
     ],
   },
   {
-    id: 'ST-005', code: 'KK-2026-0005', warehouse: 'Kho Tổng — Bình Tân', date: '2026-07-10',
+    id: 'ST-005', code: 'KK-2026-0005', date: '2026-07-10',
     status: 'REJECTED', createdBy: 'Bán hàng C', note: 'Số liệu chưa khớp, kiểm lại',
     items: [
       { productName: 'Aquafina 500ml', lot: 'L2405-AQ', unit: 'Chai', systemQty: 6400, countedQty: 6100 },
     ],
   },
   {
-    id: 'ST-004', code: 'KK-2026-0004', warehouse: 'Kho Thủ Đức', date: '2026-07-05',
+    id: 'ST-004', code: 'KK-2026-0004', date: '2026-07-05',
     status: 'APPROVED', createdBy: 'Thủ kho A', note: '',
     items: [
       { productName: 'Red Bull lon 250ml', lot: 'L2403-RB', unit: 'Lon', systemQty: 1500, countedQty: 1512 },

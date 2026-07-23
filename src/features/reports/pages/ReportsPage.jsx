@@ -37,7 +37,6 @@ export default function ReportsPage() {
 
   const varianceColumns = [
     { title: 'Mã phiếu', dataIndex: 'code', width: 150, render: (c) => <DocCode>{c}</DocCode> },
-    { title: 'Kho', dataIndex: 'warehouse', render: (w) => <span className="text-ink">{w}</span> },
     { title: 'Ngày', dataIndex: 'date', align: 'center', width: 120, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
     { title: 'Số dòng', dataIndex: 'items', align: 'center', width: 90, render: (i) => i.length },
     { title: 'Tổng chênh lệch', dataIndex: 'items', key: 'diff', align: 'right', width: 140, render: (i) => <DiffValue value={totalDiff(i)} /> },

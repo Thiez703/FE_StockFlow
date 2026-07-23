@@ -6,12 +6,11 @@ import {
   DownOutlined,
   LockOutlined,
   LogoutOutlined,
-  ShopOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Logo from '@/components/ui/Logo';
 import ChangePasswordModal from '@/features/auth/components/ChangePasswordModal';
-import { NAV_GROUPS, WAREHOUSES, FLAT_NAV_KEYS } from '@/constants/navigation';
+import { NAV_GROUPS, FLAT_NAV_KEYS } from '@/constants/navigation';
 
 const USER_MENU_ITEMS = [
   { key: 'change-pw', icon: <LockOutlined />, label: 'Đổi mật khẩu' },
@@ -19,17 +18,14 @@ const USER_MENU_ITEMS = [
   { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true },
 ];
 
-const WAREHOUSE_MENU_ITEMS = WAREHOUSES.map((w) => ({ key: w.value, label: w.label }));
-
 /**
  * Thanh điều hướng ngang trên cùng (thay Sidebar). Dải navy full-width:
- * [logo] · [6 nhóm menu, hover sổ mega-dropdown] · [chọn kho + chuông + avatar].
+ * [logo] · [6 nhóm menu, hover sổ mega-dropdown] · [chuông + avatar].
  * Nhóm đang active có gạch chân accent (royal → amber).
  */
 export default function TopNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const [warehouse, setWarehouse] = useState(WAREHOUSES[0].value);
   const [pwOpen, setPwOpen] = useState(false);
 
   // Item khớp path dài nhất -> suy ra nhóm đang active.
@@ -72,8 +68,6 @@ export default function TopNav() {
     window.addEventListener('resize', measureUnderline);
     return () => window.removeEventListener('resize', measureUnderline);
   }, [measureUnderline]);
-
-  const warehouseLabel = WAREHOUSES.find((w) => w.value === warehouse)?.label;
 
   const onUserMenuClick = ({ key }) => {
     if (key === 'change-pw') setPwOpen(true);
@@ -158,28 +152,8 @@ export default function TopNav() {
           />
         </nav>
 
-        {/* Cụm bên phải: chọn kho + chuông + avatar */}
+        {/* Cụm bên phải: chuông + avatar */}
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
-          <Dropdown
-            menu={{
-              items: WAREHOUSE_MENU_ITEMS,
-              selectable: true,
-              selectedKeys: [warehouse],
-              onClick: ({ key }) => setWarehouse(key),
-            }}
-            trigger={['click']}
-            placement="bottomRight"
-          >
-            <button
-              type="button"
-              className="flex h-9 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-2.5 text-sm text-white transition-colors hover:bg-white/10"
-            >
-              <ShopOutlined className="text-[#8fa8d8]" />
-              <span className="hidden max-w-[150px] truncate xl:inline">{warehouseLabel}</span>
-              <DownOutlined className="text-[9px] text-white/60" />
-            </button>
-          </Dropdown>
-
           <Badge count={4} size="small" offset={[-2, 3]}>
             <button
               type="button"

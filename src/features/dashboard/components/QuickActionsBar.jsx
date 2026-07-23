@@ -3,7 +3,6 @@ import {
   SearchOutlined,
   ImportOutlined,
   ExportOutlined,
-  ShoppingCartOutlined,
   AuditOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +11,6 @@ import { PRODUCT_OPTIONS } from '@/mock/products';
 const ACTIONS = [
   { label: 'Tạo phiếu nhập', icon: <ImportOutlined />, to: '/inbounds/create' },
   { label: 'Tạo phiếu xuất', icon: <ExportOutlined />, to: '/outbounds/create' },
-  { label: 'Bán lẻ tại kho', icon: <ShoppingCartOutlined />, to: '/retail' },
   { label: 'Kiểm kê', icon: <AuditOutlined />, to: '/stocktakes/create' },
 ];
 
