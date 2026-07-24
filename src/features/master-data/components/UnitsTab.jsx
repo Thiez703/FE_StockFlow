@@ -6,6 +6,7 @@ import { useColumnSort } from '@/hooks/useColumnSort';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
+import FadeSection from '@/components/ui/FadeSection';
 import { UNITS } from '@/mock/units';
 
 const BASE_UNIT_COLOR = { Lon: 'gold', Chai: 'blue' };
@@ -134,13 +135,15 @@ export default function UnitsTab() {
         />
       </FilterBar>
 
-      <DataTable
-        className="units-table"
-        rowClassName={(r) => (r.isBase ? 'unit-row-base' : '')}
-        columns={columns}
-        dataSource={data}
-        pagination={false}
-      />
+      <FadeSection dataKey={data.map((u) => u.id).join(',')}>
+        <DataTable
+          className="units-table"
+          rowClassName={(r) => (r.isBase ? 'unit-row-base' : '')}
+          columns={columns}
+          dataSource={data}
+          pagination={false}
+        />
+      </FadeSection>
 
       <Modal
         open={open}

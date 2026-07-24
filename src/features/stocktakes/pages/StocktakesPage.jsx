@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button, Input, Select, Tag, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -11,51 +10,16 @@ import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import ApprovalActions from '@/components/ui/ApprovalActions';
+import DocDetailModal from '@/components/ui/DocDetailModal';
+import StocktakeItemsDetail, { DiffValue } from '@/features/stocktakes/components/StocktakeItemsDetail';
 import { STOCKTAKES } from '@/mock/stocktakes';
 import { statusOptions, APPROVAL_STATUSES } from '@/constants/status';
 import { formatDate } from '@/utils/date';
 
 // Tổng chênh lệch (counted - system) của 1 phiếu.
 const totalDiff = (items) => items.reduce((s, it) => s + (it.countedQty - it.systemQty), 0);
-
-function DiffValue({ value }) {
-  const cls = value === 0 ? 'text-ink-sub' : value > 0 ? 'text-[#15803d]' : 'text-[#b91c1c]';
-  return (
-    <span className={`mono font-semibold ${cls}`}>
-      {value > 0 ? `+${value}` : value}
-    </span>
-  );
-}
-
-function ItemsDetail({ items }) {
-  return (
-    <div className="rounded-lg bg-slate-50/70 p-1">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-ink-sub">
-            <th className="px-3 py-2 font-semibold">Sản phẩm</th>
-            <th className="px-3 py-2 font-semibold">Lô</th>
-            <th className="px-3 py-2 text-right font-semibold">Tồn hệ thống</th>
-            <th className="px-3 py-2 text-right font-semibold">Đếm thực tế</th>
-            <th className="px-3 py-2 text-right font-semibold">Chênh lệch</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => (
-            <tr key={i} className="border-t border-slate-200/70">
-              <td className="px-3 py-2 text-ink">{it.productName}</td>
-              <td className="px-3 py-2"><DocCode muted>{it.lot}</DocCode></td>
-              <td className="px-3 py-2 text-right mono">{it.systemQty}</td>
-              <td className="px-3 py-2 text-right mono">{it.countedQty}</td>
-              <td className="px-3 py-2 text-right"><DiffValue value={it.countedQty - it.systemQty} /></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 export default function StocktakesPage() {
   const { message } = App.useApp();
@@ -64,6 +28,7 @@ export default function StocktakesPage() {
   const [rows, setRows] = useState(STOCKTAKES);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
+  const [detailRecord, setDetailRecord] = useState(null);
   const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
@@ -92,6 +57,7 @@ export default function StocktakesPage() {
       render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span>,
     },
     { title: 'Số dòng', dataIndex: 'items', align: 'center', width: 90, render: (items) => items.length },
+    { title: 'Người kiểm', dataIndex: 'createdBy', width: 140, render: (v) => <span className="text-ink-sub">{v}</span> },
     {
       title: sortableTitle('Chênh lệch', 'diff'),
       dataIndex: 'diff',
@@ -100,6 +66,18 @@ export default function StocktakesPage() {
       render: (diff) => <DiffValue value={diff} />,
     },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
+    {
+      title: '',
+      key: 'detail',
+      align: 'center',
+      width: 100,
+      render: (_, r) =>
+        r.items?.length > 0 && (
+          <Button size="small" onClick={() => setDetailRecord(r)}>
+            Chi tiết
+          </Button>
+        ),
+    },
     // FIX 5b: Ẩn cột Duyệt nếu không có quyền
     ...(canApproveDocs ? [{
       title: 'Duyệt',
@@ -155,23 +133,30 @@ export default function StocktakesPage() {
         />
       </FilterBar>
 
-      <motion.div
-        key={data.map((r) => r.id).join(',')}
-        initial={{ opacity: 0.4 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-      >
+      <FadeSection dataKey={data.map((r) => r.id).join(',')}>
         <DataTable
           columns={columns}
           dataSource={data}
           rowClassName={(r) => (r.diff !== 0 ? '!bg-[#fffbeb]' : '')}
-          expandable={{
-            expandedRowRender: (r) => <ItemsDetail items={r.items} />,
-            rowExpandable: (r) => r.items?.length > 0,
-          }}
           locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu kiểm kê phù hợp" /> }}
         />
-      </motion.div>
+      </FadeSection>
+
+      <DocDetailModal
+        open={!!detailRecord}
+        onClose={() => setDetailRecord(null)}
+        title={detailRecord?.code}
+        fields={
+          detailRecord && [
+            { label: 'Ngày', value: formatDate(detailRecord.date) },
+            { label: 'Người kiểm', value: detailRecord.createdBy },
+            { label: 'Chênh lệch', value: <DiffValue value={totalDiff(detailRecord.items)} /> },
+            { label: 'Trạng thái', value: <StatusPill status={detailRecord.status} /> },
+          ]
+        }
+      >
+        {detailRecord && <StocktakeItemsDetail items={detailRecord.items} note={detailRecord.note} />}
+      </DocDetailModal>
     </>
   );
 }

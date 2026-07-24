@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button, Input, Select, DatePicker, Tag, Tooltip, Modal, App } from 'antd';
 import { PlusOutlined, SearchOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +10,9 @@ import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import DocItemsDetail from '@/components/ui/DocItemsDetail';
+import DocDetailModal from '@/components/ui/DocDetailModal';
 import { OUTBOUNDS, OUTBOUND_TYPES } from '@/mock/outbounds';
 import { statusOptions, DOC_STATUSES } from '@/constants/status';
 import { formatCurrency } from '@/utils/formatCurrency';
@@ -31,6 +32,7 @@ export default function OutboundsPage() {
   const [range, setRange] = useState(null);
   const [cancelId, setCancelId] = useState(null);
   const [reason, setReason] = useState('');
+  const [detailRecord, setDetailRecord] = useState(null);
   const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
@@ -80,7 +82,20 @@ export default function OutboundsPage() {
       width: 160,
       render: (v) => <span className="font-semibold text-ink">{formatCurrency(v)}</span>,
     },
+    { title: 'Người tạo', dataIndex: 'createdBy', width: 140, render: (v) => <span className="text-ink-sub">{v}</span> },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
+    {
+      title: '',
+      key: 'detail',
+      align: 'center',
+      width: 100,
+      render: (_, r) =>
+        r.items?.length > 0 && (
+          <Button size="small" onClick={() => setDetailRecord(r)}>
+            Chi tiết
+          </Button>
+        ),
+    },
     {
       title: '',
       key: 'action',
@@ -143,23 +158,14 @@ export default function OutboundsPage() {
         <RangePicker format="DD/MM/YYYY" className="w-full sm:w-auto" onChange={(_, ds) => setRange(ds && ds[0] ? ds : null)} />
       </FilterBar>
 
-      <motion.div
-        key={data.map((r) => r.id).join(',')}
-        initial={{ opacity: 0.4 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-      >
+      <FadeSection dataKey={data.map((r) => r.id).join(',')}>
         <DataTable
           columns={columns}
           dataSource={data}
           rowClassName={(r) => (r.status === 'VOIDED' ? 'opacity-50' : '')}
-          expandable={{
-            expandedRowRender: (r) => <DocItemsDetail items={r.items} />,
-            rowExpandable: (r) => r.items?.length > 0,
-          }}
           locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu xuất phù hợp" /> }}
         />
-      </motion.div>
+      </FadeSection>
 
       <Modal
         open={!!cancelId}
@@ -176,6 +182,24 @@ export default function OutboundsPage() {
         </p>
         <Input.TextArea rows={3} placeholder="VD: Khách huỷ đơn / sai thông tin..." value={reason} onChange={(e) => setReason(e.target.value)} />
       </Modal>
+
+      <DocDetailModal
+        open={!!detailRecord}
+        onClose={() => setDetailRecord(null)}
+        title={detailRecord?.code}
+        fields={
+          detailRecord && [
+            { label: 'Đối tác / Nơi nhận', value: detailRecord.partnerName },
+            { label: 'Loại xuất', value: detailRecord.type },
+            { label: 'Ngày xuất', value: formatDate(detailRecord.date) },
+            { label: 'Người tạo', value: detailRecord.createdBy },
+            { label: 'Tổng tiền', value: formatCurrency(detailRecord.total) },
+            { label: 'Trạng thái', value: <StatusPill status={detailRecord.status} /> },
+          ]
+        }
+      >
+        {detailRecord && <DocItemsDetail items={detailRecord.items} />}
+      </DocDetailModal>
     </>
   );
 }

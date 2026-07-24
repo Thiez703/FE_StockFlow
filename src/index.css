@@ -133,15 +133,29 @@
  * Dòng bảng khi vừa mount vào DOM (thêm mới, đổi trang, lọc ra kết quả mới,
  * xổ cây, xổ chi tiết dòng hàng qua expandedRowRender...): AntD mount thẳng
  * vào DOM (không có state mở/đóng để transition), nên giả lập hiệu ứng
- * "trượt xuống" bằng keyframe chạy lúc mount. `ant-table-expanded-row` là
+ * "trượt lên" bằng keyframe chạy lúc mount. `ant-table-expanded-row` là
  * class riêng AntD dùng cho nội dung expandedRowRender, khác với
  * `ant-table-row` của dòng cây (tree data), nên phải khai cả hai.
  */
 @media (prefers-reduced-motion: no-preference) {
   .enterprise-table .ant-table-tbody > tr.ant-table-row,
   .enterprise-table .ant-table-tbody > tr.ant-table-expanded-row {
-    animation: tableRowIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: tableRowIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
+
+  /* Delay tăng dần theo thứ tự dòng -> hiệu ứng "cascade" xuất hiện lần lượt,
+     giống hệt cách trang Cảnh báo stagger từng dòng (thay vì cả bảng nhảy cùng lúc). */
+  .enterprise-table .ant-table-tbody > tr:nth-child(1) { animation-delay: 0ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(2) { animation-delay: 35ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(3) { animation-delay: 70ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(4) { animation-delay: 105ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(5) { animation-delay: 140ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(6) { animation-delay: 175ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(7) { animation-delay: 210ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(8) { animation-delay: 245ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(9) { animation-delay: 280ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(10) { animation-delay: 315ms; }
+  .enterprise-table .ant-table-tbody > tr:nth-child(n+11) { animation-delay: 350ms; }
 }
 
 /**
@@ -172,7 +186,7 @@
 @keyframes tableRowIn {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;

@@ -4,6 +4,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
+import FadeSection from '@/components/ui/FadeSection';
 import AccessDenied from '@/components/feedback/AccessDenied';
 import { usePermissions } from '@/hooks/usePermissions';
 import { LOGS, LOG_ACTIONS } from '@/mock/logs';
@@ -83,7 +84,9 @@ export default function LogsPage() {
         />
       </FilterBar>
 
-      <DataTable columns={columns} dataSource={data} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} bản ghi` }} />
+      <FadeSection dataKey={data.map((l) => l.id).join(',')}>
+        <DataTable columns={columns} dataSource={data} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} bản ghi` }} />
+      </FadeSection>
     </>
   );
 }

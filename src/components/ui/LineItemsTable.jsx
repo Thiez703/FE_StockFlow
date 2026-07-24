@@ -33,8 +33,6 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
               className="w-full"
               onChange={(value) => {
                 field.onChange(value);
-                const product = PRODUCT_OPTIONS.find((p) => p.value === value);
-                if (product) setValue(`${name}.${index}.unitPrice`, product.price);
               }}
             />
           )}

@@ -16,6 +16,7 @@ import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
+import FadeSection from '@/components/ui/FadeSection';
 import { USERS, USER_ROLES } from '@/mock/users';
 
 const ROLE_COLOR = { 'Quản trị': 'red', 'Thủ kho': 'blue', 'Kế toán': 'green', 'Bán hàng': 'gold' };
@@ -170,7 +171,9 @@ export default function UsersPage() {
         />
       </FilterBar>
 
-      <DataTable columns={columns} dataSource={data} />
+      <FadeSection dataKey={data.map((u) => u.id).join(',')}>
+        <DataTable columns={columns} dataSource={data} />
+      </FadeSection>
 
       <Modal
         open={open}

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button, Form, Input, Modal, Select, Tooltip, App } from 'antd';
 import {
   PlusOutlined,
@@ -14,6 +13,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import FilterSidebar from '@/components/ui/FilterSidebar';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { CATEGORY_TREE } from '@/mock/categories';
@@ -244,12 +244,7 @@ export default function CategoriesTab() {
             )}
           </div>
 
-          <motion.div
-            key={data.map((n) => n.id).join(',')}
-            initial={{ opacity: 0.4 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
+          <FadeSection dataKey={data.map((n) => n.id).join(',')}>
             <DataTable
               className="category-tree-table"
               rowClassName={(record) => (record.parentId ? 'category-row-child' : 'category-row-parent')}
@@ -262,7 +257,7 @@ export default function CategoriesTab() {
               }}
               locale={{ emptyText: <TableEmptyState message="Không tìm thấy danh mục phù hợp" /> }}
             />
-          </motion.div>
+          </FadeSection>
         </div>
       </div>
 

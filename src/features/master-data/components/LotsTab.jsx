@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, InputNumber, DatePicker, App } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -7,6 +6,7 @@ import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
 import FilterSidebar from '@/components/ui/FilterSidebar';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { LOTS } from '@/mock/lots';
@@ -153,19 +153,14 @@ export default function LotsTab() {
             )}
           </div>
 
-          <motion.div
-            key={data.map((l) => l.id).join(',')}
-            initial={{ opacity: 0.4 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
+          <FadeSection dataKey={data.map((l) => l.id).join(',')}>
             <DataTable
               columns={columns}
               dataSource={data}
               rowClassName={(r) => (daysUntil(r.expDate) < 0 ? '!bg-[#fef2f2]' : '')}
               locale={{ emptyText: <TableEmptyState message="Không tìm thấy lô hàng phù hợp" /> }}
             />
-          </motion.div>
+          </FadeSection>
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
+import FadeSection from '@/components/ui/FadeSection';
 import ApprovalActions from '@/components/ui/ApprovalActions';
 import { ABNORMAL_STOCKS, ABNORMAL_TYPES } from '@/mock/abnormal';
 import { PRODUCT_OPTIONS } from '@/mock/products';
@@ -149,7 +150,9 @@ export default function AbnormalStocksPage() {
         />
       </FilterBar>
 
-      <DataTable columns={columns} dataSource={data} />
+      <FadeSection dataKey={data.map((r) => r.id).join(',')}>
+        <DataTable columns={columns} dataSource={data} />
+      </FadeSection>
 
       <Modal
         open={open}

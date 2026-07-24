@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, Button, Select, InputNumber, Input, Tag, Empty } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useFormContext, useFieldArray, Controller, useWatch } from 'react-hook-form';
@@ -75,7 +76,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
     <div className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/60">
       <div className="grid grid-cols-12 items-start gap-3 px-4 py-3">
         {/* Sản phẩm */}
-        <div className="col-span-12 md:col-span-3">
+        <div className="col-span-12 md:col-span-2">
           <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Sản phẩm</span>
           <Controller
             name={`${name}.${index}.productId`}
@@ -91,8 +92,6 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
                 className="w-full"
                 onChange={(value) => {
                   field.onChange(value);
-                  const product = PRODUCT_OPTIONS.find((p) => p.value === value);
-                  if (product) setValue(`${name}.${index}.unitPrice`, product.price);
                   // Auto-chọn lô FEFO khi đổi sản phẩm
                   const newFefo = getFefoLot(value);
                   setValue(`${name}.${index}.lotId`, newFefo?.code ?? undefined);
@@ -104,7 +103,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
         </div>
 
         {/* Lô hàng — FIX 2 FEFO suggestion */}
-        <div className="col-span-12 md:col-span-3">
+        <div className="col-span-12 md:col-span-2">
           <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Lô hàng</span>
           <Controller
             name={`${name}.${index}.lotId`}
@@ -151,7 +150,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
         </div>
 
         {/* Đơn giá */}
-        <div className="col-span-4 md:col-span-1">
+        <div className="col-span-4 md:col-span-2">
           <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Đơn giá</span>
           <Controller
             name={`${name}.${index}.unitPrice`}
@@ -171,7 +170,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
         </div>
 
         {/* Thành tiền */}
-        <div className="col-span-8 self-center md:col-span-1 md:text-right">
+        <div className="col-span-8 self-center md:col-span-2 md:text-right">
           <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Thành tiền</span>
           <span className="font-semibold text-ink">{formatCurrency(lineTotal)}</span>
         </div>
@@ -233,6 +232,12 @@ export default function OutboundLineItemsTable({ name = 'items', emptyItem = DEF
   } = useFormContext();
   const { fields, append, remove } = useFieldArray({ control, name });
   const arrErr = errors?.[name]?.message || errors?.[name]?.root?.message;
+  const [addCount, setAddCount] = useState(1);
+
+  const handleAdd = () => {
+    const count = Number(addCount) || 1;
+    append(Array.from({ length: count }, () => ({ ...emptyItem })));
+  };
 
   return (
     <Card
@@ -240,18 +245,21 @@ export default function OutboundLineItemsTable({ name = 'items', emptyItem = DEF
       className="border-hair"
       styles={{ header: { borderBottom: '1px solid #f1f5f9' }, body: { padding: 0 } }}
       extra={
-        <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => append(emptyItem)}>
-          Thêm dòng
-        </Button>
+        <div className="flex items-center gap-2">
+          <InputNumber min={1} value={addCount} onChange={(v) => setAddCount(v ?? 1)} className="w-16" />
+          <Button type="primary" ghost icon={<PlusOutlined />} onClick={handleAdd}>
+            Thêm dòng
+          </Button>
+        </div>
       }
     >
       <div className="hidden grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
-        <span className="col-span-3">Sản phẩm</span>
-        <span className="col-span-3">Lô hàng</span>
+        <span className="col-span-2">Sản phẩm</span>
+        <span className="col-span-2">Lô hàng</span>
         <span className="col-span-1">Đơn vị</span>
         <span className="col-span-2">Số lượng</span>
-        <span className="col-span-1">Đơn giá</span>
-        <span className="col-span-1 text-right">Thành tiền</span>
+        <span className="col-span-2">Đơn giá</span>
+        <span className="col-span-2 text-right">Thành tiền</span>
         <span className="col-span-1" />
       </div>
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Card, Segmented } from 'antd';
+import { Card } from 'antd';
 import { TREND } from '@/mock/dashboard';
 import { formatNumber } from '@/utils/formatCurrency';
 
@@ -28,7 +28,6 @@ function LegendDot({ className, label }) {
  * Hover vào cụm cột của 1 tháng hiện tooltip đủ 3 chỉ số, trượt mượt bằng Framer Motion.
  */
 export default function InventoryTrendChart() {
-  const [range, setRange] = useState('6 tháng');
   const [hoverIndex, setHoverIndex] = useState(null);
   const activeIndex = hoverIndex ?? 0;
   const active = TREND[activeIndex];
@@ -46,7 +45,7 @@ export default function InventoryTrendChart() {
             <LegendDot className="bg-[#93b4fb]" label="Xuất" />
             <LegendDot className="bg-amber" label="Tồn" />
           </div>
-          <Segmented size="small" value={range} onChange={setRange} options={['6 tháng', 'Năm']} />
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-ink-sub">6 tháng</span>
         </div>
       </div>
 

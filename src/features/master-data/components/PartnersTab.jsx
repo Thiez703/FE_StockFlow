@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button, Tabs, Input, Form, Modal, Select, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import FilterSidebar from '@/components/ui/FilterSidebar';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { SUPPLIERS, CUSTOMERS } from '@/mock/partners';
@@ -171,18 +171,13 @@ export default function PartnersTab() {
             <span className="text-sm text-ink-sub">{data.length} đối tác</span>
           </div>
 
-          <motion.div
-            key={`${tab}-${data.map((r) => r.id).join(',')}`}
-            initial={{ opacity: 0.4 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
+          <FadeSection dataKey={`${tab}-${data.map((r) => r.id).join(',')}`}>
             <DataTable
               columns={isSupplier ? supplierColumns : customerColumns}
               dataSource={data}
               locale={{ emptyText: <TableEmptyState message="Không tìm thấy đối tác phù hợp" /> }}
             />
-          </motion.div>
+          </FadeSection>
         </div>
       </div>
 

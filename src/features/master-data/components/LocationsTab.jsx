@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button, Input, Select, Progress, Tag, Form, Modal, Tooltip, App } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -7,6 +6,7 @@ import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
 import FilterSidebar from '@/components/ui/FilterSidebar';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { LOCATIONS } from '@/mock/locations';
@@ -146,18 +146,13 @@ export default function LocationsTab() {
             )}
           </div>
 
-          <motion.div
-            key={data.map((l) => l.id).join(',')}
-            initial={{ opacity: 0.4 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
+          <FadeSection dataKey={data.map((l) => l.id).join(',')}>
             <DataTable
               columns={columns}
               dataSource={data}
               locale={{ emptyText: <TableEmptyState message="Không tìm thấy vị trí phù hợp" /> }}
             />
-          </motion.div>
+          </FadeSection>
         </div>
       </div>
 

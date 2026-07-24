@@ -17,7 +17,7 @@ export default function ProductFormModal({ open, editing, onClose, onSubmit }) {
   useEffect(() => {
     if (open) {
       form.setFieldsValue(
-        editing ?? { baseUnit: 'Lon', status: 'active', minStock: 0, maxStock: 0, price: 0 },
+        editing ?? { baseUnit: 'Lon', status: 'active', minStock: 0 },
       );
     }
   }, [open, editing, form]);
@@ -59,12 +59,6 @@ export default function ProductFormModal({ open, editing, onClose, onSubmit }) {
           </Form.Item>
           <Form.Item name="minStock" label="Tồn tối thiểu">
             <InputNumber min={0} className="w-full" />
-          </Form.Item>
-          <Form.Item name="maxStock" label="Tồn tối đa">
-            <InputNumber min={0} className="w-full" />
-          </Form.Item>
-          <Form.Item name="price" label="Giá bán lẻ (₫)">
-            <InputNumber min={0} step={500} className="w-full" />
           </Form.Item>
           <Form.Item name="status" label="Trạng thái">
             <Select

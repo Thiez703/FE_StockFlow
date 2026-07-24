@@ -7,12 +7,13 @@ import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
 import FilterSidebar from '@/components/ui/FilterSidebar';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import StatusPill from '@/components/ui/StatusPill';
 import ProductFormModal from '@/features/master-data/components/ProductFormModal';
 import { PRODUCTS, getProduct } from '@/mock/products';
 import { CATEGORY_OPTIONS, getCategoryName } from '@/mock/categories';
 import { INVENTORY } from '@/mock/inventory';
-import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
+import { formatNumber } from '@/utils/formatCurrency';
 
 const UNIT_OPTIONS = [
   { value: 'Lon', label: 'Lon' },
@@ -124,22 +125,11 @@ export default function ProductsTab() {
     },
     { title: 'Danh mục', dataIndex: 'categoryId', render: (id) => getCategoryName(id) },
     {
-      title: sortableTitle('Định mức (min/max)', 'minStock'),
+      title: sortableTitle('Tồn tối thiểu', 'minStock'),
       dataIndex: 'minStock',
       align: 'right',
-      width: 160,
-      render: (min, r) => (
-        <span className="mono text-ink-sub">
-          {formatNumber(min)} / {formatNumber(r.maxStock)}
-        </span>
-      ),
-    },
-    {
-      title: sortableTitle('Giá bán lẻ', 'price'),
-      dataIndex: 'price',
-      align: 'right',
       width: 130,
-      render: (v) => <span className="font-semibold text-ink">{formatCurrency(v)}</span>,
+      render: (min) => <span className="mono text-ink-sub">{formatNumber(min)}</span>,
     },
     {
       title: '',
@@ -252,12 +242,7 @@ export default function ProductsTab() {
               </Button>
             )}
           </div>
-          <motion.div
-            key={data.map((p) => p.id).join(',')}
-            initial={{ opacity: 0.4 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
+          <FadeSection dataKey={data.map((p) => p.id).join(',')}>
             <DataTable
               columns={columns}
               dataSource={data}
@@ -268,7 +253,7 @@ export default function ProductsTab() {
               }
               locale={{ emptyText: <TableEmptyState message="Không tìm thấy sản phẩm phù hợp" /> }}
             />
-          </motion.div>
+          </FadeSection>
         </div>
       </div>
 

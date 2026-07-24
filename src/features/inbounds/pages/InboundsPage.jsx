@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Button, Input, Select, DatePicker, Modal, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, SearchOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +10,9 @@ import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import TableEmptyState from '@/components/ui/TableEmptyState';
+import FadeSection from '@/components/ui/FadeSection';
 import DocItemsDetail from '@/components/ui/DocItemsDetail';
+import DocDetailModal from '@/components/ui/DocDetailModal';
 import { INBOUNDS } from '@/mock/inbounds';
 import { statusOptions, DOC_STATUSES } from '@/constants/status';
 import { formatCurrency } from '@/utils/formatCurrency';
@@ -29,6 +30,7 @@ export default function InboundsPage() {
   const [range, setRange] = useState(null);
   const [cancelId, setCancelId] = useState(null);
   const [reason, setReason] = useState('');
+  const [detailRecord, setDetailRecord] = useState(null);
   const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
@@ -64,6 +66,7 @@ export default function InboundsPage() {
       render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span>,
     },
     { title: 'Mặt hàng', dataIndex: 'items', align: 'center', width: 100, render: (items) => `${items.length} SP` },
+    { title: 'Người tạo', dataIndex: 'createdBy', width: 140, render: (v) => <span className="text-ink-sub">{v}</span> },
     {
       title: sortableTitle('Tổng tiền', 'total'),
       dataIndex: 'total',
@@ -72,6 +75,18 @@ export default function InboundsPage() {
       render: (v) => <span className="font-semibold text-ink">{formatCurrency(v)}</span>,
     },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
+    {
+      title: '',
+      key: 'detail',
+      align: 'center',
+      width: 100,
+      render: (_, r) =>
+        r.items?.length > 0 && (
+          <Button size="small" onClick={() => setDetailRecord(r)}>
+            Chi tiết
+          </Button>
+        ),
+    },
     {
       title: '',
       key: 'action',
@@ -130,23 +145,14 @@ export default function InboundsPage() {
         />
       </FilterBar>
 
-      <motion.div
-        key={data.map((r) => r.id).join(',')}
-        initial={{ opacity: 0.4 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-      >
+      <FadeSection dataKey={data.map((r) => r.id).join(',')}>
         <DataTable
           columns={columns}
           dataSource={data}
           rowClassName={(r) => (r.status === 'VOIDED' ? 'opacity-50' : '')}
-          expandable={{
-            expandedRowRender: (r) => <DocItemsDetail items={r.items} />,
-            rowExpandable: (r) => r.items?.length > 0,
-          }}
           locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu nhập phù hợp" /> }}
         />
-      </motion.div>
+      </FadeSection>
 
       <Modal
         open={!!cancelId}
@@ -168,6 +174,23 @@ export default function InboundsPage() {
           onChange={(e) => setReason(e.target.value)}
         />
       </Modal>
+
+      <DocDetailModal
+        open={!!detailRecord}
+        onClose={() => setDetailRecord(null)}
+        title={detailRecord?.code}
+        fields={
+          detailRecord && [
+            { label: 'Nhà cung cấp', value: detailRecord.supplierName },
+            { label: 'Ngày nhập', value: formatDate(detailRecord.date) },
+            { label: 'Người tạo', value: detailRecord.createdBy },
+            { label: 'Tổng tiền', value: formatCurrency(detailRecord.total) },
+            { label: 'Trạng thái', value: <StatusPill status={detailRecord.status} /> },
+          ]
+        }
+      >
+        {detailRecord && <DocItemsDetail items={detailRecord.items} />}
+      </DocDetailModal>
     </>
   );
 }
