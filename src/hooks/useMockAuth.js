@@ -9,7 +9,7 @@
  *   Bán hàng  → STAFF
  */
 
-const MOCK_ROLE = 'MANAGER ';
+const MOCK_ROLE = 'MANAGER';
 
 const MOCK_USER = {
   id: 'U-001',

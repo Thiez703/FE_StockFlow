@@ -33,9 +33,6 @@ export default function ReportsPage() {
   const [detailRecord, setDetailRecord] = useState(null);
   const { sortableTitle, sortRows } = useColumnSort();
 
-  // FIX 5f — STAFF không được xem báo cáo.
-  if (!canViewReports) return <AccessDenied />;
-
   const variance = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const filtered = STOCKTAKES.filter((r) => {
@@ -47,6 +44,9 @@ export default function ReportsPage() {
     const withDiff = filtered.map((r) => ({ ...r, diff: totalDiff(r.items) }));
     return sortRows(withDiff);
   }, [keyword, status, range, sortRows]);
+
+  // FIX 5f — STAFF không được xem báo cáo.
+  if (!canViewReports) return <AccessDenied />;
 
   const nxtColumns = [
     { title: 'Kỳ', dataIndex: 'label', render: (l) => <span className="font-medium text-ink">Tháng {l.replace('T', '')}</span> },
