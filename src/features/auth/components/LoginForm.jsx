@@ -3,7 +3,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, Input, Button, App } from 'antd';
 import { MailOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { loginSchema } from '@/features/auth/schemas/loginSchema';
+import { authApi } from '@/api/auth';
+import { setCredentials } from '@/store/authSlice';
 import RhfTextField from '@/components/form/RhfTextField';
 import RhfCheckbox from '@/components/form/RhfCheckbox';
 
@@ -14,6 +17,7 @@ import RhfCheckbox from '@/components/form/RhfCheckbox';
 export default function LoginForm() {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const {
     control,
@@ -24,11 +28,15 @@ export default function LoginForm() {
     defaultValues: { email: '', password: '', remember: true },
   });
 
-  const onSubmit = async () => {
-    // Giả lập gọi API đăng nhập.
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    message.success('Đăng nhập thành công!');
-    navigate('/dashboard');
+  const onSubmit = async (data) => {
+    try {
+      const res = await authApi.login({ email: data.email, password: data.password });
+      dispatch(setCredentials(res.data));
+      message.success('Đăng nhập thành công!');
+      navigate('/dashboard');
+    } catch (err) {
+      message.error(err.response?.data?.message || 'Đăng nhập thất bại');
+    }
   };
 
   return (

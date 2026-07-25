@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import MainLayout from '@/components/layout/MainLayout';
 import AuthLayout from '@/components/layout/AuthLayout';
 import ComingSoon from '@/components/feedback/ComingSoon';
+import ProtectedRoute from '@/components/layout/ProtectedRoute';
 import { authRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
 import { inboundRoutes } from '@/features/inbounds/routes';
@@ -16,38 +17,33 @@ import { userRoutes } from '@/features/users/routes';
 import { logRoutes } from '@/features/logs/routes';
 import { masterDataRoutes } from '@/features/master-data/routes';
 
-/**
- * Router trung tâm. Quy tắc: chỉ import và spread `routes.jsx` của từng feature,
- * không khai báo trực tiếp trang ở đây. Thêm màn hình mới => sửa trong feature.
- */
 export const router = createBrowserRouter([
   {
     element: <AuthLayout />,
     children: [...authRoutes],
   },
   {
-    element: <MainLayout />,
+    element: <ProtectedRoute />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
-      ...dashboardRoutes,
-      // Dữ liệu nền
-      ...masterDataRoutes,
-      // Nghiệp vụ kho
-      ...inboundRoutes,
-      ...outboundRoutes,
-      // Kiểm soát
-      ...stocktakeRoutes,
-      ...abnormalRoutes,
-      // Tồn kho & Báo cáo
-      ...inventoryRoutes,
-      ...stockCardRoutes,
-      ...alertRoutes,
-      ...reportRoutes,
-      // Hệ thống
-      ...userRoutes,
-      ...logRoutes,
-      // Đường dẫn không khớp -> trang 404 tối giản.
-      { path: '*', element: <ComingSoon /> },
+      {
+        element: <MainLayout />,
+        children: [
+          { index: true, element: <Navigate to="/dashboard" replace /> },
+          ...dashboardRoutes,
+          ...masterDataRoutes,
+          ...inboundRoutes,
+          ...outboundRoutes,
+          ...stocktakeRoutes,
+          ...abnormalRoutes,
+          ...inventoryRoutes,
+          ...stockCardRoutes,
+          ...alertRoutes,
+          ...reportRoutes,
+          ...userRoutes,
+          ...logRoutes,
+          { path: '*', element: <ComingSoon /> },
+        ],
+      },
     ],
   },
 ]);

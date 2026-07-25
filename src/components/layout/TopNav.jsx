@@ -8,9 +8,12 @@ import {
   LogoutOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import Logo from '@/components/ui/Logo';
 import ChangePasswordModal from '@/features/auth/components/ChangePasswordModal';
 import { NAV_GROUPS, FLAT_NAV_KEYS } from '@/constants/navigation';
+import { useMockAuth } from '@/hooks/useMockAuth';
+import { logout } from '@/store/authSlice';
 
 const USER_MENU_ITEMS = [
   { key: 'change-pw', icon: <LockOutlined />, label: 'Đổi mật khẩu' },
@@ -25,8 +28,10 @@ const USER_MENU_ITEMS = [
  */
 export default function TopNav() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { pathname } = useLocation();
   const [pwOpen, setPwOpen] = useState(false);
+  const user = useMockAuth();
 
   // Item khớp path dài nhất -> suy ra nhóm đang active.
   const activeItemKey = useMemo(() => {
@@ -71,7 +76,10 @@ export default function TopNav() {
 
   const onUserMenuClick = ({ key }) => {
     if (key === 'change-pw') setPwOpen(true);
-    if (key === 'logout') navigate('/login');
+    if (key === 'logout') {
+      dispatch(logout());
+      navigate('/login');
+    }
   };
 
   return (
@@ -179,11 +187,11 @@ export default function TopNav() {
                 size={34}
                 style={{ background: 'linear-gradient(135deg,#1E5AF0,#0A1E3F)' }}
               >
-                TN
+                {user?.fullName?.charAt(0) || '?'}
               </Avatar>
               <span className="hidden flex-col items-start leading-tight lg:flex">
-                <span className="text-[13px] font-semibold text-white">Thiên Nguyễn</span>
-                <span className="text-[11px] text-[#8fa8d8]">Quản lý kho</span>
+                <span className="text-[13px] font-semibold text-white">{user?.fullName || 'Chưa đăng nhập'}</span>
+                <span className="text-[11px] text-[#8fa8d8]">{user?.role || ''}</span>
               </span>
               <DownOutlined className="hidden text-[9px] text-white/60 lg:block" />
             </button>
