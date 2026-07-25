@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, Input, Button, App } from 'antd';
 import { MailOutlined, LockOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { loginSchema } from '@/features/auth/schemas/loginSchema';
 import RhfTextField from '@/components/form/RhfTextField';
 import RhfCheckbox from '@/components/form/RhfCheckbox';
@@ -61,9 +61,12 @@ export default function LoginForm() {
         <RhfCheckbox control={control} name="remember">
           Ghi nhớ đăng nhập
         </RhfCheckbox>
-        <a className="text-sm font-medium text-royal hover:text-royal-500">
+        <Link
+          to="/forgot-password"
+          className="text-sm font-medium text-royal hover:text-royal-500"
+        >
           Quên mật khẩu?
-        </a>
+        </Link>
       </div>
 
       <Button

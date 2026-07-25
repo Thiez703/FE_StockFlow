@@ -1,9 +1,14 @@
+import { motion } from 'framer-motion';
 import Logo from '@/components/ui/Logo';
 import LoginForm from '@/features/auth/components/LoginForm';
 
 export default function LoginPage() {
   return (
-    <div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: 'easeOut' }}
+    >
       {/* Logo cho màn hình nhỏ (bảng thương hiệu bên trái bị ẩn) */}
       <div className="mb-8 lg:hidden">
         <Logo to={null} />
@@ -32,6 +37,6 @@ export default function LoginPage() {
           Liên hệ quản trị viên
         </a>
       </p>
-    </div>
+    </motion.div>
   );
 }

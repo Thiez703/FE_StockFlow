@@ -28,7 +28,7 @@ export const router = createBrowserRouter([
   {
     element: <MainLayout />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { index: true, element: <Navigate to="/login" replace /> },
       ...dashboardRoutes,
       // Dữ liệu nền
       ...masterDataRoutes,
