@@ -1,4 +1,5 @@
 import { Modal } from 'antd';
+import { useEffect, useRef } from 'react';
 
 /**
  * Modal xem chi tiết 1 phiếu (nhập/xuất/kiểm kê...) dùng chung: tiêu đề là mã phiếu,
@@ -7,6 +8,17 @@ import { Modal } from 'antd';
  */
 export default function DocDetailModal({ open, onClose, title, fields, children }) {
   const safeFields = fields ?? [];
+
+  // AntD tự focus khung dialog khi mở, khiến trình duyệt cuộn window lên đầu trang
+  // để đưa dialog vào tầm nhìn — khôi phục lại vị trí cuộn ngay sau đó để tránh giật.
+  const scrollYRef = useRef(0);
+  useEffect(() => {
+    if (!open) return;
+    scrollYRef.current = window.scrollY;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.scrollTo(0, scrollYRef.current));
+    });
+  }, [open]);
   return (
     <Modal open={open} onCancel={onClose} footer={null} title={title} width={720} destroyOnHidden>
       {safeFields.length > 0 && (

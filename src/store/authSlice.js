@@ -1,27 +1,37 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from '@/api/axiosClient';
 
-const token = localStorage.getItem('token') ?? null;
-const raw = localStorage.getItem('user');
-const user = raw && raw !== 'undefined' ? JSON.parse(raw) : null;
-
-const authSlice = createSlice({
+// Token chỉ sống ở localStorage — axiosClient tự đọc/ghi khi refresh. Không giữ
+// bản sao trong store để tránh có hai nguồn sự thật lệch nhau.
+const AuthSlice = createSlice({
   name: 'auth',
-  initialState: { user, token },
+  initialState: {
+    user: null,
+    isAuthenticated: !!localStorage.getItem(ACCESS_TOKEN_KEY),
+  },
   reducers: {
-    setCredentials: (state, action) => {
-      state.user = action.payload.user;
-      state.token = action.payload.token;
-      localStorage.setItem('token', action.payload.token);
-      localStorage.setItem('user', JSON.stringify(action.payload.user));
+    loginSuccess: (state, action) => {
+      const { user, accessToken, refreshToken } = action.payload;
+      state.user = user ?? null;
+      state.isAuthenticated = true;
+      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+      if (refreshToken) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      }
     },
-    logout: (state) => {
+    setUser: (state, action) => {
+      state.user = action.payload;
+      state.isAuthenticated = true;
+    },
+    // Chỉ dọn phía client, việc gọi API logout do useLogout lo.
+    logout(state) {
       state.user = null;
-      state.token = null;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      state.isAuthenticated = false;
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     },
   },
 });
 
-export const { setCredentials, logout } = authSlice.actions;
-export default authSlice.reducer;
+export const { loginSuccess, setUser, logout } = AuthSlice.actions;
+export default AuthSlice.reducer;

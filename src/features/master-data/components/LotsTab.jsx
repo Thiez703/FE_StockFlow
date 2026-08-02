@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, InputNumber, DatePicker, App } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, DatePicker, App } from 'antd';
+import { EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
@@ -9,36 +11,73 @@ import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
-import { LOTS } from '@/mock/lots';
-import { PRODUCT_OPTIONS } from '@/mock/products';
-import { LOCATION_OPTIONS } from '@/mock/locations';
+import { lotApi } from '@/api/lots';
+import { productApi } from '@/api/products';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatDate, daysUntil } from '@/utils/date';
-import { formatNumber } from '@/utils/formatCurrency';
+
+const LOTS_KEY = ['lots'];
+
+const STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: 'Còn hạn' },
+  { value: 'EXPIRED', label: 'Quá hạn' },
+  { value: 'INACTIVE', label: 'Ngừng' },
+];
 
 // Phân loại tình trạng hạn dùng theo số ngày còn lại.
 function expiryInfo(expDate) {
   const d = daysUntil(expDate);
   if (d < 0) return { tone: 'text-[#b91c1c]', dot: 'bg-[#dc2626]', label: `Quá hạn ${Math.abs(d)} ngày` };
-  if (d <= 14) return { tone: 'text-[#b45309]', dot: 'bg-amber', label: `Còn ${d} ngày` };
   if (d <= 30) return { tone: 'text-[#b45309]', dot: 'bg-amber', label: `Còn ${d} ngày` };
   return { tone: 'text-ink', dot: 'bg-[#16a34a]', label: `Còn ${d} ngày` };
 }
 
+// Các cột "Tồn lô" và "Vị trí" của bản mock đã bỏ vì LotResponse không có.
 export default function LotsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
-  const [rows, setRows] = useState(LOTS);
+  const queryClient = useQueryClient();
+
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
   const [nearOnly, setNearOnly] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
   const [form] = Form.useForm();
   const { sortableTitle, sortRows } = useColumnSort();
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: LOTS_KEY,
+    queryFn: lotApi.getAll,
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: productApi.getAll,
+  });
+
+  const productOptions = products.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }));
+
+  const closeModal = () => {
+    setEditing(null);
+    setAdding(false);
+  };
+
+  const { mutate: saveLot, isPending: isSaving } = useMutation({
+    // Update chỉ nhận mfgDate + expDate, không đổi được mã lô và sản phẩm.
+    mutationFn: ({ id, values }) => (id ? lotApi.update(id, values) : lotApi.create(values)),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: LOTS_KEY });
+      message.success(id ? 'Đã cập nhật lô hàng' : 'Đã thêm lô hàng');
+      closeModal();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
 
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const filtered = rows.filter((l) => {
-      const okKw = !kw || [l.code, l.productName].some((v) => v.toLowerCase().includes(kw));
+      const okKw = !kw || [l.lotCode, l.productName].some((v) => String(v ?? '').toLowerCase().includes(kw));
       const okStatus = !status || l.status === status;
       const okNear = !nearOnly || daysUntil(l.expDate) <= 30;
       return okKw && okStatus && okNear;
@@ -53,33 +92,43 @@ export default function LotsTab() {
     setNearOnly(false);
   };
 
+  useEffect(() => {
+    if (editing) {
+      form.setFieldsValue({
+        mfgDate: editing.mfgDate ? dayjs(editing.mfgDate) : null,
+        expDate: editing.expDate ? dayjs(editing.expDate) : null,
+      });
+    } else if (adding) {
+      form.resetFields();
+    }
+  }, [editing, adding, form]);
+
   const handleOk = async () => {
     const v = await form.validateFields();
-    const lot = {
-      id: `L${Date.now().toString().slice(-4)}`,
-      code: v.code,
-      productId: v.productId,
-      productName: PRODUCT_OPTIONS.find((p) => p.value === v.productId)?.label ?? '',
-      mfgDate: v.mfgDate?.format?.('YYYY-MM-DD'),
-      expDate: v.expDate?.format?.('YYYY-MM-DD'),
-      quantity: v.quantity,
-      location: v.location,
-      status: 'active',
+    const dates = {
+      mfgDate: v.mfgDate?.format('YYYY-MM-DD') ?? null,
+      expDate: v.expDate.format('YYYY-MM-DD'),
     };
-    setRows((prev) => [lot, ...prev]);
-    message.success('Đã thêm lô hàng');
-    setOpen(false);
-    form.resetFields();
+    saveLot({
+      id: editing?.id,
+      values: editing ? dates : { productId: v.productId, lotCode: v.lotCode, ...dates },
+    });
   };
 
   const columns = [
-    { title: 'Mã lô', dataIndex: 'code', width: 130, render: (c) => <DocCode>{c}</DocCode> },
+    { title: 'Mã lô', dataIndex: 'lotCode', width: 150, render: (c) => <DocCode>{c}</DocCode> },
     {
       title: 'Sản phẩm',
       dataIndex: 'productName',
       render: (name) => <span className="font-medium text-ink">{name}</span>,
     },
-    { title: 'NSX', dataIndex: 'mfgDate', align: 'center', width: 120, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
+    {
+      title: 'NSX',
+      dataIndex: 'mfgDate',
+      align: 'center',
+      width: 120,
+      render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span>,
+    },
     {
       title: sortableTitle('HSD', 'expDate'),
       dataIndex: 'expDate',
@@ -98,19 +147,27 @@ export default function LotsTab() {
       },
     },
     {
-      title: sortableTitle('Tồn lô', 'quantity'),
-      dataIndex: 'quantity',
-      align: 'right',
-      width: 130,
-      render: (q) => <span className="mono text-ink">{formatNumber(q)}</span>,
-    },
-    { title: 'Vị trí', dataIndex: 'location', align: 'center', width: 110, render: (l) => <DocCode muted>{l}</DocCode> },
-    {
       title: 'Trạng thái',
       dataIndex: 'status',
       align: 'center',
       width: 130,
       render: (s) => <StatusPill status={s} />,
+    },
+    {
+      title: '',
+      key: 'action',
+      align: 'center',
+      width: 56,
+      render: (_, r) => (
+        <Tooltip title="Sửa ngày sản xuất / hạn dùng">
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            disabled={!canManageMasterData}
+            onClick={() => setEditing(r)}
+          />
+        </Tooltip>
+      ),
     },
   ];
 
@@ -130,10 +187,7 @@ export default function LotsTab() {
             allowClear
             placeholder="Trạng thái"
             className="w-full"
-            options={[
-              { value: 'active', label: 'Còn hạn' },
-              { value: 'expired', label: 'Quá hạn' },
-            ]}
+            options={STATUS_OPTIONS}
             value={status}
             onChange={setStatus}
           />
@@ -147,9 +201,16 @@ export default function LotsTab() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <span className="text-sm text-ink-sub">{data.length} lô</span>
             {canManageMasterData && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
-                Thêm lô
-              </Button>
+              <Tooltip title={products.length ? '' : 'Cần có ít nhất một sản phẩm trước'}>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  disabled={!products.length}
+                  onClick={() => setAdding(true)}
+                >
+                  Thêm lô
+                </Button>
+              </Tooltip>
             )}
           </div>
 
@@ -157,6 +218,7 @@ export default function LotsTab() {
             <DataTable
               columns={columns}
               dataSource={data}
+              loading={isLoading}
               rowClassName={(r) => (daysUntil(r.expDate) < 0 ? '!bg-[#fef2f2]' : '')}
               locale={{ emptyText: <TableEmptyState message="Không tìm thấy lô hàng phù hợp" /> }}
             />
@@ -165,34 +227,43 @@ export default function LotsTab() {
       </div>
 
       <Modal
-        open={open}
-        title="Thêm lô hàng"
-        okText="Thêm mới"
+        open={!!editing || adding}
+        title={editing ? `Sửa lô ${editing.lotCode}` : 'Thêm lô hàng'}
+        okText={editing ? 'Lưu thay đổi' : 'Thêm mới'}
         cancelText="Huỷ"
-        onCancel={() => setOpen(false)}
+        confirmLoading={isSaving}
+        onCancel={closeModal}
         onOk={handleOk}
         destroyOnHidden
         maskClosable={false}
       >
         <Form form={form} layout="vertical" requiredMark={false} className="mt-2">
-          <Form.Item name="code" label="Mã lô" rules={[{ required: true, message: 'Nhập mã lô' }]}>
-            <Input placeholder="L2406-SG" />
-          </Form.Item>
-          <Form.Item name="productId" label="Sản phẩm" rules={[{ required: true, message: 'Chọn sản phẩm' }]}>
-            <Select showSearch optionFilterProp="label" options={PRODUCT_OPTIONS} placeholder="Chọn sản phẩm" />
-          </Form.Item>
+          {editing ? (
+            // Sửa: API chỉ nhận ngày, mã lô và sản phẩm cố định.
+            <p className="mb-4 text-sm text-ink-sub">
+              Sản phẩm: <span className="font-medium text-ink">{editing.productName}</span>
+            </p>
+          ) : (
+            <>
+              <Form.Item name="lotCode" label="Mã lô" rules={[{ required: true, message: 'Nhập mã lô' }]}>
+                <Input placeholder="L2406-SG" />
+              </Form.Item>
+              <Form.Item name="productId" label="Sản phẩm" rules={[{ required: true, message: 'Chọn sản phẩm' }]}>
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={productOptions}
+                  placeholder="Chọn sản phẩm"
+                />
+              </Form.Item>
+            </>
+          )}
           <div className="grid grid-cols-2 gap-x-4">
-            <Form.Item name="mfgDate" label="Ngày sản xuất" rules={[{ required: true, message: 'Chọn NSX' }]}>
+            <Form.Item name="mfgDate" label="Ngày sản xuất">
               <DatePicker className="w-full" format="DD/MM/YYYY" />
             </Form.Item>
             <Form.Item name="expDate" label="Hạn sử dụng" rules={[{ required: true, message: 'Chọn HSD' }]}>
               <DatePicker className="w-full" format="DD/MM/YYYY" />
-            </Form.Item>
-            <Form.Item name="quantity" label="Số lượng" rules={[{ required: true, message: 'Nhập số lượng' }]}>
-              <InputNumber min={0} className="w-full" />
-            </Form.Item>
-            <Form.Item name="location" label="Vị trí" rules={[{ required: true, message: 'Chọn vị trí' }]}>
-              <Select options={LOCATION_OPTIONS} placeholder="Chọn vị trí" />
             </Form.Item>
           </div>
         </Form>

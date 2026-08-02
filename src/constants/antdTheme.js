@@ -19,14 +19,14 @@ export const royal = {
   tint: '#E8EFFF', // nền tint nhạt
 };
 
-export const semantic = {
+const semantic = {
   success: '#16A34A',
   warning: '#F59E0B', // cũng là accent amber, dùng tiết chế
   danger: '#DC2626',
   info: '#1E5AF0',
 };
 
-export const neutral = {
+const neutral = {
   text: '#0F172A',
   textSub: '#64748B',
   border: '#E2E8F0',

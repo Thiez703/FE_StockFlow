@@ -1,60 +1,126 @@
-import { useMemo, useState } from 'react';
-import { Input, Select, Tag } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import { DatePicker, Select, Tag } from 'antd';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
+import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import AccessDenied from '@/components/feedback/AccessDenied';
 import { usePermissions } from '@/hooks/usePermissions';
-import { LOGS, LOG_ACTIONS } from '@/mock/logs';
+import { auditLogApi } from '@/api/auditLogs';
+import { userApi } from '@/api/users';
+import {
+  AUDIT_ACTION_COLOR,
+  AUDIT_ACTION_LABEL,
+  AUDIT_ACTION_OPTIONS,
+  ENTITY_TYPE_LABEL,
+} from '@/constants/auditActions';
+import { formatDateTime } from '@/utils/date';
 
-const ACTION_COLOR = {
-  'Tạo': 'blue',
-  'Cập nhật': 'cyan',
-  'Duyệt': 'green',
-  'Từ chối': 'red',
-  'Xoá': 'volcano',
-  'Đăng nhập': 'default',
-  'Huỷ': 'gold',
-};
+const LOGS_KEY = ['audit-logs'];
+const PAGE_SIZE = 10;
 
+// Backend chỉ lọc theo userId / action / khoảng thời gian — không có tìm theo từ
+// khoá, nên ô search tự do của bản mock được thay bằng ô chọn người dùng.
+// Bảng cũng không còn cột IP: AuditLogResponse không ghi địa chỉ IP.
 export default function LogsPage() {
   const { canViewLogs } = usePermissions();
-  const [keyword, setKeyword] = useState('');
-  const [action, setAction] = useState(null);
 
-  const data = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    return LOGS.filter((l) => {
-      const okKw = !kw || [l.user, l.target].some((v) => v.toLowerCase().includes(kw));
-      const okAction = !action || l.action === action;
-      return okKw && okAction;
-    });
-  }, [keyword, action]);
+  const [userId, setUserId] = useState(null);
+  const [action, setAction] = useState(null);
+  const [range, setRange] = useState(null);
+  const [page, setPage] = useState(1);
+
+  // Đổi bộ lọc thì phải về trang 1, không thì có thể rơi vào trang trống.
+  const setFilter = (setter, value) => {
+    setter(value);
+    setPage(1);
+  };
+
+  const [from, to] = range ?? [];
+  const filters = {
+    userId: userId ?? undefined,
+    action: action ?? undefined,
+    // LocalDateTime của backend không nhận hậu tố múi giờ.
+    from: from ? from.startOf('day').format('YYYY-MM-DDTHH:mm:ss') : undefined,
+    to: to ? to.endOf('day').format('YYYY-MM-DDTHH:mm:ss') : undefined,
+    page: page - 1, // Spring đánh số trang từ 0, AntD từ 1.
+    size: PAGE_SIZE,
+    sort: 'createdAt,desc',
+  };
+
+  const { data, isFetching } = useQuery({
+    queryKey: [...LOGS_KEY, filters],
+    queryFn: () => auditLogApi.search(filters),
+    placeholderData: keepPreviousData,
+    enabled: canViewLogs,
+  });
+
+  // Trang nhật ký và API người dùng đều giới hạn ADMIN nên lấy được danh sách
+  // đầy đủ để đổ vào ô lọc.
+  const { data: userPage } = useQuery({
+    queryKey: ['users', 'all-for-filter'],
+    queryFn: () => userApi.search({ page: 0, size: 200, sort: 'fullName,asc' }),
+    enabled: canViewLogs,
+  });
+
+  const rows = data?.content ?? [];
+  const total = data?.totalElements ?? 0;
+
+  const userOptions = (userPage?.content ?? []).map((u) => ({
+    value: u.id,
+    label: `${u.fullName} (${u.email})`,
+  }));
 
   // FIX 5e — chỉ ADMIN mới xem được nhật ký.
   if (!canViewLogs) return <AccessDenied />;
 
   const columns = [
-    { title: 'Thời gian', dataIndex: 'time', width: 160, render: (t) => <span className="mono text-ink-sub">{t}</span> },
-    { title: 'Người dùng', dataIndex: 'user', width: 160, render: (u) => <span className="mono font-medium text-navy-700">@{u}</span> },
+    {
+      title: 'Thời gian',
+      dataIndex: 'createdAt',
+      width: 170,
+      render: (t) => <span className="mono text-ink-sub">{formatDateTime(t)}</span>,
+    },
+    {
+      title: 'Người thực hiện',
+      dataIndex: 'actorFullName',
+      width: 220,
+      render: (name, r) => (
+        <div className="min-w-0">
+          <div className="font-medium text-ink">{name ?? '—'}</div>
+          <div className="truncate text-xs text-ink-sub">{r.actorEmail}</div>
+        </div>
+      ),
+    },
     {
       title: 'Hành động',
       dataIndex: 'action',
-      width: 140,
-      render: (a) => <Tag bordered={false} color={ACTION_COLOR[a]}>{a}</Tag>,
-    },
-    { title: 'Đối tượng', dataIndex: 'target', render: (t) => <span className="text-ink">{t}</span> },
-    {
-      title: 'Mã đối tượng',
-      dataIndex: 'entity_id',
-      width: 130,
-      render: (id) => (
-        <span className="mono text-ink-sub">{id != null ? id : '—'}</span>
+      width: 180,
+      render: (a) => (
+        <Tag bordered={false} color={AUDIT_ACTION_COLOR[a]}>
+          {AUDIT_ACTION_LABEL[a] ?? a}
+        </Tag>
       ),
     },
-    { title: 'IP', dataIndex: 'ip', width: 130, align: 'right', render: (ip) => <span className="mono text-ink-sub">{ip}</span> },
+    {
+      title: 'Đối tượng',
+      dataIndex: 'entityType',
+      width: 160,
+      render: (type, r) => (
+        <span className="text-ink">
+          {ENTITY_TYPE_LABEL[type] ?? type}
+          {r.entityId != null && <span className="mono text-ink-sub"> #{r.entityId}</span>}
+        </span>
+      ),
+    },
+    {
+      title: 'Chi tiết',
+      dataIndex: 'detail',
+      render: (d) => <span className="text-ink-sub">{d || '—'}</span>,
+    },
   ];
 
   return (
@@ -65,27 +131,48 @@ export default function LogsPage() {
         breadcrumb={[{ title: 'Hệ thống' }, { title: 'Nhật ký hoạt động' }]}
       />
 
-      <FilterBar extra={<span className="text-sm text-ink-sub">{data.length} bản ghi</span>}>
-        <Input
+      <FilterBar extra={<span className="text-sm text-ink-sub">{total} bản ghi</span>}>
+        <Select
           allowClear
-          prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Tìm theo người dùng, đối tượng..."
-          className="w-full sm:w-72"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
+          showSearch
+          optionFilterProp="label"
+          placeholder="Người thực hiện"
+          className="w-full sm:w-64"
+          options={userOptions}
+          value={userId}
+          onChange={(v) => setFilter(setUserId, v)}
         />
         <Select
           allowClear
           placeholder="Hành động"
-          className="w-full sm:w-44"
-          options={LOG_ACTIONS.map((a) => ({ value: a, label: a }))}
+          className="w-full sm:w-52"
+          options={AUDIT_ACTION_OPTIONS}
           value={action}
-          onChange={setAction}
+          onChange={(v) => setFilter(setAction, v)}
+        />
+        <DatePicker.RangePicker
+          format="DD/MM/YYYY"
+          placeholder={['Từ ngày', 'Đến ngày']}
+          className="w-full sm:w-64"
+          value={range}
+          onChange={(v) => setFilter(setRange, v)}
+          disabledDate={(d) => d && d.isAfter(dayjs(), 'day')}
         />
       </FilterBar>
 
-      <FadeSection dataKey={data.map((l) => l.id).join(',')}>
-        <DataTable columns={columns} dataSource={data} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} bản ghi` }} />
+      <FadeSection dataKey={rows.map((l) => l.id).join(',')}>
+        <DataTable
+          columns={columns}
+          dataSource={rows}
+          loading={isFetching}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total,
+            onChange: setPage,
+          }}
+          locale={{ emptyText: <TableEmptyState message="Chưa có nhật ký nào khớp bộ lọc" /> }}
+        />
       </FadeSection>
     </>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, Modal, Select, Tooltip, App } from 'antd';
 import {
   PlusOutlined,
@@ -8,37 +9,34 @@ import {
   SearchOutlined,
   ShrinkOutlined,
   ArrowsAltOutlined,
+  StopOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import FilterSidebar from '@/components/ui/FilterSidebar';
 import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
-import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
-import { CATEGORY_TREE } from '@/mock/categories';
+import { categoryApi } from '@/api/categories';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
-// Cập nhật bất biến 1 node theo id trong cây.
-const updateNode = (nodes, id, patch) =>
-  nodes.map((n) =>
-    n.id === id
-      ? { ...n, ...patch }
-      : n.children
-        ? { ...n, children: updateNode(n.children, id, patch) }
-        : n,
-  );
+// Nhãn dán lên dữ liệu danh mục trong cache. Mọi thao tác thêm/sửa đều làm mới
+// nhãn này để bảng tự tải lại.
+const CATEGORIES_KEY = ['categories'];
 
-// Thêm node con vào parentId (null => thêm ở gốc).
-const addNode = (nodes, parentId, node) => {
-  if (!parentId) return [...nodes, node];
-  return nodes.map((n) =>
-    n.id === parentId
-      ? { ...n, children: [...(n.children ?? []), node] }
-      : n.children
-        ? { ...n, children: addNode(n.children, parentId, node) }
-        : n,
-  );
-};
+const STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: 'Hoạt động' },
+  { value: 'INACTIVE', label: 'Ngừng' },
+];
+
+// BE trả `children: []` cho node lá, AntD Table hiểu nhầm là có con nên vẫn vẽ
+// mũi tên mở rộng. Bỏ mảng rỗng đi để cây hiển thị đúng.
+const stripEmptyChildren = (nodes = []) =>
+  nodes.map((n) => ({
+    ...n,
+    children: n.children?.length ? stripEmptyChildren(n.children) : undefined,
+  }));
 
 // Id của mọi node có con — dùng cho mở/thu gọn cây.
 const getParentKeys = (nodes) =>
@@ -56,7 +54,7 @@ const countNodes = (nodes) =>
 // chỉ hiện các con khớp.
 const filterTree = (nodes, kw, status) =>
   nodes.reduce((acc, n) => {
-    const selfMatchKw = !kw || [n.name, n.code].some((v) => v.toLowerCase().includes(kw));
+    const selfMatchKw = !kw || (n.name ?? '').toLowerCase().includes(kw);
     const selfMatchStatus = !status || n.status === status;
     if (selfMatchKw && selfMatchStatus) {
       acc.push(n);
@@ -70,14 +68,44 @@ const filterTree = (nodes, kw, status) =>
 export default function CategoriesTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
-  const [tree, setTree] = useState(CATEGORY_TREE);
+  const queryClient = useQueryClient();
+
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [quickParentId, setQuickParentId] = useState(null);
-  const [expandedKeys, setExpandedKeys] = useState(() => getParentKeys(CATEGORY_TREE));
+  // null = người dùng chưa đụng tới -> mặc định mở hết nhánh.
+  const [expandedKeys, setExpandedKeys] = useState(null);
   const [form] = Form.useForm();
+
+  const { data: tree = [], isLoading } = useQuery({
+    queryKey: [...CATEGORIES_KEY, 'tree'],
+    queryFn: categoryApi.getTree,
+    select: stripEmptyChildren,
+  });
+
+  const { mutate: saveCategory, isPending: isSaving } = useMutation({
+    mutationFn: ({ id, values }) =>
+      id ? categoryApi.update(id, values) : categoryApi.create(values),
+    onSuccess: (_data, { id }) => {
+      // Đánh dấu dữ liệu danh mục đã cũ -> React Query tự gọi lại API.
+      queryClient.invalidateQueries({ queryKey: CATEGORIES_KEY });
+      message.success(id ? 'Đã cập nhật danh mục' : 'Đã thêm danh mục');
+      setOpen(false);
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const { mutate: toggleStatus } = useMutation({
+    mutationFn: ({ id, active }) =>
+      active ? categoryApi.deactivate(id) : categoryApi.activate(id),
+    onSuccess: (_data, { active }) => {
+      queryClient.invalidateQueries({ queryKey: CATEGORIES_KEY });
+      message.success(active ? 'Đã ngừng sử dụng danh mục' : 'Đã kích hoạt lại danh mục');
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
 
   const data = useMemo(
     () => filterTree(tree, keyword.trim().toLowerCase(), status),
@@ -93,12 +121,14 @@ export default function CategoriesTab() {
   // Đang tìm kiếm -> luôn mở hết nhánh có kết quả để không phải bấm thủ công
   // (tính trực tiếp khi render, không setState trong effect, để tránh render kép).
   const allParentKeys = useMemo(() => getParentKeys(tree), [tree]);
-  const visibleExpandedKeys = hasActiveFilters ? getParentKeys(data) : expandedKeys;
+  const visibleExpandedKeys = hasActiveFilters
+    ? getParentKeys(data)
+    : (expandedKeys ?? allParentKeys);
   const allExpanded = visibleExpandedKeys.length > 0;
   const toggleExpandAll = () => setExpandedKeys(allExpanded ? [] : allParentKeys);
 
   useEffect(() => {
-    if (open) form.setFieldsValue(editing ?? { parentId: quickParentId, status: 'active' });
+    if (open) form.setFieldsValue(editing ?? { parentId: quickParentId, status: 'ACTIVE' });
   }, [open, editing, quickParentId, form]);
 
   const parentOptions = [
@@ -108,21 +138,14 @@ export default function CategoriesTab() {
 
   const handleOk = async () => {
     const values = await form.validateFields();
-    if (editing) {
-      setTree((prev) => updateNode(prev, editing.id, { name: values.name, status: values.status }));
-      message.success('Đã cập nhật danh mục');
-    } else {
-      const node = {
-        id: `DM-${Date.now().toString().slice(-5)}`,
-        code: values.name.toUpperCase().replace(/\s+/g, '-').slice(0, 12),
+    saveCategory({
+      id: editing?.id,
+      values: {
         name: values.name,
         parentId: values.parentId ?? null,
         status: values.status,
-      };
-      setTree((prev) => addNode(prev, values.parentId, node));
-      message.success('Đã thêm danh mục');
-    }
-    setOpen(false);
+      },
+    });
   };
 
   const openAdd = (parentId = null) => {
@@ -167,7 +190,6 @@ export default function CategoriesTab() {
         );
       },
     },
-    { title: 'Mã', dataIndex: 'code', width: 200, render: (c) => <DocCode muted>{c}</DocCode> },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
@@ -179,20 +201,34 @@ export default function CategoriesTab() {
       title: '',
       key: 'action',
       align: 'center',
-      width: 56,
-      render: (_, r) => (
-        <Tooltip title="Sửa">
-          <Button
-            type="text"
-            icon={<EditOutlined />}
-            disabled={!canManageMasterData}
-            onClick={() => {
-              setEditing(r);
-              setOpen(true);
-            }}
-          />
-        </Tooltip>
-      ),
+      width: 96,
+      render: (_, r) => {
+        const active = r.status === 'ACTIVE';
+        return (
+          <div className="flex items-center justify-center">
+            <Tooltip title="Sửa">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                disabled={!canManageMasterData}
+                onClick={() => {
+                  setEditing(r);
+                  setOpen(true);
+                }}
+              />
+            </Tooltip>
+            <Tooltip title={active ? 'Ngừng sử dụng' : 'Kích hoạt lại'}>
+              <Button
+                type="text"
+                danger={active}
+                icon={active ? <StopOutlined /> : <CheckCircleOutlined />}
+                disabled={!canManageMasterData}
+                onClick={() => toggleStatus({ id: r.id, active })}
+              />
+            </Tooltip>
+          </div>
+        );
+      },
     },
   ];
 
@@ -204,7 +240,7 @@ export default function CategoriesTab() {
           <Input
             allowClear
             prefix={<SearchOutlined className="text-slate-400" />}
-            placeholder="Tìm tên, mã danh mục..."
+            placeholder="Tìm tên danh mục..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
@@ -212,10 +248,7 @@ export default function CategoriesTab() {
             allowClear
             placeholder="Trạng thái"
             className="w-full"
-            options={[
-              { value: 'active', label: 'Hoạt động' },
-              { value: 'inactive', label: 'Ngừng' },
-            ]}
+            options={STATUS_OPTIONS}
             value={status}
             onChange={setStatus}
           />
@@ -250,6 +283,7 @@ export default function CategoriesTab() {
               rowClassName={(record) => (record.parentId ? 'category-row-child' : 'category-row-parent')}
               columns={columns}
               dataSource={data}
+              loading={isLoading}
               pagination={false}
               expandable={{
                 expandedRowKeys: visibleExpandedKeys,
@@ -266,6 +300,7 @@ export default function CategoriesTab() {
         title={editing ? 'Sửa danh mục' : 'Thêm danh mục'}
         okText={editing ? 'Lưu thay đổi' : 'Thêm mới'}
         cancelText="Huỷ"
+        confirmLoading={isSaving}
         onCancel={() => setOpen(false)}
         onOk={handleOk}
         destroyOnHidden
@@ -279,12 +314,7 @@ export default function CategoriesTab() {
             <Input placeholder="VD: Bia lon" />
           </Form.Item>
           <Form.Item name="status" label="Trạng thái">
-            <Select
-              options={[
-                { value: 'active', label: 'Hoạt động' },
-                { value: 'inactive', label: 'Ngừng' },
-              ]}
-            />
+            <Select options={STATUS_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>

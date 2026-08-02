@@ -1,112 +1,122 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Form, Input, InputNumber, Modal, Select, Tag, Tooltip, App } from 'antd';
-import { PlusOutlined, EditOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Form, Input, Modal, Select, Tooltip, App } from 'antd';
+import { PlusOutlined, EditOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
-import { useColumnSort } from '@/hooks/useColumnSort';
-import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
+import FilterBar from '@/components/ui/FilterBar';
 import FadeSection from '@/components/ui/FadeSection';
-import { UNITS } from '@/mock/units';
+import StatusPill from '@/components/ui/StatusPill';
+import { unitApi } from '@/api/units';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
-const BASE_UNIT_COLOR = { Lon: 'gold', Chai: 'blue' };
+const UNITS_KEY = ['units'];
 
+const STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: 'Hoạt động' },
+  { value: 'INACTIVE', label: 'Ngừng' },
+];
+
+// Backend chỉ lưu { code, name, status } cho đơn vị tính. Các cột "Quy về",
+// "Tỷ lệ quy đổi", "Ghi chú" của bản mock đã bỏ vì không có nguồn dữ liệu —
+// quy đổi thuộc về ProductUnit (/api/products/{id}/units), chưa có API sản phẩm.
 export default function UnitsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
-  const [rows, setRows] = useState(UNITS);
-  const [baseUnit, setBaseUnit] = useState(null);
+  const queryClient = useQueryClient();
+
+  const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form] = Form.useForm();
-  const { sortableTitle, sortRows } = useColumnSort();
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: UNITS_KEY,
+    queryFn: unitApi.getAll,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: UNITS_KEY });
+
+  const { mutate: saveUnit, isPending: isSaving } = useMutation({
+    mutationFn: ({ id, values }) => (id ? unitApi.update(id, values) : unitApi.create(values)),
+    onSuccess: (_data, { id }) => {
+      invalidate();
+      message.success(id ? 'Đã cập nhật đơn vị' : 'Đã thêm đơn vị tính');
+      setOpen(false);
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const { mutate: toggleStatus } = useMutation({
+    mutationFn: ({ id, active }) => (active ? unitApi.deactivate(id) : unitApi.activate(id)),
+    onSuccess: (_data, { active }) => {
+      invalidate();
+      message.success(active ? 'Đã ngừng sử dụng đơn vị' : 'Đã kích hoạt lại đơn vị');
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const data = useMemo(
+    () => rows.filter((u) => !status || u.status === status),
+    [rows, status],
+  );
 
   useEffect(() => {
-    if (open) form.setFieldsValue(editing ?? { baseUnit: 'Lon', ratio: 1 });
+    if (open) form.setFieldsValue(editing ?? { code: '', name: '' });
   }, [open, editing, form]);
-
-  const data = useMemo(() => {
-    const filtered = rows.filter((u) => !baseUnit || u.baseUnit === baseUnit);
-    return sortRows(filtered);
-  }, [rows, baseUnit, sortRows]);
-
-  const openAdd = () => {
-    setEditing(null);
-    setOpen(true);
-  };
 
   const handleOk = async () => {
     const values = await form.validateFields();
-    if (editing) {
-      setRows((prev) => prev.map((u) => (u.id === editing.id ? { ...u, ...values } : u)));
-      message.success('Đã cập nhật đơn vị');
-    } else {
-      setRows((prev) => [
-        { id: `DV-${String(rows.length + 1).padStart(2, '0')}`, isBase: values.ratio === 1, ...values },
-        ...prev,
-      ]);
-      message.success('Đã thêm đơn vị tính');
-    }
-    setOpen(false);
+    saveUnit({ id: editing?.id, values: { code: values.code, name: values.name } });
   };
 
   const columns = [
-    { title: 'Mã', dataIndex: 'code', width: 140, render: (c) => <DocCode muted>{c}</DocCode> },
+    { title: 'Mã', dataIndex: 'code', width: 160, render: (c) => <DocCode muted>{c}</DocCode> },
     {
       title: 'Tên đơn vị',
       dataIndex: 'name',
-      render: (name, r) => (
-        <span className="font-medium text-ink">
-          {name}
-          {r.isBase && (
-            <Tag bordered={false} color="blue" className="ml-2">
-              Cơ sở
-            </Tag>
-          )}
-        </span>
-      ),
+      render: (name) => <span className="font-medium text-ink">{name}</span>,
     },
     {
-      title: 'Quy về',
-      dataIndex: 'baseUnit',
+      title: 'Trạng thái',
+      dataIndex: 'status',
       align: 'center',
-      width: 120,
-      render: (b) => (
-        <Tag bordered={false} color={BASE_UNIT_COLOR[b]}>
-          {b}
-        </Tag>
-      ),
+      width: 140,
+      render: (s) => <StatusPill status={s} />,
     },
-    {
-      title: sortableTitle('Tỷ lệ quy đổi', 'ratio'),
-      dataIndex: 'ratio',
-      align: 'right',
-      width: 170,
-      render: (ratio, r) => (
-        <span className="mono text-ink">
-          1 {r.name} = {ratio} {r.baseUnit}
-        </span>
-      ),
-    },
-    { title: 'Ghi chú', dataIndex: 'note', className: '!text-ink-sub' },
     {
       title: '',
       key: 'action',
       align: 'center',
-      width: 56,
-      render: (_, r) => (
-        <Tooltip title="Sửa">
-          <Button
-            type="text"
-            icon={<EditOutlined />}
-            disabled={!canManageMasterData}
-            onClick={() => {
-              setEditing(r);
-              setOpen(true);
-            }}
-          />
-        </Tooltip>
-      ),
+      width: 96,
+      render: (_, r) => {
+        const active = r.status === 'ACTIVE';
+        return (
+          <div className="flex items-center justify-center">
+            <Tooltip title="Sửa">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                disabled={!canManageMasterData}
+                onClick={() => {
+                  setEditing(r);
+                  setOpen(true);
+                }}
+              />
+            </Tooltip>
+            <Tooltip title={active ? 'Ngừng sử dụng' : 'Kích hoạt lại'}>
+              <Button
+                type="text"
+                danger={active}
+                icon={active ? <StopOutlined /> : <CheckCircleOutlined />}
+                disabled={!canManageMasterData}
+                onClick={() => toggleStatus({ id: r.id, active })}
+              />
+            </Tooltip>
+          </div>
+        );
+      },
     },
   ];
 
@@ -115,32 +125,36 @@ export default function UnitsTab() {
       <FilterBar
         extra={
           canManageMasterData && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
               Thêm đơn vị
             </Button>
           )
         }
       >
-        <span className="text-sm text-ink-sub">Đơn vị đóng gói và tỷ lệ quy đổi về đơn vị cơ sở</span>
+        <span className="text-sm text-ink-sub">Đơn vị đóng gói dùng chung cho toàn hệ thống</span>
         <Select
           allowClear
-          placeholder="Quy về"
+          placeholder="Trạng thái"
           className="w-full sm:w-40"
-          options={[
-            { value: 'Lon', label: 'Lon' },
-            { value: 'Chai', label: 'Chai' },
-          ]}
-          value={baseUnit}
-          onChange={setBaseUnit}
+          options={STATUS_OPTIONS}
+          value={status}
+          onChange={setStatus}
         />
       </FilterBar>
 
       <FadeSection dataKey={data.map((u) => u.id).join(',')}>
         <DataTable
           className="units-table"
-          rowClassName={(r) => (r.isBase ? 'unit-row-base' : '')}
           columns={columns}
           dataSource={data}
+          loading={isLoading}
           pagination={false}
         />
       </FadeSection>
@@ -150,6 +164,7 @@ export default function UnitsTab() {
         title={editing ? 'Sửa đơn vị tính' : 'Thêm đơn vị tính'}
         okText={editing ? 'Lưu thay đổi' : 'Thêm mới'}
         cancelText="Huỷ"
+        confirmLoading={isSaving}
         onCancel={() => setOpen(false)}
         onOk={handleOk}
         destroyOnHidden
@@ -157,27 +172,27 @@ export default function UnitsTab() {
       >
         <Form form={form} layout="vertical" requiredMark={false} className="mt-2">
           <div className="grid grid-cols-2 gap-x-4">
-            <Form.Item name="name" label="Tên đơn vị" rules={[{ required: true, message: 'Nhập tên' }]}>
+            <Form.Item
+              name="name"
+              label="Tên đơn vị"
+              rules={[
+                { required: true, message: 'Nhập tên' },
+                { max: 20, message: 'Tối đa 20 ký tự' },
+              ]}
+            >
               <Input placeholder="VD: Thùng" />
             </Form.Item>
-            <Form.Item name="code" label="Mã" rules={[{ required: true, message: 'Nhập mã' }]}>
-              <Input placeholder="THUNG-LON" />
-            </Form.Item>
-            <Form.Item name="baseUnit" label="Quy về đơn vị cơ sở" rules={[{ required: true }]}>
-              <Select
-                options={[
-                  { value: 'Lon', label: 'Lon' },
-                  { value: 'Chai', label: 'Chai' },
-                ]}
-              />
-            </Form.Item>
-            <Form.Item name="ratio" label="Tỷ lệ quy đổi" rules={[{ required: true, message: 'Nhập tỷ lệ' }]}>
-              <InputNumber min={1} className="w-full" />
+            <Form.Item
+              name="code"
+              label="Mã"
+              rules={[
+                { required: true, message: 'Nhập mã' },
+                { max: 10, message: 'Tối đa 10 ký tự' },
+              ]}
+            >
+              <Input placeholder="THUNG" />
             </Form.Item>
           </div>
-          <Form.Item name="note" label="Ghi chú">
-            <Input placeholder="VD: Thùng 24 lon" />
-          </Form.Item>
         </Form>
       </Modal>
     </>

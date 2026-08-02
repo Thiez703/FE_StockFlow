@@ -2,13 +2,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, Input, Button, App } from 'antd';
 import { MailOutlined, LockOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { loginSchema } from '@/features/auth/schemas/loginSchema';
-import { authApi } from '@/api/auth';
-import { setCredentials } from '@/store/authSlice';
 import RhfTextField from '@/components/form/RhfTextField';
 import RhfCheckbox from '@/components/form/RhfCheckbox';
+import { authApi } from '@/api/auth';
+import { loginSuccess, setUser } from '@/store/authSlice';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
 /**
  * Form đăng nhập — dùng react-hook-form + Zod (đúng stack dự án), input của Ant Design.
@@ -17,6 +18,7 @@ import RhfCheckbox from '@/components/form/RhfCheckbox';
 export default function LoginForm() {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
 
   const {
@@ -28,14 +30,27 @@ export default function LoginForm() {
     defaultValues: { email: '', password: '', remember: true },
   });
 
-  const onSubmit = async (data) => {
+  // `remember` chỉ dùng cho UI, không gửi lên server.
+  const onSubmit = async ({ email, password }) => {
     try {
-      const res = await authApi.login({ email: data.email, password: data.password });
-      dispatch(setCredentials(res.data));
+      const res = await authApi.login({ email, password });
+
+      // ⚠️ BE trả tên field chữ thường ở /login, camelCase ở /refresh — đọc cả hai.
+      const accessToken = res.accesstoken ?? res.accessToken;
+      const refreshToken = res.refreshtoken ?? res.refreshToken;
+
+      dispatch(loginSuccess({ accessToken, refreshToken }));
+
+      // /login không kèm user nên phải gọi thêm /me.
+      const me = await authApi.getMe();
+      dispatch(setUser(me));
+
       message.success('Đăng nhập thành công!');
-      navigate('/dashboard');
-    } catch (err) {
-      message.error(err.response?.data?.message || 'Đăng nhập thất bại');
+      // Quay lại trang bị chặn trước đó, mặc định /dashboard.
+      navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true });
+    } catch (error) {
+      // BE trả 401 kèm message tiếng Việt, getErrorMessage lấy thẳng câu đó.
+      message.error(getErrorMessage(error, 'Đăng nhập thất bại, vui lòng thử lại.'));
     }
   };
 
@@ -69,9 +84,12 @@ export default function LoginForm() {
         <RhfCheckbox control={control} name="remember">
           Ghi nhớ đăng nhập
         </RhfCheckbox>
-        <a className="text-sm font-medium text-royal hover:text-royal-500">
+        <Link
+          to="/forgot-password"
+          className="text-sm font-medium text-royal hover:text-royal-500"
+        >
           Quên mật khẩu?
-        </a>
+        </Link>
       </div>
 
       <Button

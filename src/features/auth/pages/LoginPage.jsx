@@ -1,9 +1,14 @@
+import { motion } from 'framer-motion';
 import Logo from '@/components/ui/Logo';
 import LoginForm from '@/features/auth/components/LoginForm';
 
 export default function LoginPage() {
   return (
-    <div>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: 'easeOut' }}
+    >
       {/* Logo cho màn hình nhỏ (bảng thương hiệu bên trái bị ẩn) */}
       <div className="mb-8 lg:hidden">
         <Logo to={null} />
@@ -19,19 +24,12 @@ export default function LoginPage() {
       </div>
 
       <LoginForm />
-
-      <div className="mt-6 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-center text-xs text-slate-500">
-        Tài khoản demo:{' '}
-        <span className="font-semibold text-slate-700">admin@stockflow.vn</span> /{' '}
-        <span className="font-semibold text-slate-700">123456</span>
-      </div>
-
       <p className="mt-6 text-center text-sm text-slate-500">
         Chưa có tài khoản?{' '}
         <a className="font-semibold text-royal hover:text-royal-500">
           Liên hệ quản trị viên
         </a>
       </p>
-    </div>
+    </motion.div>
   );
 }

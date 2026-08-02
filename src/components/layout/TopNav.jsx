@@ -8,12 +8,11 @@ import {
   LogoutOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
+import { useSelector } from 'react-redux';
 import Logo from '@/components/ui/Logo';
 import ChangePasswordModal from '@/features/auth/components/ChangePasswordModal';
 import { NAV_GROUPS, FLAT_NAV_KEYS } from '@/constants/navigation';
-import { useMockAuth } from '@/hooks/useMockAuth';
-import { logout } from '@/store/authSlice';
+import { useLogout } from '@/features/auth/hooks/useLogout';
 
 const USER_MENU_ITEMS = [
   { key: 'change-pw', icon: <LockOutlined />, label: 'Đổi mật khẩu' },
@@ -28,10 +27,10 @@ const USER_MENU_ITEMS = [
  */
 export default function TopNav() {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const { pathname } = useLocation();
   const [pwOpen, setPwOpen] = useState(false);
-  const user = useMockAuth();
+  const handleLogout = useLogout();
+  const user = useSelector((state) => state.auth.user);
 
   // Item khớp path dài nhất -> suy ra nhóm đang active.
   const activeItemKey = useMemo(() => {
@@ -77,8 +76,7 @@ export default function TopNav() {
   const onUserMenuClick = ({ key }) => {
     if (key === 'change-pw') setPwOpen(true);
     if (key === 'logout') {
-      dispatch(logout());
-      navigate('/login');
+      handleLogout();
     }
   };
 

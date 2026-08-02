@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, Input, Select, Checkbox, Tag, Tooltip, Popconfirm, App } from 'antd';
-import { PlusOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Tag, Tooltip, Popconfirm, App } from 'antd';
+import { PlusOutlined, SearchOutlined, EditOutlined, SwapOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
@@ -10,92 +11,134 @@ import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import StatusPill from '@/components/ui/StatusPill';
 import ProductFormModal from '@/features/master-data/components/ProductFormModal';
-import { PRODUCTS, getProduct } from '@/mock/products';
-import { CATEGORY_OPTIONS, getCategoryName } from '@/mock/categories';
-import { INVENTORY } from '@/mock/inventory';
+import ProductUnitsModal from '@/features/master-data/components/ProductUnitsModal';
+import { productApi } from '@/api/products';
+import { categoryApi } from '@/api/categories';
+import { unitApi } from '@/api/units';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatNumber } from '@/utils/formatCurrency';
 
-const UNIT_OPTIONS = [
-  { value: 'Lon', label: 'Lon' },
-  { value: 'Chai', label: 'Chai' },
+const PRODUCTS_KEY = ['products'];
+
+const STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: 'Hoạt động' },
+  { value: 'INACTIVE', label: 'Ngừng kinh doanh' },
 ];
 
-// Tổng tồn thực tế theo sản phẩm (gộp mọi lô/vị trí) — đối chiếu với minStock để
-// lọc "đang dưới định mức tồn". Sản phẩm chưa có bản ghi tồn kho nào -> coi là 0.
-const ONHAND_BY_PRODUCT = INVENTORY.reduce((acc, i) => {
-  acc[i.productId] = (acc[i.productId] ?? 0) + i.onHand;
-  return acc;
-}, {});
-
+// Bộ lọc "đang dưới định mức tồn" của bản mock đã bỏ: cần số tồn thực tế mà
+// backend chưa có API tồn kho. Cột barcode cũng bỏ vì ProductResponse không có.
 export default function ProductsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
-  const [rows, setRows] = useState(PRODUCTS);
+  const queryClient = useQueryClient();
+
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState(null);
   const [status, setStatus] = useState(null);
   const [unit, setUnit] = useState(null);
-  const [belowMin, setBelowMin] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  // Sản phẩm đang mở bảng đơn vị quy đổi (null = modal đóng).
+  const [unitsTarget, setUnitsTarget] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const { sortableTitle, sortRows } = useColumnSort();
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: PRODUCTS_KEY,
+    queryFn: productApi.getAll,
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories', 'flat'],
+    queryFn: categoryApi.getAll,
+  });
+
+  const { data: units = [] } = useQuery({
+    queryKey: ['units'],
+    queryFn: unitApi.getAll,
+  });
+
+  const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
+  const unitOptions = units.map((u) => ({ value: u.id, label: u.name }));
+  const categoryName = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.id, c.name])),
+    [categories],
+  );
+  const unitName = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u.name])), [units]);
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY });
+  const onError = (error) => message.error(getErrorMessage(error));
+
+  const { mutate: saveProduct, isPending: isSaving } = useMutation({
+    mutationFn: ({ id, values }) =>
+      id ? productApi.update(id, values) : productApi.create(values),
+    onSuccess: (_data, { id }) => {
+      invalidate();
+      message.success(id ? 'Đã cập nhật sản phẩm' : 'Đã thêm sản phẩm mới');
+      setModalOpen(false);
+    },
+    onError,
+  });
+
+  // Backend không có API sửa hàng loạt -> gọi song song từng bản ghi.
+  // Dùng activate/deactivate thay vì update() để khỏi gửi lại nguyên body sản phẩm.
+  const { mutate: bulkSetStatus } = useMutation({
+    mutationFn: ({ ids, next }) =>
+      Promise.all(
+        ids.map((id) => (next === 'ACTIVE' ? productApi.activate(id) : productApi.deactivate(id))),
+      ),
+    onSuccess: (_data, { ids, next }) => {
+      invalidate();
+      message.success(
+        `Đã ${next === 'ACTIVE' ? 'kích hoạt' : 'vô hiệu hóa'} ${ids.length} sản phẩm`,
+      );
+      setSelectedRowKeys([]);
+    },
+    onError,
+  });
+
+  const { mutate: bulkDelete } = useMutation({
+    mutationFn: (ids) => Promise.all(ids.map((id) => productApi.remove(id))),
+    onSuccess: (_data, ids) => {
+      invalidate();
+      message.success(`Đã xoá ${ids.length} sản phẩm`);
+      setSelectedRowKeys([]);
+    },
+    onError,
+  });
 
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const filtered = rows.filter((p) => {
-      const okKw = !kw || [p.name, p.sku, p.barcode].some((v) => v.toLowerCase().includes(kw));
+      const okKw = !kw || [p.name, p.code].some((v) => String(v ?? '').toLowerCase().includes(kw));
       const okCat = !category || p.categoryId === category;
       const okStatus = !status || p.status === status;
-      const okUnit = !unit || p.baseUnit === unit;
-      const okBelowMin = !belowMin || (ONHAND_BY_PRODUCT[p.id] ?? 0) < p.minStock;
-      return okKw && okCat && okStatus && okUnit && okBelowMin;
+      const okUnit = !unit || p.baseUnitId === unit;
+      return okKw && okCat && okStatus && okUnit;
     });
     return sortRows(filtered);
-  }, [rows, keyword, category, status, unit, belowMin, sortRows]);
+  }, [rows, keyword, category, status, unit, sortRows]);
 
-  const hasActiveFilters = Boolean(keyword || category || status || unit || belowMin);
+  const hasActiveFilters = Boolean(keyword || category || status || unit);
   const clearFilters = () => {
     setKeyword('');
     setCategory(null);
     setStatus(null);
     setUnit(null);
-    setBelowMin(false);
-  };
-
-  const openAdd = () => {
-    setEditing(null);
-    setModalOpen(true);
-  };
-  const openEdit = (record) => {
-    setEditing(record);
-    setModalOpen(true);
   };
 
   const handleSubmit = (values) => {
-    if (editing) {
-      setRows((prev) => prev.map((p) => (p.id === editing.id ? { ...p, ...values } : p)));
-      message.success('Đã cập nhật sản phẩm');
-    } else {
-      const id = `SP-${String(rows.length + 1).padStart(3, '0')}`;
-      setRows((prev) => [{ id, ...values }, ...prev]);
-      message.success('Đã thêm sản phẩm mới');
-    }
-    setModalOpen(false);
-  };
-
-  const handleBulkStatus = (newStatus) => {
-    setRows((prev) => prev.map((p) => (selectedRowKeys.includes(p.id) ? { ...p, status: newStatus } : p)));
-    message.success(
-      `Đã ${newStatus === 'active' ? 'kích hoạt' : 'vô hiệu hóa'} ${selectedRowKeys.length} sản phẩm`,
-    );
-    setSelectedRowKeys([]);
-  };
-
-  const handleBulkDelete = () => {
-    setRows((prev) => prev.filter((p) => !selectedRowKeys.includes(p.id)));
-    message.success(`Đã xoá ${selectedRowKeys.length} sản phẩm`);
-    setSelectedRowKeys([]);
+    saveProduct({
+      id: editing?.id,
+      values: {
+        code: values.code,
+        name: values.name,
+        categoryId: values.categoryId ?? null,
+        baseUnitId: values.baseUnitId,
+        minStock: values.minStock ?? 0,
+        status: values.status,
+      },
+    });
   };
 
   const columns = [
@@ -106,13 +149,13 @@ export default function ProductsTab() {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-ink">{name}</span>
-            <Tag bordered={false} className="!m-0">
-              {r.baseUnit}
-            </Tag>
+            {unitName[r.baseUnitId] && (
+              <Tag bordered={false} className="!m-0">
+                {unitName[r.baseUnitId]}
+              </Tag>
+            )}
           </div>
-          <div className="mono text-xs text-ink-sub">
-            {r.sku} · {r.barcode}
-          </div>
+          <div className="mono text-xs text-ink-sub">{r.code}</div>
         </div>
       ),
     },
@@ -123,23 +166,41 @@ export default function ProductsTab() {
       width: 130,
       render: (s) => <StatusPill status={s} />,
     },
-    { title: 'Danh mục', dataIndex: 'categoryId', render: (id) => getCategoryName(id) },
+    {
+      title: 'Danh mục',
+      dataIndex: 'categoryId',
+      render: (id) => categoryName[id] ?? '—',
+    },
     {
       title: sortableTitle('Tồn tối thiểu', 'minStock'),
       dataIndex: 'minStock',
       align: 'right',
       width: 130,
-      render: (min) => <span className="mono text-ink-sub">{formatNumber(min)}</span>,
+      render: (min) => <span className="mono text-ink-sub">{formatNumber(min ?? 0)}</span>,
     },
     {
       title: '',
       key: 'action',
       align: 'center',
-      width: 56,
+      width: 96,
       render: (_, r) => (
-        <Tooltip title="Sửa">
-          <Button type="text" icon={<EditOutlined />} disabled={!canManageMasterData} onClick={() => openEdit(getProduct(r.id) ?? r)} />
-        </Tooltip>
+        <div className="flex items-center justify-center">
+          <Tooltip title="Sửa">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              disabled={!canManageMasterData}
+              onClick={() => {
+                setEditing(r);
+                setModalOpen(true);
+              }}
+            />
+          </Tooltip>
+          {/* Xem được ở mọi vai trò, sửa thì mới cần quyền master data. */}
+          <Tooltip title="Đơn vị quy đổi">
+            <Button type="text" icon={<SwapOutlined />} onClick={() => setUnitsTarget(r)} />
+          </Tooltip>
+        </div>
       ),
     },
   ];
@@ -151,15 +212,17 @@ export default function ProductsTab() {
           <Input
             allowClear
             prefix={<SearchOutlined className="text-slate-400" />}
-            placeholder="Tìm theo tên, SKU, barcode..."
+            placeholder="Tìm theo tên, mã sản phẩm..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
           />
           <Select
             allowClear
+            showSearch
+            optionFilterProp="label"
             placeholder="Danh mục"
             className="w-full"
-            options={CATEGORY_OPTIONS}
+            options={categoryOptions}
             value={category}
             onChange={setCategory}
           />
@@ -167,24 +230,20 @@ export default function ProductsTab() {
             allowClear
             placeholder="Trạng thái"
             className="w-full"
-            options={[
-              { value: 'active', label: 'Hoạt động' },
-              { value: 'inactive', label: 'Ngừng kinh doanh' },
-            ]}
+            options={STATUS_OPTIONS}
             value={status}
             onChange={setStatus}
           />
           <Select
             allowClear
+            showSearch
+            optionFilterProp="label"
             placeholder="ĐVT"
             className="w-full"
-            options={UNIT_OPTIONS}
+            options={unitOptions}
             value={unit}
             onChange={setUnit}
           />
-          <Checkbox checked={belowMin} onChange={(e) => setBelowMin(e.target.checked)}>
-            Đang dưới định mức tồn
-          </Checkbox>
         </FilterSidebar>
 
         {/* Danh sách sản phẩm */}
@@ -201,10 +260,10 @@ export default function ProductsTab() {
                   className="flex flex-1 flex-wrap items-center gap-2"
                 >
                   <span className="text-sm font-medium text-ink">Đã chọn {selectedRowKeys.length} sản phẩm</span>
-                  <Button size="small" onClick={() => handleBulkStatus('active')}>
+                  <Button size="small" onClick={() => bulkSetStatus({ ids: selectedRowKeys, next: 'ACTIVE' })}>
                     Kích hoạt
                   </Button>
-                  <Button size="small" onClick={() => handleBulkStatus('inactive')}>
+                  <Button size="small" onClick={() => bulkSetStatus({ ids: selectedRowKeys, next: 'INACTIVE' })}>
                     Vô hiệu hóa
                   </Button>
                   <Popconfirm
@@ -213,7 +272,7 @@ export default function ProductsTab() {
                     okText="Xoá"
                     okButtonProps={{ danger: true }}
                     cancelText="Huỷ"
-                    onConfirm={handleBulkDelete}
+                    onConfirm={() => bulkDelete(selectedRowKeys)}
                   >
                     <Button size="small" danger>
                       Xoá
@@ -237,15 +296,26 @@ export default function ProductsTab() {
               )}
             </AnimatePresence>
             {canManageMasterData && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-                Thêm sản phẩm
-              </Button>
+              <Tooltip title={units.length ? '' : 'Cần có ít nhất một đơn vị tính trước'}>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  disabled={!units.length}
+                  onClick={() => {
+                    setEditing(null);
+                    setModalOpen(true);
+                  }}
+                >
+                  Thêm sản phẩm
+                </Button>
+              </Tooltip>
             )}
           </div>
           <FadeSection dataKey={data.map((p) => p.id).join(',')}>
             <DataTable
               columns={columns}
               dataSource={data}
+              loading={isLoading}
               rowSelection={
                 canManageMasterData
                   ? { selectedRowKeys, onChange: setSelectedRowKeys }
@@ -260,8 +330,18 @@ export default function ProductsTab() {
       <ProductFormModal
         open={modalOpen}
         editing={editing}
+        categoryOptions={categoryOptions}
+        unitOptions={unitOptions}
+        confirmLoading={isSaving}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
+      />
+
+      <ProductUnitsModal
+        open={!!unitsTarget}
+        product={unitsTarget}
+        canEdit={canManageMasterData}
+        onClose={() => setUnitsTarget(null)}
       />
     </>
   );

@@ -1,31 +1,35 @@
 import { useEffect } from 'react';
 import { Modal, Form, Input, InputNumber, Select } from 'antd';
-import { CATEGORY_OPTIONS } from '@/mock/categories';
 
-const BASE_UNIT_OPTIONS = [
-  { value: 'Lon', label: 'Lon' },
-  { value: 'Chai', label: 'Chai' },
+const STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: 'Hoạt động' },
+  { value: 'INACTIVE', label: 'Ngừng kinh doanh' },
 ];
 
 /**
- * Modal thêm/sửa sản phẩm (AntD Form). Demo tĩnh: submit trả dữ liệu về trang cha
- * để cập nhật state, không gọi API.
+ * Modal thêm/sửa sản phẩm. Danh mục và đơn vị cơ sở do trang cha truyền vào
+ * (lấy từ API) để tránh mỗi nơi tự gọi lại.
  */
-export default function ProductFormModal({ open, editing, onClose, onSubmit }) {
+export default function ProductFormModal({
+  open,
+  editing,
+  categoryOptions = [],
+  unitOptions = [],
+  confirmLoading,
+  onClose,
+  onSubmit,
+}) {
   const [form] = Form.useForm();
 
   useEffect(() => {
     if (open) {
-      form.setFieldsValue(
-        editing ?? { baseUnit: 'Lon', status: 'active', minStock: 0 },
-      );
+      form.setFieldsValue(editing ?? { status: 'ACTIVE', minStock: 0 });
     }
   }, [open, editing, form]);
 
   const handleOk = async () => {
     const values = await form.validateFields();
     onSubmit(values);
-    form.resetFields();
   };
 
   return (
@@ -34,6 +38,7 @@ export default function ProductFormModal({ open, editing, onClose, onSubmit }) {
       title={editing ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}
       okText={editing ? 'Lưu thay đổi' : 'Thêm mới'}
       cancelText="Huỷ"
+      confirmLoading={confirmLoading}
       onCancel={onClose}
       onOk={handleOk}
       width={620}
@@ -42,31 +47,53 @@ export default function ProductFormModal({ open, editing, onClose, onSubmit }) {
     >
       <Form form={form} layout="vertical" requiredMark={false} className="mt-2">
         <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-          <Form.Item name="name" label="Tên sản phẩm" rules={[{ required: true, message: 'Nhập tên sản phẩm' }]} className="sm:col-span-2">
+          <Form.Item
+            name="name"
+            label="Tên sản phẩm"
+            rules={[
+              { required: true, message: 'Nhập tên sản phẩm' },
+              { max: 255, message: 'Tối đa 255 ký tự' },
+            ]}
+            className="sm:col-span-2"
+          >
             <Input placeholder="VD: Bia Saigon Lager lon 330ml" />
           </Form.Item>
-          <Form.Item name="sku" label="Mã SKU" rules={[{ required: true, message: 'Nhập mã SKU' }]}>
+          <Form.Item
+            name="code"
+            label="Mã sản phẩm"
+            rules={[
+              { required: true, message: 'Nhập mã sản phẩm' },
+              { max: 30, message: 'Tối đa 30 ký tự' },
+            ]}
+          >
             <Input placeholder="BIA-SG-LAGER-330" />
           </Form.Item>
-          <Form.Item name="barcode" label="Barcode" rules={[{ required: true, message: 'Nhập barcode' }]}>
-            <Input placeholder="8935049500101" />
+          <Form.Item name="categoryId" label="Danh mục">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={categoryOptions}
+              placeholder="Chọn danh mục"
+            />
           </Form.Item>
-          <Form.Item name="categoryId" label="Danh mục" rules={[{ required: true, message: 'Chọn danh mục' }]}>
-            <Select options={CATEGORY_OPTIONS} placeholder="Chọn danh mục" />
-          </Form.Item>
-          <Form.Item name="baseUnit" label="Đơn vị cơ sở" rules={[{ required: true }]}>
-            <Select options={BASE_UNIT_OPTIONS} />
+          <Form.Item
+            name="baseUnitId"
+            label="Đơn vị cơ sở"
+            rules={[{ required: true, message: 'Chọn đơn vị cơ sở' }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={unitOptions}
+              placeholder="Chọn đơn vị"
+            />
           </Form.Item>
           <Form.Item name="minStock" label="Tồn tối thiểu">
             <InputNumber min={0} className="w-full" />
           </Form.Item>
           <Form.Item name="status" label="Trạng thái">
-            <Select
-              options={[
-                { value: 'active', label: 'Hoạt động' },
-                { value: 'inactive', label: 'Ngừng kinh doanh' },
-              ]}
-            />
+            <Select options={STATUS_OPTIONS} />
           </Form.Item>
         </div>
       </Form>

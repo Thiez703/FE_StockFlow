@@ -14,6 +14,16 @@ export function formatDate(value) {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+// LocalDateTime ISO của backend (VD '2026-08-02T14:30:05') -> 'dd/mm/yyyy HH:MM'.
+export function formatDateTime(value) {
+  if (!value) return '—';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${formatDate(d)} ${hh}:${mi}`;
+}
+
 // Số ngày còn lại tới `value` so với TODAY (âm nếu đã quá hạn).
 export function daysUntil(value) {
   const d = value instanceof Date ? value : new Date(value);

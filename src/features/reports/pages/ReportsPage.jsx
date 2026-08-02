@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { DatePicker, Button, Input, Select, App } from 'antd';
-import { FileExcelOutlined, SearchOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { DatePicker, Button, Input, Select, Segmented, Modal, Tabs, App } from 'antd';
+import { FileExcelOutlined, SearchOutlined, ImportOutlined, ExportOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -13,16 +13,75 @@ import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import DocDetailModal from '@/components/ui/DocDetailModal';
 import InventoryTrendChart from '@/features/dashboard/components/InventoryTrendChart';
+import StatCard from '@/features/dashboard/components/StatCard';
 import StocktakeItemsDetail, { DiffValue } from '@/features/stocktakes/components/StocktakeItemsDetail';
 import { TREND } from '@/mock/dashboard';
 import { STOCKTAKES } from '@/mock/stocktakes';
+import { INBOUNDS } from '@/mock/inbounds';
+import { OUTBOUNDS } from '@/mock/outbounds';
 import { statusOptions, APPROVAL_STATUSES } from '@/constants/status';
-import { formatNumber } from '@/utils/formatCurrency';
+import { formatNumber, formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
 
 const { RangePicker } = DatePicker;
 
 const totalDiff = (items) => items.reduce((s, it) => s + (it.countedQty - it.systemQty), 0);
+
+// Nhóm phiếu nhập/xuất theo kỳ (tháng hoặc tuần) dựa trên field `date`, `total` sẵn có.
+const getMonthKey = (date) => date.slice(0, 7); // 'YYYY-MM'
+const getMonthLabel = (key) => {
+  const [y, m] = key.split('-');
+  return `Tháng ${Number(m)}/${y}`;
+};
+
+const getWeekStart = (date) => {
+  const d = new Date(date);
+  const diffToMonday = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - diffToMonday);
+  return d;
+};
+const getWeekKey = (date) => getWeekStart(date).toISOString().slice(0, 10);
+const getWeekLabel = (key) => {
+  const monday = new Date(key);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return `Tuần ${formatDate(monday)} – ${formatDate(sunday)}`;
+};
+
+function groupDocsByPeriod(inbounds, outbounds, keyFn, labelFn) {
+  const map = new Map();
+  const ensure = (key) => {
+    if (!map.has(key)) {
+      map.set(key, { key, label: labelFn(key), inboundCount: 0, inboundTotal: 0, outboundCount: 0, outboundTotal: 0, docs: [] });
+    }
+    return map.get(key);
+  };
+  inbounds.forEach((doc) => {
+    const g = ensure(keyFn(doc.date));
+    g.inboundCount += 1;
+    g.inboundTotal += doc.total;
+    g.docs.push({ ...doc, kind: 'inbound', partner: doc.supplierName });
+  });
+  outbounds.forEach((doc) => {
+    const g = ensure(keyFn(doc.date));
+    g.outboundCount += 1;
+    g.outboundTotal += doc.total;
+    g.docs.push({ ...doc, kind: 'outbound', partner: doc.partnerName });
+  });
+  map.forEach((g) => g.docs.sort((a, b) => b.date.localeCompare(a.date)));
+  return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+const monthlyDocStats = groupDocsByPeriod(INBOUNDS, OUTBOUNDS, getMonthKey, getMonthLabel);
+const weeklyDocStats = groupDocsByPeriod(INBOUNDS, OUTBOUNDS, getWeekKey, getWeekLabel);
+
+const periodDocColumns = [
+  { title: 'Mã phiếu', dataIndex: 'code', width: 120, render: (c) => <DocCode>{c}</DocCode> },
+  { title: 'Ngày', dataIndex: 'date', align: 'center', width: 90, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
+  { title: 'Đối tác', dataIndex: 'partner', render: (v) => <span className="text-ink-sub">{v}</span> },
+  { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 100, render: (s) => <StatusPill status={s} /> },
+  { title: 'Tổng tiền', dataIndex: 'total', align: 'right', width: 120, render: (v) => <span className="font-semibold text-ink">{formatCurrency(v)}</span> },
+];
 
 export default function ReportsPage() {
   const { message } = App.useApp();
@@ -31,10 +90,22 @@ export default function ReportsPage() {
   const [status, setStatus] = useState(null);
   const [range, setRange] = useState(null);
   const [detailRecord, setDetailRecord] = useState(null);
+  const [periodMode, setPeriodMode] = useState('month');
+  const [periodDetail, setPeriodDetail] = useState(null);
   const { sortableTitle, sortRows } = useColumnSort();
 
-  // FIX 5f — STAFF không được xem báo cáo.
-  if (!canViewReports) return <AccessDenied />;
+  const periodStats = periodMode === 'month' ? monthlyDocStats : weeklyDocStats;
+
+  // AntD tự focus khung dialog khi mở, khiến trình duyệt cuộn window lên đầu trang
+  // để đưa dialog vào tầm nhìn — khôi phục lại vị trí cuộn ngay sau đó để tránh giật.
+  const periodScrollYRef = useRef(0);
+  useEffect(() => {
+    if (!periodDetail) return;
+    periodScrollYRef.current = window.scrollY;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.scrollTo(0, periodScrollYRef.current));
+    });
+  }, [periodDetail]);
 
   const variance = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -47,6 +118,9 @@ export default function ReportsPage() {
     const withDiff = filtered.map((r) => ({ ...r, diff: totalDiff(r.items) }));
     return sortRows(withDiff);
   }, [keyword, status, range, sortRows]);
+
+  // FIX 5f — STAFF không được xem báo cáo.
+  if (!canViewReports) return <AccessDenied />;
 
   const nxtColumns = [
     { title: 'Kỳ', dataIndex: 'label', render: (l) => <span className="font-medium text-ink">Tháng {l.replace('T', '')}</span> },
@@ -88,6 +162,23 @@ export default function ReportsPage() {
     },
   ];
 
+  const periodColumns = [
+    { title: 'Kỳ', dataIndex: 'label', render: (l) => <span className="font-medium text-ink">{l}</span> },
+    { title: 'Số phiếu nhập', dataIndex: 'inboundCount', align: 'center', render: (v) => <span className="mono text-[#15803d]">{v}</span> },
+    { title: 'Số phiếu xuất', dataIndex: 'outboundCount', align: 'center', render: (v) => <span className="mono text-[#b45309]">{v}</span> },
+    {
+      title: '',
+      key: 'detail',
+      align: 'center',
+      width: 100,
+      render: (_, r) => (
+        <Button size="small" onClick={() => setPeriodDetail(r)}>
+          Chi tiết
+        </Button>
+      ),
+    },
+  ];
+
   const exportExcel = () => message.info('Tính năng xuất Excel chỉ khả dụng trong bản đầy đủ.');
 
   return (
@@ -105,7 +196,26 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard
+          title="Tổng phiếu nhập"
+          value={formatNumber(INBOUNDS.length)}
+          suffix="phiếu"
+          icon={<ImportOutlined />}
+          tone="green"
+          hint="Toàn bộ phiếu nhập hiện có"
+        />
+        <StatCard
+          title="Tổng phiếu xuất"
+          value={formatNumber(OUTBOUNDS.length)}
+          suffix="phiếu"
+          icon={<ExportOutlined />}
+          tone="amber"
+          hint="Toàn bộ phiếu xuất hiện có"
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <InventoryTrendChart />
         <div>
           <h3 className="mb-3 text-base font-semibold text-ink">Bảng Nhập – Xuất – Tồn</h3>
@@ -113,6 +223,21 @@ export default function ReportsPage() {
             <DataTable columns={nxtColumns} dataSource={TREND.map((t, i) => ({ id: i, ...t }))} pagination={false} />
           </FadeSection>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="m-0 text-base font-semibold text-ink">Phiếu Nhập – Xuất theo kỳ</h3>
+          <Segmented
+            value={periodMode}
+            onChange={setPeriodMode}
+            options={[
+              { label: 'Theo tháng', value: 'month' },
+              { label: 'Theo tuần', value: 'week' },
+            ]}
+          />
+        </div>
+        <DataTable columns={periodColumns} dataSource={periodStats} rowKey="key" pagination={false} />
       </div>
 
       <div className="mt-4">
@@ -163,6 +288,50 @@ export default function ReportsPage() {
       >
         {detailRecord && <StocktakeItemsDetail items={detailRecord.items} note={detailRecord.note} />}
       </DocDetailModal>
+
+      <Modal
+        open={!!periodDetail}
+        onCancel={() => setPeriodDetail(null)}
+        footer={null}
+        title={periodDetail && `Phiếu Nhập – Xuất · ${periodDetail.label}`}
+        width={800}
+        destroyOnHidden
+      >
+        <Tabs
+          size="small"
+          className="text-xs"
+          items={[
+            {
+              key: 'inbound',
+              label: 'Phiếu nhập',
+              children: (
+                <DataTable
+                  size="small"
+                  columns={periodDocColumns}
+                  dataSource={periodDetail?.docs.filter((d) => d.kind === 'inbound') ?? []}
+                  rowKey="id"
+                  pagination={false}
+                  locale={{ emptyText: <TableEmptyState message="Không có phiếu nhập trong kỳ" /> }}
+                />
+              ),
+            },
+            {
+              key: 'outbound',
+              label: 'Phiếu xuất',
+              children: (
+                <DataTable
+                  size="small"
+                  columns={periodDocColumns}
+                  dataSource={periodDetail?.docs.filter((d) => d.kind === 'outbound') ?? []}
+                  rowKey="id"
+                  pagination={false}
+                  locale={{ emptyText: <TableEmptyState message="Không có phiếu xuất trong kỳ" /> }}
+                />
+              ),
+            },
+          ]}
+        />
+      </Modal>
     </>
   );
 }

@@ -1,8 +1,8 @@
 /**
  * Danh mục sản phẩm (bia – nước giải khát). Đơn vị cơ sở là "Lon"/"Chai".
- * `minStock` tính theo đơn vị cơ sở. `categoryId` trỏ tới src/mock/categories.js.
+ * `minStock` tính theo đơn vị cơ sở. `categoryId` trỏ tới danh mục (đã chuyển sang API).
  */
-export const PRODUCTS = [
+const PRODUCTS = [
   { id: 'SP-001', barcode: '8935049500101', sku: 'BIA-SG-LAGER-330', name: 'Bia Saigon Lager lon 330ml', categoryId: 'DM-0101', baseUnit: 'Lon', minStock: 480, status: 'active' },
   { id: 'SP-002', barcode: '8935049500118', sku: 'BIA-SG-SPECIAL-330', name: 'Bia Saigon Special lon 330ml', categoryId: 'DM-0101', baseUnit: 'Lon', minStock: 480, status: 'active' },
   { id: 'SP-003', barcode: '8934563138017', sku: 'BIA-TIGER-BAC-330', name: 'Bia Tiger Bạc lon 330ml', categoryId: 'DM-0101', baseUnit: 'Lon', minStock: 720, status: 'active' },
@@ -30,5 +30,3 @@ export const PRODUCT_OPTIONS = PRODUCTS.filter((p) => p.status === 'active').map
   sku: p.sku,
 }));
 
-export const getProduct = (id) => PRODUCTS.find((p) => p.id === id);
-export const getProductName = (id) => getProduct(id)?.name ?? '—';

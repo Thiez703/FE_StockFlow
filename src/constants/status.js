@@ -14,6 +14,11 @@ export const STATUS_MAP = {
   locked: { label: 'Đã khoá', tone: 'red' },
   expired: { label: 'Quá hạn', tone: 'red' },
   maintenance: { label: 'Bảo trì', tone: 'amber' },
+  // Backend trả enum viết hoa. Giữ song song với bộ chữ thường của UI mock
+  // để hai bên cùng hiển thị được trong lúc chuyển dần sang API thật.
+  ACTIVE: { label: 'Hoạt động', tone: 'green' },
+  INACTIVE: { label: 'Ngừng', tone: 'gray' },
+  EXPIRED: { label: 'Quá hạn', tone: 'red' },
 };
 
 // Tạo nhanh options cho Select lọc trạng thái từ danh sách mã.
@@ -23,4 +28,3 @@ export const statusOptions = (codes) =>
 // Bộ mã hay dùng.
 export const DOC_STATUSES = ['POSTED', 'PENDING', 'VOIDED'];
 export const APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
-export const ACTIVE_STATUSES = ['active', 'inactive'];

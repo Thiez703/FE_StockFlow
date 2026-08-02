@@ -7,7 +7,7 @@ import { PRODUCT_OPTIONS } from '@/mock/products';
 const DEFAULT_ITEM = { productId: undefined, quantity: 1, unitPrice: 0 };
 
 // Một dòng hàng — useWatch để tính thành tiền theo dòng ngay tại UI.
-function ItemRow({ name, index, control, errors, setValue, onRemove, removable }) {
+function ItemRow({ name, index, control, errors, onRemove, removable }) {
   const [quantity, unitPrice] = useWatch({
     control,
     name: [`${name}.${index}.quantity`, `${name}.${index}.unitPrice`],
@@ -99,7 +99,6 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
 export default function LineItemsTable({ name = 'items', emptyItem = DEFAULT_ITEM, title = 'Danh sách sản phẩm' }) {
   const {
     control,
-    setValue,
     formState: { errors },
   } = useFormContext();
   const { fields, append, remove } = useFieldArray({ control, name });
@@ -136,7 +135,6 @@ export default function LineItemsTable({ name = 'items', emptyItem = DEFAULT_ITE
             index={index}
             control={control}
             errors={errors}
-            setValue={setValue}
             onRemove={() => remove(index)}
             removable={fields.length > 1}
           />
