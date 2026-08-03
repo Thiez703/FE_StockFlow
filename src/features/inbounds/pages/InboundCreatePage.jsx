@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Card, App } from 'antd';
+import { Button, Card, App, Popconfirm } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CheckOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -175,16 +175,23 @@ export default function InboundCreatePage() {
               <OrderSummary control={methods.control} />
 
               <Card className="border-hair" styles={{ body: { padding: 22 } }}>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  size="large"
-                  icon={<CheckOutlined />}
-                  loading={methods.formState.isSubmitting}
-                  block
+                <Popconfirm
+                  title="Hoàn tất nhập kho?"
+                  description="Xác nhận tạo phiếu nhập kho này?"
+                  onConfirm={methods.handleSubmit(onSubmit, onError)}
+                  okText="Xác nhận"
+                  cancelText="Hủy"
                 >
-                  Hoàn tất nhập kho
-                </Button>
+                  <Button
+                    type="primary"
+                    size="large"
+                    icon={<CheckOutlined />}
+                    loading={methods.formState.isSubmitting}
+                    block
+                  >
+                    Hoàn tất nhập kho
+                  </Button>
+                </Popconfirm>
                 <Button
                   size="large"
                   icon={<SaveOutlined />}

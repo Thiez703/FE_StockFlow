@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, Segmented, Tag, Form, Modal, InputNumber, App } from 'antd';
+import { Button, Input, Select, Segmented, Tag, Form, Modal, InputNumber, App, Popconfirm } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -219,19 +219,37 @@ export default function AbnormalStocksPage() {
           canApproveDocs &&
           detailRecord?.status === 'PENDING' && (
             <>
-              <Button
-                icon={<CheckOutlined />}
-                onClick={() => setStatusOf(detailRecord.id, 'APPROVED', 'Đã duyệt phiếu')}
+              <Popconfirm
+                title="Duyệt phiếu?"
+                description="Xác nhận duyệt phiếu này?"
+                onConfirm={() => setStatusOf(detailRecord.id, 'APPROVED', 'Đã duyệt phiếu')}
+                okText="Duyệt"
+                cancelText="Hủy"
               >
-                Duyệt
-              </Button>
-              <Button
-                danger
-                icon={<CloseOutlined />}
-                onClick={() => setStatusOf(detailRecord.id, 'REJECTED', 'Đã từ chối phiếu')}
+                <Button
+                  type="primary"
+                  className="bg-emerald-600 hover:bg-emerald-500 border-none"
+                  icon={<CheckOutlined />}
+                >
+                  Duyệt
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title="Từ chối phiếu?"
+                description="Bạn có chắc chắn muốn từ chối phiếu này?"
+                onConfirm={() => setStatusOf(detailRecord.id, 'REJECTED', 'Đã từ chối phiếu')}
+                okText="Từ chối"
+                okButtonProps={{ danger: true }}
+                cancelText="Hủy"
               >
-                Từ chối
-              </Button>
+                <Button
+                  type="primary"
+                  danger
+                  icon={<CloseOutlined />}
+                >
+                  Từ chối
+                </Button>
+              </Popconfirm>
             </>
           )
         }

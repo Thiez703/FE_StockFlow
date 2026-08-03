@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Modal, Input, Tooltip } from 'antd';
+import { Button, Modal, Input, Popconfirm } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 
 /**
@@ -17,18 +17,33 @@ export default function ApprovalActions({ record, onApprove, onReject }) {
   if (record.status !== 'PENDING') return <span className="text-ink-sub">—</span>;
 
   return (
-    <div className="flex items-center justify-center gap-1">
-      <Tooltip title="Duyệt">
+    <div className="flex items-center justify-center gap-2">
+      <Popconfirm
+        title="Duyệt phiếu?"
+        description="Xác nhận duyệt phiếu này?"
+        onConfirm={() => onApprove(record.id)}
+        okText="Duyệt"
+        cancelText="Hủy"
+      >
         <Button
-          type="text"
-          className="!text-[#16a34a]"
+          type="primary"
+          className="bg-emerald-600 hover:bg-emerald-500 border-none"
+          size="small"
           icon={<CheckOutlined />}
-          onClick={() => onApprove(record.id)}
-        />
-      </Tooltip>
-      <Tooltip title="Từ chối">
-        <Button type="text" danger icon={<CloseOutlined />} onClick={() => setRejectOpen(true)} />
-      </Tooltip>
+        >
+          Duyệt
+        </Button>
+      </Popconfirm>
+      
+      <Button 
+        type="primary" 
+        danger 
+        size="small"
+        icon={<CloseOutlined />} 
+        onClick={() => setRejectOpen(true)} 
+      >
+        Từ chối
+      </Button>
 
       <Modal
         open={rejectOpen}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Form, Select, Input, InputNumber, Button, Empty, App } from 'antd';
+import { Card, Form, Select, Input, InputNumber, Button, Empty, App, Popconfirm } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -221,7 +221,16 @@ export default function StocktakeCreatePage() {
                 </div>
                 <div className="col-span-4 flex items-center justify-end gap-1 md:col-span-1">
                   <DiffCell value={r.countedQty - r.systemQty} />
-                  <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={() => removeRow(r.key)} />
+                  <Popconfirm
+                    title="Xóa dòng này?"
+                    description="Xác nhận xóa sản phẩm khỏi biên bản?"
+                    onConfirm={() => removeRow(r.key)}
+                    okText="Xóa"
+                    cancelText="Hủy"
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+                  </Popconfirm>
                 </div>
               </div>
             ))
@@ -237,9 +246,17 @@ export default function StocktakeCreatePage() {
           <span className="text-center text-xs text-slate-400 sm:mr-auto sm:text-left">
             Xác nhận xong sẽ hiện biên bản hoàn chỉnh để xem lại và in.
           </span>
-          <Button type="primary" size="large" icon={<CheckOutlined />} onClick={submit}>
-            Lưu biên bản kiểm kê
-          </Button>
+          <Popconfirm
+            title="Lưu biên bản kiểm kê?"
+            description="Bạn có chắc chắn muốn lưu biên bản này?"
+            onConfirm={submit}
+            okText="Xác nhận"
+            cancelText="Hủy"
+          >
+            <Button type="primary" size="large" icon={<CheckOutlined />}>
+              Lưu biên bản kiểm kê
+            </Button>
+          </Popconfirm>
         </div>
       </div>
     </>

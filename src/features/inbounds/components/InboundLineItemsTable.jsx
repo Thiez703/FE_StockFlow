@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Button, Select, InputNumber, Empty } from 'antd';
+import { Card, Button, Select, InputNumber, Empty, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useFormContext, useFieldArray, Controller, useWatch } from 'react-hook-form';
 import { formatCurrency } from '@/utils/formatCurrency';
@@ -148,14 +148,23 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
 
       {/* Xoá */}
       <div className="col-span-4 flex justify-end self-center md:col-span-1">
-        <Button
-          type="text"
-          danger
-          aria-label="Xóa dòng"
-          icon={<DeleteOutlined />}
+        <Popconfirm
+          title="Xóa dòng này?"
+          description="Bạn có chắc chắn muốn xóa dòng sản phẩm này?"
+          onConfirm={onRemove}
+          okText="Xóa"
+          cancelText="Hủy"
+          okButtonProps={{ danger: true }}
           disabled={!removable}
-          onClick={onRemove}
-        />
+        >
+          <Button
+            type="text"
+            danger
+            aria-label="Xóa dòng"
+            icon={<DeleteOutlined />}
+            disabled={!removable}
+          />
+        </Popconfirm>
       </div>
     </div>
   );

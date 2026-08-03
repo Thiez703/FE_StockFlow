@@ -1,38 +1,37 @@
-import { useState } from 'react';
-import { Tabs } from 'antd';
+import { Outlet, useLocation } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
-import ProductsTab from '@/features/master-data/components/ProductsTab';
-import CategoriesTab from '@/features/master-data/components/CategoriesTab';
-import UnitsTab from '@/features/master-data/components/UnitsTab';
-import LocationsTab from '@/features/master-data/components/LocationsTab';
-import LotsTab from '@/features/master-data/components/LotsTab';
-import PartnersTab from '@/features/master-data/components/PartnersTab';
-
-const TAB_ITEMS = [
-  { key: 'products', label: 'Sản phẩm', children: <ProductsTab /> },
-  { key: 'categories', label: 'Danh mục', children: <CategoriesTab /> },
-  { key: 'units', label: 'Đơn vị tính', children: <UnitsTab /> },
-  { key: 'locations', label: 'Vị trí lưu trữ', children: <LocationsTab /> },
-  { key: 'lots', label: 'Lô hàng', children: <LotsTab /> },
-  { key: 'partners', label: 'Nhà cung cấp & Khách hàng', children: <PartnersTab /> },
-];
+import { MASTER_DATA_ITEMS } from '@/features/master-data/constants/masterDataSections';
 
 /**
- * Gộp 5 màn hình dữ liệu nền (Danh mục, Đơn vị tính, Vị trí, Lô hàng, Đối tác)
- * vào 1 trang dạng Tab — các trang này đều là CRUD bảng nhỏ, gộp lại để menu gọn hơn.
+ * Khung trang Dữ liệu nền: tiêu đề + nội dung mục con render qua <Outlet/>.
+ *
+ * Việc chọn mục do MasterDataSidebar lo (hiện ở mọi trang, dựng trong
+ * MainLayout), nên trang này không tự vẽ điều hướng nữa.
+ *
+ * Trước đây 6 mục nằm trong <Tabs> với state cục bộ; giờ mỗi mục là một route
+ * con (/master-data/products, /master-data/lots...) nên F5 giữ nguyên mục đang
+ * xem và có thể gửi link thẳng tới một mục.
  */
 export default function MasterDataPage() {
-  const [tab, setTab] = useState('products');
+  const { pathname } = useLocation();
+
+  // /master-data/<slug> -> phần tử thứ 3 sau khi tách; dùng để đổi tiêu đề, mô
+  // tả và breadcrumb theo đúng mục đang xem thay vì liệt kê cả 6 mục như trước.
+  const slug = pathname.split('/')[2];
+  const current = MASTER_DATA_ITEMS.find((i) => i.slug === slug);
 
   return (
     <>
       <PageHeader
-        title="Dữ liệu nền"
-        subtitle="Sản phẩm, danh mục, đơn vị tính, vị trí lưu trữ, lô hàng và đối tác"
-        breadcrumb={[{ title: 'Dữ liệu nền' }]}
+        title={current?.label || 'Dữ liệu nền'}
+        subtitle={current?.desc}
+        breadcrumb={[
+          { title: 'Dữ liệu nền' },
+          ...(current ? [{ title: current.label }] : []),
+        ]}
       />
 
-      <Tabs activeKey={tab} onChange={setTab} items={TAB_ITEMS} />
+      <Outlet />
     </>
   );
 }

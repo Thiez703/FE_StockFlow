@@ -1,6 +1,5 @@
 import {
   DashboardOutlined,
-  DatabaseOutlined,
   SwapOutlined,
   ImportOutlined,
   ExportOutlined,
@@ -15,14 +14,18 @@ import {
   UserOutlined,
   HistoryOutlined,
 } from '@ant-design/icons';
+import { MASTER_DATA_ITEMS } from '@/features/master-data/constants/masterDataSections';
 
 /**
- * Cấu hình điều hướng TOP-NAV, gom theo 6 nhóm; hover 1 nhóm sẽ sổ mega-dropdown
- * liệt kê các trang con. `icon` lưu THAM CHIẾU component (không phải JSX) để file
- * giữ đuôi .js — phần render JSX nằm ở TopNav.jsx.
+ * Cấu hình điều hướng nghiệp vụ, gom theo 5 nhóm. `icon` lưu THAM CHIẾU
+ * component (không phải JSX) để file giữ đuôi .js — phần render JSX nằm ở
+ * AppSidebar.jsx và TopNav.jsx.
+ *
+ * Nhóm "Dữ liệu nền" KHÔNG nằm ở đây mà khai tại
+ * features/master-data/constants/masterDataSections.js (vì mỗi mục còn gắn với
+ * một component route con). Hai nguồn được ghép lại ở SIDEBAR_GROUPS bên dưới.
  *
  * `key` của item = đường dẫn route (không có tiền tố /admin theo cấu trúc dự án).
- * Các nhóm 1 trang (Tổng quan) render như 1 link trực tiếp, không sổ dropdown.
  */
 export const NAV_GROUPS = [
   {
@@ -35,19 +38,6 @@ export const NAV_GROUPS = [
         label: 'Bảng điều khiển',
         icon: DashboardOutlined,
         desc: 'KPI tồn kho & hoạt động hôm nay',
-      },
-    ],
-  },
-  {
-    key: 'master-data',
-    label: 'Dữ liệu nền',
-    icon: DatabaseOutlined,
-    items: [
-      {
-        key: '/master-data',
-        label: 'Dữ liệu nền',
-        icon: DatabaseOutlined,
-        desc: 'Sản phẩm, danh mục, đơn vị, vị trí, lô, đối tác',
       },
     ],
   },
@@ -140,6 +130,32 @@ export const NAV_GROUPS = [
     ],
   },
 ];
+
+/**
+ * Toàn bộ điều hướng cho SIDEBAR TRÁI và Drawer màn hẹp — nguồn duy nhất để hai
+ * chỗ đó không lệch nhau.
+ *
+ * Ghép NAV_GROUPS (nghiệp vụ) với các mục Dữ liệu nền, quy về cùng một dạng
+ * `item.path`: NAV_GROUPS dùng `item.key` làm đường dẫn còn MASTER_DATA_ITEMS
+ * dùng `item.path`, nên phần render chỉ cần một nhánh.
+ *
+ * Dữ liệu nền xếp ngay sau Tổng quan, giữ đúng thứ tự IA hồi còn ở top-nav; 3
+ * cụm con (Hàng hoá / Kho bãi / Đối tác) gộp phẳng thành 1 nhóm cho ngang hàng
+ * với các nhóm nghiệp vụ.
+ */
+export const SIDEBAR_GROUPS = [
+  ...NAV_GROUPS.slice(0, 1).map(normalizeGroup),
+  { key: 'master-data', label: 'Dữ liệu nền', items: MASTER_DATA_ITEMS },
+  ...NAV_GROUPS.slice(1).map(normalizeGroup),
+];
+
+function normalizeGroup(group) {
+  return {
+    key: group.key,
+    label: group.label,
+    items: group.items.map((item) => ({ ...item, path: item.key })),
+  };
+}
 
 // Tất cả key (đường dẫn) phẳng — tiện dò nhóm đang active theo path hiện tại.
 export const FLAT_NAV_KEYS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.key));
