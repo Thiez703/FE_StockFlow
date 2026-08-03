@@ -23,10 +23,11 @@ export const inboundItemSchema = z.object({
     .refine((v) => v != null && v >= 0, 'Đơn giá không hợp lệ'),
 });
 
+// Không có `receiptDate`: ngày ghi sổ do server đóng dấu lúc tạo, người dùng
+// không chọn nên cũng không cần kiểm tra ở form.
 export const inboundSchema = z.object({
   code: z.string().min(1, 'Thiếu mã phiếu'),
   supplierId: requiredSelect('Vui lòng chọn nhà cung cấp'),
-  receiptDate: z.any().refine((v) => !!v, 'Vui lòng chọn ngày nhập'),
   note: z.string().optional(),
   items: z.array(inboundItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),
 });

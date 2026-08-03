@@ -51,21 +51,23 @@ export default function InventoryTrendChart() {
 
       <div className="relative h-56" onMouseLeave={() => setHoverIndex(null)}>
         {/* Cột Nhập / Xuất — hover cả cụm của 1 tháng */}
-        <div className="flex h-full items-end justify-between gap-3 border-b border-slate-100">
+        {/* Bề rộng cột thu dần theo màn hình: 12 cột cố định sẽ vượt bề ngang
+            máy hẹp (≤360px) và đẩy tràn cả trang. */}
+        <div className="flex h-full items-end justify-between gap-1.5 border-b border-slate-100 sm:gap-3">
           {TREND.map((d, i) => (
             <div
               key={d.label}
-              className="flex h-full flex-1 items-end justify-center gap-1.5"
+              className="flex h-full min-w-0 flex-1 items-end justify-center gap-1 sm:gap-1.5"
               onMouseEnter={() => setHoverIndex(i)}
             >
               <div
-                className={`w-4 rounded-t-md transition-colors sm:w-6 ${
+                className={`w-2.5 rounded-t-md transition-colors min-[380px]:w-4 sm:w-6 ${
                   hoverIndex === i ? 'bg-[#5b8bfb]' : 'bg-royal'
                 }`}
                 style={{ height: `${(d.inbound / MAX) * 100}%` }}
               />
               <div
-                className={`w-4 rounded-t-md transition-colors sm:w-6 ${
+                className={`w-2.5 rounded-t-md transition-colors min-[380px]:w-4 sm:w-6 ${
                   hoverIndex === i ? 'bg-[#c3d7fd]' : 'bg-[#93b4fb]'
                 }`}
                 style={{ height: `${(d.outbound / MAX) * 100}%` }}

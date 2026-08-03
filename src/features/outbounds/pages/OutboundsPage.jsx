@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, DatePicker, Tag, Tooltip, Modal, App } from 'antd';
-import { PlusOutlined, SearchOutlined, StopOutlined } from '@ant-design/icons';
+import { Button, Input, Select, DatePicker, Segmented, Tag, Tooltip, Modal, App } from 'antd';
+import {
+  PlusOutlined,
+  SearchOutlined,
+  StopOutlined,
+  FileTextOutlined,
+  UnorderedListOutlined,
+} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -11,15 +17,21 @@ import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
-import DocItemsDetail from '@/components/ui/DocItemsDetail';
-import DocDetailModal from '@/components/ui/DocDetailModal';
+import VoucherGrid from '@/components/ui/VoucherGrid';
+import VoucherPreviewModal from '@/components/ui/VoucherPreviewModal';
 import { OUTBOUNDS, OUTBOUND_TYPES } from '@/mock/outbounds';
 import { statusOptions, DOC_STATUSES } from '@/constants/status';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
+import { toVoucher } from '@/utils/voucher';
 
 const { RangePicker } = DatePicker;
 const TYPE_COLOR = { Sỉ: 'blue', 'Trả NCC': 'gold', Hủy: 'red', 'Nội bộ': 'default' };
+
+const VIEW_OPTIONS = [
+  { value: 'table', icon: <UnorderedListOutlined />, label: 'Bảng' },
+  { value: 'paper', icon: <FileTextOutlined />, label: 'Phiếu' },
+];
 
 export default function OutboundsPage() {
   const { message } = App.useApp();
@@ -33,6 +45,7 @@ export default function OutboundsPage() {
   const [cancelId, setCancelId] = useState(null);
   const [reason, setReason] = useState('');
   const [detailRecord, setDetailRecord] = useState(null);
+  const [view, setView] = useState('table');
   const { sortableTitle, sortRows } = useColumnSort();
 
   const data = useMemo(() => {
@@ -47,12 +60,20 @@ export default function OutboundsPage() {
     return sortRows(filtered);
   }, [rows, keyword, type, status, range, sortRows]);
 
+  // Chuẩn hoá về khuôn "phiếu giấy" cho lưới thẻ và cho tờ phiếu xem chi tiết.
+  const vouchers = useMemo(() => data.map((r) => toVoucher('outbound', r)), [data]);
+  const detailVoucher = useMemo(() => toVoucher('outbound', detailRecord), [detailRecord]);
+
   const confirmCancel = () => {
     setRows((prev) => prev.map((r) => (r.id === cancelId ? { ...r, status: 'VOIDED', note: reason } : r)));
     message.success('Đã huỷ phiếu xuất');
     setCancelId(null);
     setReason('');
+    setDetailRecord(null);
   };
+
+  // Mở tờ phiếu từ lưới thẻ (nhận voucher đã chuẩn hoá) -> tìm lại bản ghi gốc.
+  const openVoucher = (v) => setDetailRecord(rows.find((r) => r.id === v.id) ?? null);
 
   const columns = [
     { title: 'Mã phiếu', dataIndex: 'code', width: 150, render: (c) => <DocCode>{c}</DocCode> },
@@ -92,7 +113,7 @@ export default function OutboundsPage() {
       render: (_, r) =>
         r.items?.length > 0 && (
           <Button size="small" onClick={() => setDetailRecord(r)}>
-            Chi tiết
+            Xem phiếu
           </Button>
         ),
     },
@@ -130,7 +151,14 @@ export default function OutboundsPage() {
         }
       />
 
-      <FilterBar extra={<span className="text-sm text-ink-sub">{data.length} phiếu</span>}>
+      <FilterBar
+        extra={
+          <>
+            <span className="text-sm text-ink-sub">{data.length} phiếu</span>
+            <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
+          </>
+        }
+      >
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}
@@ -158,13 +186,21 @@ export default function OutboundsPage() {
         <RangePicker format="DD/MM/YYYY" className="w-full sm:w-auto" onChange={(_, ds) => setRange(ds && ds[0] ? ds : null)} />
       </FilterBar>
 
-      <FadeSection dataKey={data.map((r) => r.id).join(',')}>
-        <DataTable
-          columns={columns}
-          dataSource={data}
-          rowClassName={(r) => (r.status === 'VOIDED' ? 'opacity-50' : '')}
-          locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu xuất phù hợp" /> }}
-        />
+      <FadeSection dataKey={`${view}:${data.map((r) => r.id).join(',')}`}>
+        {view === 'paper' ? (
+          <VoucherGrid
+            vouchers={vouchers}
+            onOpen={openVoucher}
+            emptyMessage="Không tìm thấy phiếu xuất phù hợp"
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            dataSource={data}
+            rowClassName={(r) => (r.status === 'VOIDED' ? 'opacity-50' : '')}
+            locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu xuất phù hợp" /> }}
+          />
+        )}
       </FadeSection>
 
       <Modal
@@ -183,23 +219,18 @@ export default function OutboundsPage() {
         <Input.TextArea rows={3} placeholder="VD: Khách huỷ đơn / sai thông tin..." value={reason} onChange={(e) => setReason(e.target.value)} />
       </Modal>
 
-      <DocDetailModal
+      <VoucherPreviewModal
         open={!!detailRecord}
+        voucher={detailVoucher}
         onClose={() => setDetailRecord(null)}
-        title={detailRecord?.code}
-        fields={
-          detailRecord && [
-            { label: 'Đối tác / Nơi nhận', value: detailRecord.partnerName },
-            { label: 'Loại xuất', value: detailRecord.type },
-            { label: 'Ngày xuất', value: formatDate(detailRecord.date) },
-            { label: 'Người tạo', value: detailRecord.createdBy },
-            { label: 'Tổng tiền', value: formatCurrency(detailRecord.total) },
-            { label: 'Trạng thái', value: <StatusPill status={detailRecord.status} /> },
-          ]
+        actions={
+          detailRecord?.status !== 'VOIDED' && (
+            <Button danger icon={<StopOutlined />} onClick={() => setCancelId(detailRecord.id)}>
+              Huỷ phiếu
+            </Button>
+          )
         }
-      >
-        {detailRecord && <DocItemsDetail items={detailRecord.items} />}
-      </DocDetailModal>
+      />
     </>
   );
 }

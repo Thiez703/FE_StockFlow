@@ -242,7 +242,8 @@ export default function OutboundLineItemsTable({ name = 'items', emptyItem = DEF
   return (
     <Card
       title={title}
-      className="border-hair"
+      // Máy hẹp: cho tiêu đề và cụm nút "Thêm dòng" xuống hai hàng thay vì cắt cụt tiêu đề.
+      className="border-hair [&_.ant-card-head-title]:!whitespace-normal [&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-y-2"
       styles={{ header: { borderBottom: '1px solid #f1f5f9' }, body: { padding: 0 } }}
       extra={
         <div className="flex items-center gap-2">

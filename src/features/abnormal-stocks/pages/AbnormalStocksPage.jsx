@@ -1,21 +1,37 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, Tag, Form, Modal, InputNumber, App } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Segmented, Tag, Form, Modal, InputNumber, App } from 'antd';
+import {
+  PlusOutlined,
+  SearchOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  FileTextOutlined,
+  UnorderedListOutlined,
+} from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
+import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import ApprovalActions from '@/components/ui/ApprovalActions';
+import VoucherGrid from '@/components/ui/VoucherGrid';
+import VoucherPreviewModal from '@/components/ui/VoucherPreviewModal';
 import { ABNORMAL_STOCKS, ABNORMAL_TYPES } from '@/mock/abnormal';
 import { PRODUCT_OPTIONS } from '@/mock/products';
 import { statusOptions, APPROVAL_STATUSES } from '@/constants/status';
 import { formatDate, TODAY } from '@/utils/date';
 import { formatNumber } from '@/utils/formatCurrency';
+import { toVoucher } from '@/utils/voucher';
 
 const TYPE_COLOR = { Hỏng: 'orange', Vỡ: 'volcano', Mất: 'red', 'Hết hạn': 'purple' };
+
+const VIEW_OPTIONS = [
+  { value: 'table', icon: <UnorderedListOutlined />, label: 'Bảng' },
+  { value: 'paper', icon: <FileTextOutlined />, label: 'Biên bản' },
+];
 
 export default function AbnormalStocksPage() {
   const { message } = App.useApp();
@@ -24,6 +40,8 @@ export default function AbnormalStocksPage() {
   const [keyword, setKeyword] = useState('');
   const [type, setType] = useState(null);
   const [status, setStatus] = useState(null);
+  const [view, setView] = useState('table');
+  const [detailRecord, setDetailRecord] = useState(null);
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
 
@@ -37,33 +55,42 @@ export default function AbnormalStocksPage() {
     });
   }, [rows, keyword, type, status]);
 
+  // Chuẩn hoá về khuôn "biên bản giấy" cho lưới thẻ và cho tờ biên bản chi tiết.
+  const vouchers = useMemo(() => data.map((r) => toVoucher('abnormal', r)), [data]);
+  const detailVoucher = useMemo(() => toVoucher('abnormal', detailRecord), [detailRecord]);
+  const openVoucher = (v) => setDetailRecord(rows.find((r) => r.id === v.id) ?? null);
+
   const setStatusOf = (id, next, msg) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: next } : r)));
     message.success(msg);
+    setDetailRecord((cur) => (cur?.id === id ? { ...cur, status: next } : cur));
   };
 
+  // Lập xong thì mở luôn tờ biên bản vừa tạo để xem lại / in.
   const handleOk = async () => {
     const v = await form.validateFields();
-    const seq = String(rows.length + 1).padStart(3, '0');
-    setRows((prev) => [
-      {
-        id: `AB-${seq}`,
-        code: `BT-2026-0${seq}`,
-        type: v.type,
-        productName: PRODUCT_OPTIONS.find((p) => p.value === v.productId)?.label ?? '',
-        lot: v.lot,
-        unit: v.unit,
-        quantity: v.quantity,
-        reason: v.reason,
-        date: formatDate(TODAY).split('/').reverse().join('-'),
-        status: 'PENDING',
-        createdBy: 'Thiên Nguyễn',
-      },
-      ...prev,
-    ]);
-    message.success('Đã tạo phiếu hàng bất thường');
+    // Đánh số tiếp theo số lớn nhất đang có — đếm theo số dòng sẽ trùng mã khi
+    // danh sách đã bị lọc hoặc đã xoá bớt.
+    const nextNo = Math.max(0, ...rows.map((r) => Number(r.code.slice(-4)) || 0)) + 1;
+    const record = {
+      id: `AB-${String(nextNo).padStart(3, '0')}`,
+      code: `BT-2026-${String(nextNo).padStart(4, '0')}`,
+      type: v.type,
+      productName: PRODUCT_OPTIONS.find((p) => p.value === v.productId)?.label ?? '',
+      lot: v.lot,
+      unit: v.unit,
+      quantity: v.quantity,
+      reason: v.reason,
+      date: formatDate(TODAY).split('/').reverse().join('-'),
+      status: 'PENDING',
+      createdBy: 'Thiên Nguyễn',
+    };
+
+    setRows((prev) => [record, ...prev]);
+    message.success('Đã lập biên bản hàng bất thường');
     setOpen(false);
     form.resetFields();
+    setDetailRecord(record);
   };
 
   const columns = [
@@ -87,6 +114,17 @@ export default function AbnormalStocksPage() {
     { title: 'Lý do', dataIndex: 'reason', className: '!text-ink-sub', ellipsis: true },
     { title: 'Ngày', dataIndex: 'date', align: 'center', width: 115, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
     { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
+    {
+      title: '',
+      key: 'detail',
+      align: 'center',
+      width: 120,
+      render: (_, r) => (
+        <Button size="small" onClick={() => setDetailRecord(r)}>
+          Xem biên bản
+        </Button>
+      ),
+    },
     // FIX 5b: Ẩn cột Duyệt nếu không có quyền
     ...(canApproveDocs ? [{
       title: 'Duyệt',
@@ -117,13 +155,20 @@ export default function AbnormalStocksPage() {
         extra={
           canCreateAbnormal && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
-              Thêm phiếu
+              Lập biên bản
             </Button>
           )
         }
       />
 
-      <FilterBar extra={<span className="text-sm text-ink-sub">{data.length} phiếu</span>}>
+      <FilterBar
+        extra={
+          <>
+            <span className="text-sm text-ink-sub">{data.length} phiếu</span>
+            <Segmented value={view} onChange={setView} options={VIEW_OPTIONS} />
+          </>
+        }
+      >
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}
@@ -150,14 +195,52 @@ export default function AbnormalStocksPage() {
         />
       </FilterBar>
 
-      <FadeSection dataKey={data.map((r) => r.id).join(',')}>
-        <DataTable columns={columns} dataSource={data} />
+      <FadeSection dataKey={`${view}:${data.map((r) => r.id).join(',')}`}>
+        {view === 'paper' ? (
+          <VoucherGrid
+            vouchers={vouchers}
+            onOpen={openVoucher}
+            emptyMessage="Không tìm thấy phiếu hàng bất thường phù hợp"
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            dataSource={data}
+            locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu hàng bất thường phù hợp" /> }}
+          />
+        )}
       </FadeSection>
+
+      <VoucherPreviewModal
+        open={!!detailRecord}
+        voucher={detailVoucher}
+        onClose={() => setDetailRecord(null)}
+        actions={
+          canApproveDocs &&
+          detailRecord?.status === 'PENDING' && (
+            <>
+              <Button
+                icon={<CheckOutlined />}
+                onClick={() => setStatusOf(detailRecord.id, 'APPROVED', 'Đã duyệt phiếu')}
+              >
+                Duyệt
+              </Button>
+              <Button
+                danger
+                icon={<CloseOutlined />}
+                onClick={() => setStatusOf(detailRecord.id, 'REJECTED', 'Đã từ chối phiếu')}
+              >
+                Từ chối
+              </Button>
+            </>
+          )
+        }
+      />
 
       <Modal
         open={open}
-        title="Thêm phiếu hàng bất thường"
-        okText="Tạo phiếu"
+        title="Lập biên bản hàng bất thường"
+        okText="Xác nhận lập biên bản"
         cancelText="Huỷ"
         onCancel={() => setOpen(false)}
         onOk={handleOk}
@@ -165,8 +248,14 @@ export default function AbnormalStocksPage() {
         destroyOnHidden
         maskClosable={false}
       >
-        <Form form={form} layout="vertical" requiredMark={false} className="mt-2" initialValues={{ type: 'Hỏng', unit: 'Lon', quantity: 1 }}>
-          <div className="grid grid-cols-2 gap-x-4">
+        <Form
+          form={form}
+          layout="vertical"
+          requiredMark={false}
+          className="mt-2"
+          initialValues={{ type: 'Hỏng', unit: 'Lon', quantity: 1 }}
+        >
+          <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
             <Form.Item name="type" label="Loại bất thường" rules={[{ required: true }]}>
               <Select options={ABNORMAL_TYPES.map((t) => ({ value: t, label: t }))} />
             </Form.Item>
@@ -177,7 +266,7 @@ export default function AbnormalStocksPage() {
           <Form.Item name="productId" label="Sản phẩm" rules={[{ required: true, message: 'Chọn sản phẩm' }]}>
             <Select showSearch optionFilterProp="label" options={PRODUCT_OPTIONS} placeholder="Chọn sản phẩm" />
           </Form.Item>
-          <div className="grid grid-cols-2 gap-x-4">
+          <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
             <Form.Item name="quantity" label="Số lượng" rules={[{ required: true, message: 'Nhập số lượng' }]}>
               <InputNumber min={1} className="w-full" />
             </Form.Item>
@@ -188,6 +277,9 @@ export default function AbnormalStocksPage() {
           <Form.Item name="reason" label="Lý do" rules={[{ required: true, message: 'Nhập lý do' }]}>
             <Input.TextArea rows={2} placeholder="Mô tả nguyên nhân hàng bất thường" />
           </Form.Item>
+          <p className="m-0 text-xs text-slate-400">
+            Xác nhận xong sẽ hiện biên bản hoàn chỉnh để xem lại và in.
+          </p>
         </Form>
       </Modal>
     </>

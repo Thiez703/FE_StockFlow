@@ -31,7 +31,11 @@ export default function Logo({ variant = 'light', showText = true, to = '/dashbo
           <span className={`text-[17px] font-bold tracking-tight ${titleColor}`}>
             Stock<span className="text-royal-500">Flow</span>
           </span>
-          <span className={`mt-0.5 text-[11px] font-medium ${subColor}`}>
+          {/* Máy rất hẹp (≤360px) thì bỏ dòng mô tả, tránh xuống 3 dòng làm
+              tràn chiều cao cố định của thanh điều hướng. */}
+          <span
+            className={`mt-0.5 hidden whitespace-nowrap text-[11px] font-medium min-[360px]:block ${subColor}`}
+          >
             Quản lý kho phân phối
           </span>
         </span>

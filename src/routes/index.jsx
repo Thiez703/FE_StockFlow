@@ -3,7 +3,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import AuthLayout from '@/components/layout/AuthLayout';
 import ComingSoon from '@/components/feedback/ComingSoon';
 import ProtectedRoute from '@/components/layout/ProtectedRoute';
-import { authRoutes } from '@/features/auth/routes';
+import { authRoutes, changePasswordRoutes } from '@/features/auth/routes';
 import { dashboardRoutes } from '@/features/dashboard/routes';
 import { inboundRoutes } from '@/features/inbounds/routes';
 import { outboundRoutes } from '@/features/outbounds/routes';
@@ -25,6 +25,11 @@ export const router = createBrowserRouter([
   {
     element: <ProtectedRoute />,
     children: [
+      // Đổi mật khẩu: đã đăng nhập nhưng chưa chắc được vào khu làm việc.
+      {
+        element: <AuthLayout />,
+        children: [...changePasswordRoutes],
+      },
       {
         element: <MainLayout />,
         children: [

@@ -5,6 +5,7 @@ import { MailOutlined, LockOutlined } from '@ant-design/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { loginSchema } from '@/features/auth/schemas/loginSchema';
+import { CHANGE_PASSWORD_PATH } from '@/features/auth/routes';
 import RhfTextField from '@/components/form/RhfTextField';
 import RhfCheckbox from '@/components/form/RhfCheckbox';
 import { authApi } from '@/api/auth';
@@ -46,6 +47,14 @@ export default function LoginForm() {
       dispatch(setUser(me));
 
       message.success('Đăng nhập thành công!');
+
+      // Mật khẩu do hệ thống cấp / vừa được reset: bắt đổi ngay, mang theo
+      // trang định vào để đổi xong quay lại đúng chỗ.
+      if (me?.mustChangePassword) {
+        navigate(CHANGE_PASSWORD_PATH, { replace: true, state: location.state });
+        return;
+      }
+
       // Quay lại trang bị chặn trước đó, mặc định /dashboard.
       navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true });
     } catch (error) {

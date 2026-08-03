@@ -23,6 +23,11 @@ const AuthSlice = createSlice({
       state.user = action.payload;
       state.isAuthenticated = true;
     },
+    // Hạ cờ mustChangePassword sau khi người dùng đổi xong, để ProtectedRoute
+    // thôi chặn mà không phải gọi lại /auth/me.
+    passwordChanged: (state) => {
+      if (state.user) state.user.mustChangePassword = false;
+    },
     // Chỉ dọn phía client, việc gọi API logout do useLogout lo.
     logout(state) {
       state.user = null;
@@ -33,5 +38,5 @@ const AuthSlice = createSlice({
   },
 });
 
-export const { loginSuccess, setUser, logout } = AuthSlice.actions;
+export const { loginSuccess, setUser, passwordChanged, logout } = AuthSlice.actions;
 export default AuthSlice.reducer;

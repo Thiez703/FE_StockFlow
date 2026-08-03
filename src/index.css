@@ -119,6 +119,16 @@
 }
 
 /**
+ * `<InputNumber className="w-full" />` không phủ hết ô chứa: utility `w-full`
+ * của Tailwind nằm trong @layer nên thua khai báo không-layer của AntD
+ * (`.ant-input-number` rộng cố định 90px). Chỉ ép lại đúng những ô đã tự khai
+ * w-full nên không đụng tới các InputNumber cố ý để hẹp.
+ */
+.ant-input-number.w-full {
+  width: 100% !important;
+}
+
+/**
  * Bảng enterprise (dùng qua <DataTable/>): sọc chẵn/lẻ tinh tế + hover nổi nhẹ.
  * Đặt ngoài @layer để chắc chắn thắng style :where() (0 độ ưu tiên) của AntD.
  */
@@ -191,6 +201,142 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/**
+ * ==========================================================================
+ * CHỨNG TỪ DẠNG "GIẤY"
+ * Phiếu nhập/xuất được vẽ giống tờ mẫu in thật (01-VT/02-VT): chữ serif như
+ * bản in, khung bảng kẻ nét đen mảnh, dòng kẻ chấm để điền tay, con dấu.
+ * Đặt trong @layer components để utility của Tailwind vẫn đè được khi cần.
+ * ==========================================================================
+ */
+@layer components {
+  /* Bản in hành chính VN dùng Times New Roman — dùng đúng font đó để mặt phiếu
+     "ra chất giấy" ngay cả khi màn hình còn lại chạy Inter. */
+  .paper-doc {
+    font-family: "Times New Roman", Tinos, "Liberation Serif", Georgia, serif;
+    color: #111827;
+    background-color: #fffefb;
+  }
+
+  /* Bóng nhiều lớp giả tập giấy xếp chồng — không dùng pseudo-element để tránh
+     rắc rối stacking context khi thẻ nằm trong motion.div (có transform). */
+  .paper-stack {
+    box-shadow:
+      0 2px 0 -1px #ffffff,
+      0 3px 0 -1px #dbe2ea,
+      0 6px 0 -2px #ffffff,
+      0 7px 0 -2px #e2e8f0,
+      0 16px 26px -16px rgba(2, 6, 23, 0.45);
+  }
+
+  .paper-flat {
+    box-shadow:
+      0 1px 2px rgba(2, 6, 23, 0.06),
+      0 18px 40px -24px rgba(2, 6, 23, 0.5);
+  }
+
+  /* Dòng kẻ chấm để điền thông tin, đúng kiểu biểu mẫu giấy.
+     Khai báo bằng thuộc tính rút gọn `border-bottom` thay vì dùng
+     `border-b border-dotted` của Tailwind: dự án tắt Preflight nên các cạnh
+     không khai width sẽ lấy `medium` mặc định của trình duyệt và bị vẽ viền
+     chấm quanh cả 4 cạnh. */
+  .doc-dotted {
+    border-bottom: 1px dotted #64748b;
+  }
+  .doc-dotted-error {
+    border-bottom: 1px dotted #e11d48;
+  }
+  /* Đường phân cách chấm nằm trên (cùng lý do như .doc-dotted). */
+  .doc-rule-top {
+    border-top: 1px dotted #cbd5e1;
+  }
+  /* Đường gạch đứt phân cách phần tổng cộng trong thẻ. Cũng phải khai bằng
+     thuộc tính rút gọn: `border-t border-dashed` của Tailwind sẽ set kiểu gạch
+     đứt cho cả 4 cạnh, mà các cạnh không khai width thì lấy `medium` mặc định
+     (dự án tắt Preflight) -> hiện khung bao quanh thay vì một đường kẻ. */
+  .rule-dashed-top {
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  /* Tờ phiếu chỉ tồn tại cho máy in (render qua portal ra thẳng body để bản in
+     không bị cắt bởi vùng cuộn / transform của Modal). */
+  .print-only {
+    display: none;
+  }
+
+  /* Bảng vật tư trên mặt phiếu: kẻ ô toàn bộ, nét mảnh màu mực. */
+  .doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .doc-table th,
+  .doc-table td {
+    border: 1px solid #1f2937;
+    padding: 5px 6px;
+    vertical-align: middle;
+  }
+  .doc-table th {
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.2;
+  }
+}
+
+/**
+ * IN PHIẾU: ẩn toàn bộ giao diện, chỉ để lại tờ phiếu (.print-sheet) — kỹ thuật
+ * visibility giúp in được cả khi tờ phiếu nằm trong portal của Modal.
+ */
+@media print {
+  html {
+    overflow-y: visible;
+  }
+  body {
+    background: #fff !important;
+  }
+  body * {
+    visibility: hidden !important;
+    box-shadow: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible !important;
+  }
+  .print-sheet {
+    position: absolute !important;
+    inset: 0 auto auto 0;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  /* Tờ giấy khi in phải trải hết bề ngang khổ A4 — lề do @page lo, bỏ padding
+     và khung viền dùng cho màn hình. Đồng thời huỷ phép thu nhỏ theo bề ngang
+     màn hình (transform scale) vì khổ giấy in luôn là A4. */
+  .print-sheet,
+  .print-sheet .paper-doc {
+    padding: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+    transform: none !important;
+  }
+  .print-sheet .paper-doc {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 14mm;
   }
 }
 

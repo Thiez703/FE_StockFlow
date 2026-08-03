@@ -1,11 +1,12 @@
 import { createElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Badge, Avatar, Dropdown } from 'antd';
+import { Badge, Avatar, Dropdown, Drawer } from 'antd';
 import {
   BellOutlined,
   DownOutlined,
   LockOutlined,
   LogoutOutlined,
+  MenuOutlined,
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -29,6 +30,7 @@ export default function TopNav() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [pwOpen, setPwOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const handleLogout = useLogout();
   const user = useSelector((state) => state.auth.user);
 
@@ -82,7 +84,17 @@ export default function TopNav() {
 
   return (
     <header className="sticky top-0 z-30 h-16 w-full bg-navy-900 text-white shadow-[0_2px_12px_rgba(10,30,63,0.35)]">
-      <div className="mx-auto flex h-full max-w-[1440px] items-center gap-4 px-4 xl:px-6">
+      <div className="mx-auto flex h-full max-w-[1440px] items-center gap-2 px-3 sm:gap-4 sm:px-4 xl:px-6">
+        {/* Dưới lg không đủ chỗ cho dải menu ngang -> mở bằng ngăn kéo. */}
+        <button
+          type="button"
+          aria-label="Mở menu điều hướng"
+          onClick={() => setMenuOpen(true)}
+          className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-0 bg-transparent text-white/90 transition-colors hover:bg-white/10 lg:hidden"
+        >
+          <MenuOutlined className="text-[18px]" />
+        </button>
+
         <Logo variant="dark" />
 
         {/* Menu nhóm — hover sổ mega-dropdown */}
@@ -196,6 +208,58 @@ export default function TopNav() {
           </Dropdown>
         </div>
       </div>
+
+      {/* Menu cho màn hình hẹp: đủ cả 6 nhóm và mọi mục con, kèm mô tả như mega-dropdown. */}
+      <Drawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        placement="left"
+        width={300}
+        title={<span className="text-[15px] font-bold text-ink">Điều hướng</span>}
+        styles={{ body: { padding: 12 } }}
+      >
+        <nav className="flex flex-col gap-4">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.key}>
+              <div className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-sub">
+                {group.label}
+              </div>
+              <div className="flex flex-col gap-1">
+                {group.items.map((item) => {
+                  const itemActive = item.key === activeItemKey;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => {
+                        navigate(item.key);
+                        setMenuOpen(false);
+                      }}
+                      className={`flex w-full items-start gap-3 rounded-xl border-0 p-2.5 text-left transition-colors ${
+                        itemActive ? 'bg-tint' : 'bg-transparent hover:bg-slate-50'
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[15px] ${
+                          itemActive ? 'bg-royal text-white' : 'bg-tint text-royal'
+                        }`}
+                      >
+                        {createElement(item.icon)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13.5px] font-semibold text-ink">
+                          {item.label}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-ink-sub">{item.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </Drawer>
 
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </header>

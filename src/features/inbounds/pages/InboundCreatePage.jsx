@@ -1,17 +1,54 @@
+import { useState } from 'react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Card, App } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CheckOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import PageHeader from '@/components/ui/PageHeader';
+import VoucherResult from '@/components/ui/VoucherResult';
 import InboundGeneralInfo from '@/features/inbounds/components/InboundGeneralInfo';
 import InboundLineItemsTable from '@/features/inbounds/components/InboundLineItemsTable';
 import { inboundSchema, emptyItem } from '@/features/inbounds/schemas/inboundSchema';
+import { DEFAULT_WAREHOUSE } from '@/constants/voucher';
+import { PRODUCT_OPTIONS } from '@/mock/products';
+import { SUPPLIER_OPTIONS } from '@/mock/partners';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
+import { TODAY } from '@/utils/date';
 
 // Sinh mã phiếu tạm cho demo.
 function generateCode() {
   return `PN-2026-0${Math.floor(100 + Math.random() * 900)}`;
+}
+
+/**
+ * Dữ liệu form -> khuôn phiếu để dựng tờ giấy ở bước xác nhận: đổi id sản phẩm /
+ * nhà cung cấp thành tên hiển thị, tính lại thành tiền.
+ */
+function buildVoucher(values, createdBy) {
+  const items = (values.items ?? []).map((it) => {
+    const product = PRODUCT_OPTIONS.find((o) => o.value === it.productId);
+    return {
+      productName: product?.label ?? '',
+      lot: it.lotId,
+      unit: product?.unit ?? '',
+      quantity: Number(it.quantity) || 0,
+      unitPrice: Number(it.unitPrice) || 0,
+    };
+  });
+
+  return {
+    kind: 'inbound',
+    code: values.code,
+    date: TODAY, // ngày ghi sổ = ngày lập, không cho người dùng chọn
+    status: 'POSTED',
+    note: values.note,
+    partnerName: SUPPLIER_OPTIONS.find((o) => o.value === values.supplierId)?.label ?? '',
+    createdBy: createdBy || 'Người lập phiếu',
+    warehouse: DEFAULT_WAREHOUSE,
+    items,
+    total: items.reduce((sum, it) => sum + it.quantity * it.unitPrice, 0),
+  };
 }
 
 // Thẻ tổng kết — theo dõi `items` để tính tổng theo thời gian thực.
@@ -39,7 +76,7 @@ function OrderSummary({ control }) {
           </div>
         ))}
       </div>
-      <div className="mt-4 flex items-center justify-between border-t border-dashed border-slate-200 pt-4">
+      <div className="mt-4 flex items-center justify-between rule-dashed-top pt-4">
         <span className="text-sm font-medium text-ink-sub">Tổng giá trị</span>
         <span className="text-xl font-bold text-royal">{formatCurrency(totalAmount)}</span>
       </div>
@@ -50,13 +87,15 @@ function OrderSummary({ control }) {
 export default function InboundCreatePage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const fullName = useSelector((state) => state.auth.user?.fullName);
+  // Có giá trị => đã xác nhận, chuyển sang xem tờ phiếu vừa lập.
+  const [created, setCreated] = useState(null);
 
   const methods = useForm({
     resolver: zodResolver(inboundSchema),
     defaultValues: {
       code: generateCode(),
       supplierId: undefined,
-      receiptDate: null,
       note: '',
       items: [emptyItem],
     },
@@ -64,13 +103,48 @@ export default function InboundCreatePage() {
 
   const onSubmit = (values) => {
     console.log('Inbound payload:', values);
+    setCreated(buildVoucher(values, fullName));
     message.success('Đã tạo phiếu nhập kho thành công!');
-    navigate('/inbounds');
+    window.scrollTo({ top: 0 });
   };
 
   const onError = () => {
     message.error('Vui lòng kiểm tra lại các trường bắt buộc.');
   };
+
+  const startNew = () => {
+    methods.reset({
+      code: generateCode(),
+      supplierId: undefined,
+      note: '',
+      items: [emptyItem],
+    });
+    setCreated(null);
+  };
+
+  if (created) {
+    return (
+      <>
+        <div className="no-print">
+          <PageHeader
+            title="Phiếu nhập kho đã lập"
+            breadcrumb={[
+              { title: 'Nghiệp vụ kho' },
+              { title: 'Phiếu nhập', href: '/inbounds' },
+              { title: 'Kết quả' },
+            ]}
+          />
+        </div>
+        <VoucherResult
+          voucher={created}
+          title="Đã ghi sổ phiếu nhập kho"
+          onEdit={() => setCreated(null)}
+          onNew={startNew}
+          listPath="/inbounds"
+        />
+      </>
+    );
+  }
 
   return (
     <FormProvider {...methods}>
@@ -121,7 +195,7 @@ export default function InboundCreatePage() {
                   Lưu nháp
                 </Button>
                 <p className="mt-4 mb-0 text-center text-xs text-slate-400">
-                  Kiểm tra kỹ số lượng và đơn giá trước khi hoàn tất.
+                  Xác nhận xong sẽ hiện tờ phiếu hoàn chỉnh để xem lại và in.
                 </p>
               </Card>
             </div>

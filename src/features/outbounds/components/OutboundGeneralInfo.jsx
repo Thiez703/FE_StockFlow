@@ -1,7 +1,8 @@
-import { Card, Form, Input, Select, DatePicker } from 'antd';
+import { Card, Form, Input, Select } from 'antd';
 import { useFormContext, Controller, useWatch } from 'react-hook-form';
 import { CUSTOMER_OPTIONS, SUPPLIER_OPTIONS } from '@/mock/partners';
 import { OUTBOUND_TYPES } from '@/mock/outbounds';
+import { formatDate, TODAY } from '@/utils/date';
 
 const { TextArea } = Input;
 const TYPE_OPTIONS = OUTBOUND_TYPES.map((t) => ({ value: t, label: t }));
@@ -42,20 +43,11 @@ export default function OutboundGeneralInfo() {
             )}
           />
 
-          <Controller
-            name="issueDate"
-            control={control}
-            render={({ field }) => (
-              <Form.Item
-                label="Ngày xuất"
-                required
-                validateStatus={errors.issueDate ? 'error' : ''}
-                help={errors.issueDate?.message}
-              >
-                <DatePicker {...field} format="DD/MM/YYYY" className="w-full" placeholder="Chọn ngày" />
-              </Form.Item>
-            )}
-          />
+          {/* Ngày ghi sổ không cho chọn: phiếu luôn mang ngày lập. Khi nối API
+              thật thì lấy ngày từ response của server thay vì tự tính ở FE. */}
+          <Form.Item label="Ngày xuất">
+            <Input value={formatDate(TODAY)} readOnly variant="filled" className="mono" />
+          </Form.Item>
 
           <Controller
             name="type"
