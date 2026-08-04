@@ -39,33 +39,17 @@ export default function QuickActionsBar() {
   const navigate = useNavigate();
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {ACTIONS.map((a) => (
-          <button
-            key={a.to}
-            onClick={() => navigate(a.to)}
-            className={`group flex flex-col items-start gap-1 rounded-2xl border p-5 transition-all duration-200 shadow-sm ${a.colorClass}`}
-          >
-            <div className="flex items-center gap-3 w-full">
-              <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm text-xl transition-transform group-hover:scale-110 ${a.iconBg}`}>
-                {a.icon}
-              </span>
-              <span className="font-bold text-lg text-slate-800">{a.label}</span>
-            </div>
-            <span className="text-sm font-medium opacity-80 mt-1">{a.desc}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="flex flex-col lg:flex-row gap-3">
+      {/* Thanh tìm kiếm */}
+      <div className="flex-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm flex items-center">
         <Select
           showSearch
           allowClear
+          bordered={false}
           placeholder="Tra cứu nhanh tồn kho sản phẩm..."
-          className="w-full lg:w-1/3"
+          className="w-full text-base"
           size="large"
-          suffixIcon={<SearchOutlined className="text-slate-400" />}
+          suffixIcon={<SearchOutlined className="text-slate-400 text-lg" />}
           options={PRODUCT_OPTIONS}
           filterOption={(input, option) => {
             const kw = input.toLowerCase();
@@ -75,6 +59,20 @@ export default function QuickActionsBar() {
             if (option) navigate(`/inventory?q=${encodeURIComponent(option.sku)}`);
           }}
         />
+      </div>
+
+      {/* Các nút hành động */}
+      <div className="flex flex-wrap sm:flex-nowrap gap-3 shrink-0">
+        {ACTIONS.map((a) => (
+          <button
+            key={a.to}
+            onClick={() => navigate(a.to)}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-3 rounded-xl px-5 py-2.5 border transition-all duration-200 shadow-sm ${a.colorClass}`}
+          >
+            <span className="text-xl">{a.icon}</span>
+            <span className="font-bold text-base whitespace-nowrap">{a.label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

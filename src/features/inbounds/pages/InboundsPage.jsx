@@ -190,7 +190,7 @@ export default function InboundsPage() {
         )}
       </FadeSection>
 
-      <Modal
+      <Modal centered
         open={!!cancelId}
         title="Huỷ phiếu nhập"
         okText="Xác nhận huỷ"

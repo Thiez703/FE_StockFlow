@@ -28,7 +28,7 @@ export default function VoucherPreviewModal({ open, voucher, onClose, actions })
 
   return (
     <>
-      <Modal
+      <Modal centered
         open={open}
         onCancel={onClose}
         width={920}

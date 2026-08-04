@@ -1,14 +1,218 @@
-import { Select } from 'antd';
-import { FileSyncOutlined, ExportOutlined } from '@ant-design/icons';
+import { Select, Tooltip, Popover } from 'antd';
+import { WarningOutlined, FileSyncOutlined, AlertOutlined, AppstoreOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import QuickActionsBar from '@/features/dashboard/components/QuickActionsBar';
-import KpiHero from '@/features/dashboard/components/KpiHero';
-import StatCard from '@/features/dashboard/components/StatCard';
-import InventoryTrendChart from '@/features/dashboard/components/InventoryTrendChart';
 import AlertsPanel from '@/features/dashboard/components/AlertsPanel';
 import RecentActivities from '@/features/dashboard/components/RecentActivities';
+import StatCard from '@/features/dashboard/components/StatCard';
 import { formatNumber } from '@/utils/formatCurrency';
 import { KPIS } from '@/mock/dashboard';
+import { INVENTORY } from '@/mock/inventory';
+import { LOTS } from '@/mock/lots';
+
+const ROWS = ['A', 'B', 'C', 'D', 'E', 'F'];
+const COLS = Array.from({ length: 6 }, (_, i) => String(i + 1).padStart(2, '0'));
+
+function DashboardWarehouseMap() {
+  const getCellStatus = (code) => {
+    const inv = INVENTORY.find((i) => i.location === code);
+    if (!inv) return { state: 'empty' };
+    
+    // Check if expiring soon
+    const lotInfo = LOTS.find(l => l.code === inv.lot);
+    const isExpiring = lotInfo?.status?.toUpperCase() === 'EXPIRED' || lotInfo?.status?.toUpperCase() === 'WARNING';
+    
+    if (inv.onHand < inv.minStock) return { state: 'low', inv, lotInfo: { ...lotInfo, status: isExpiring ? 'WARNING' : lotInfo?.status } };
+    if (isExpiring) return { state: 'warning', inv, lotInfo: { ...lotInfo, status: 'WARNING' } };
+    return { state: 'normal', inv, lotInfo };
+  };
+
+  const renderCell = (code) => {
+    const { state, inv, lotInfo } = getCellStatus(code);
+    
+    const theme = {
+      empty: {
+        wrapper: 'border-2 border-dashed border-slate-300 bg-slate-50/70 hover:bg-slate-100 cursor-default',
+        header: '',
+        highlight: 'text-slate-400'
+      },
+      normal: {
+        wrapper: 'border border-emerald-200 bg-white shadow-md hover:shadow-xl hover:-translate-y-1.5 cursor-pointer ring-1 ring-emerald-100',
+        header: 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-b border-emerald-600',
+        highlight: 'text-emerald-600'
+      },
+      low: {
+        wrapper: 'border border-rose-200 bg-white shadow-md hover:shadow-xl hover:-translate-y-1.5 cursor-pointer ring-1 ring-rose-100',
+        header: 'bg-gradient-to-r from-rose-500 to-pink-500 text-white border-b border-rose-600',
+        highlight: 'text-rose-600'
+      },
+      warning: {
+        wrapper: 'border border-amber-200 bg-white shadow-md hover:shadow-xl hover:-translate-y-1.5 cursor-pointer ring-1 ring-amber-100',
+        header: 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-b border-amber-600',
+        highlight: 'text-amber-600'
+      },
+    }[state];
+
+    const popoverContent = inv ? (
+      <div className="w-[300px] p-1">
+        <div className="border-b border-slate-100 pb-3 mb-3">
+          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Mã sản phẩm: {inv.productId}</div>
+          <div className="text-base font-bold text-slate-800 leading-snug">{inv.productName}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mb-3">
+          <div>
+            <div className="text-[11px] text-slate-500 mb-1">Mã Lô</div>
+            <div className="font-mono font-medium bg-slate-100 px-2 py-1 rounded inline-block text-[13px]">{inv.lot}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate-500 mb-1">Đơn vị tính</div>
+            <div className="font-medium text-[13px]">{inv.unit}</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mb-1">
+          <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+            <div className="text-[11px] text-slate-500 mb-1">Tồn kho hiện tại</div>
+            <div className={`text-lg font-bold ${inv.onHand < inv.minStock ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {formatNumber(inv.onHand)}
+            </div>
+          </div>
+          <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+            <div className="text-[11px] text-slate-500 mb-1">Định mức tối thiểu</div>
+            <div className="text-lg font-bold text-slate-600">{formatNumber(inv.minStock)}</div>
+          </div>
+        </div>
+        {lotInfo && lotInfo.status === 'WARNING' && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 rounded-lg flex items-start gap-2">
+            <WarningOutlined className="mt-0.5" />
+            <div>
+              <div className="font-bold text-[13px]">Lô hàng sắp hết hạn!</div>
+              <div className="text-[12px] opacity-90 mt-0.5">NSX: {lotInfo.mfgDate} - HSD: {lotInfo.expDate}</div>
+            </div>
+          </div>
+        )}
+      </div>
+    ) : null;
+
+    const cellContent = (
+      <div
+        className={`min-h-[135px] rounded-xl transition-all duration-300 flex flex-col relative overflow-hidden group ${theme.wrapper}`}
+      >
+        {inv ? (
+          <>
+            <div className={`flex justify-between items-center px-3 py-2 shadow-sm ${theme.header}`}>
+              <span className="text-[13px] font-mono font-bold tracking-wider drop-shadow-sm">
+                {code}
+              </span>
+              <span className="text-[11px] font-bold bg-black/20 px-2 py-0.5 rounded-full truncate max-w-[65%] shadow-inner tracking-wide" title={`Lô: ${inv.lot}`}>
+                {inv.lot}
+              </span>
+            </div>
+            
+            <div className="flex flex-col flex-1 p-3 bg-white">
+              <div className="text-[13.5px] font-bold text-slate-800 leading-tight line-clamp-2 mb-3" title={inv.productName}>
+                {inv.productName}
+              </div>
+              
+              <div className="mt-auto">
+                <div className="flex justify-between items-end">
+                  <div className="flex flex-col">
+                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-0.5">Tồn kho</span>
+                    <span className={`font-black text-[16px] leading-none ${theme.highlight}`}>
+                      {formatNumber(inv.onHand)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col text-right">
+                    <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-0.5">Tối thiểu</span>
+                    <span className="font-bold text-slate-500 text-[13px] leading-none">{formatNumber(inv.minStock)}</span>
+                  </div>
+                </div>
+                
+                {lotInfo && lotInfo.status === 'WARNING' && (
+                  <div className="mt-3 text-[11px] font-bold text-amber-700 flex items-center justify-center gap-1 bg-amber-50 border border-amber-200 w-full py-1 rounded-md shadow-sm">
+                    <WarningOutlined /> Sắp hết hạn
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center opacity-60">
+            <div className="text-[16px] font-mono font-bold text-slate-400">{code}</div>
+            <div className="text-[11px] uppercase tracking-widest font-bold text-slate-400 mt-2 border-2 border-slate-300 px-3 py-0.5 rounded-full">Trống</div>
+          </div>
+        )}
+      </div>
+    );
+
+    if (state === 'empty') return <div key={code}>{cellContent}</div>;
+
+    return (
+      <Popover key={code} content={popoverContent} title={`Chi tiết vị trí: ${code}`} trigger="click" placement="right">
+        {cellContent}
+      </Popover>
+    );
+  };
+
+  return (
+    <div className="p-3 md:p-6 bg-slate-50 border border-slate-200 rounded-xl shadow-inner flex-1 w-full">
+      <div className="w-full bg-white p-3 md:p-6 rounded-lg shadow-sm border border-slate-300 relative mx-auto">
+        <div className="text-center mb-6">
+          <div className="inline-block px-4 md:px-8 py-1.5 bg-slate-100 rounded-b-lg border-b-2 border-x-2 border-slate-200 font-bold text-slate-400 tracking-widest uppercase text-[10px] md:text-xs -mt-3 md:-mt-6">
+            Sơ đồ vị trí lô hàng
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-6 md:gap-4">
+          {ROWS.map(row => (
+            <div key={row} className="flex flex-col lg:flex-row gap-3 lg:gap-4 bg-slate-50 lg:bg-transparent p-3 lg:p-0 rounded-xl lg:rounded-none border lg:border-none border-slate-200">
+              <div className="w-full lg:w-8 flex lg:flex-col items-center justify-center font-black text-slate-500 lg:bg-slate-50 rounded-xl border-b lg:border border-slate-200 text-sm shadow-sm py-2 lg:py-0 bg-white">
+                <span className="lg:hidden mr-2">DÃY</span>
+                <span>{row}</span>
+              </div>
+              <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-8 relative">
+                {/* Lối đi ở giữa (Desktop) */}
+                <div className="hidden lg:flex absolute left-1/2 top-0 bottom-0 w-6 -ml-3 items-center justify-center border-x-2 border-dashed border-slate-200 bg-slate-50/50">
+                </div>
+
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {COLS.slice(0, 3).map(col => renderCell(`${row}-${col}`))}
+                </div>
+                
+                {/* Lối đi ở giữa (Mobile) */}
+                <div className="lg:hidden flex items-center justify-center text-[10px] uppercase text-slate-400 font-bold border-y border-dashed border-slate-200 py-1.5 bg-white rounded-lg">
+                  Lối đi giữa
+                </div>
+                
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {COLS.slice(3, 6).map(col => renderCell(`${row}-${col}`))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-[13px] font-medium text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 border-2 border-dashed border-slate-300 bg-slate-50/70 rounded shadow-sm"></div>
+            <span>Vị trí trống</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-500 rounded shadow-sm ring-2 ring-emerald-100"></div>
+            <span>Đang lưu trữ (Bình thường)</span>
+          </div>
+          <div className="flex items-center gap-2 text-rose-700 font-bold">
+            <div className="w-6 h-6 bg-gradient-to-br from-rose-500 to-pink-500 rounded shadow-sm ring-2 ring-rose-100"></div>
+            <span>Tồn kho dưới mức Min</span>
+          </div>
+          <div className="flex items-center gap-2 text-amber-700 font-bold">
+            <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-500 rounded shadow-sm ring-2 ring-amber-100"></div>
+            <span>Lô hàng sắp hết hạn</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   return (
@@ -17,65 +221,41 @@ export default function DashboardPage() {
         title="Bảng điều khiển"
         subtitle="Tổng quan hoạt động kho hàng hôm nay, 18/07/2026"
         breadcrumb={[{ title: 'Tổng quan' }, { title: 'Bảng điều khiển' }]}
-        extra={
-          <Select
-            defaultValue="today"
-            className="w-36"
-            options={[
-              { value: 'today', label: 'Hôm nay' },
-              { value: 'week', label: 'Tuần này' },
-              { value: 'month', label: 'Tháng này' },
-            ]}
-          />
-        }
       />
 
       <div className="mb-4">
         <QuickActionsBar />
       </div>
 
-      {/* Hàng 1: KPI hero + 2 KPI phụ. Dưới xl: 2 card nằm ngang gọn gàng (không bị ép
-          chiều cao vì KpiHero xếp trên, full width). Từ xl trở lên, 2 khối nằm cạnh
-          nhau nên xếp 2 card dọc thành 2 hàng bằng nhau (grid-rows-2, tường minh) để
-          lấp đúng chiều cao KpiHero bằng chính khối card, không dựa vào stretch ngầm. */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-6">
-          <KpiHero />
+      <div className="flex flex-col gap-6">
+        {/* Sơ đồ vị trí lưu trữ */}
+        <div className="w-full">
+          <h3 className="mb-3 text-base font-semibold text-ink flex items-center gap-2">
+            <AppstoreOutlined className="text-blue-600" /> Bản đồ lưu trữ & Tình trạng lô
+          </h3>
+          <DashboardWarehouseMap />
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:col-span-6 xl:grid-cols-1 xl:grid-rows-2">
-          <StatCard
-            title="Phiếu chờ duyệt"
-            value={formatNumber(KPIS.pendingDocs)}
-            suffix="phiếu"
-            icon={<FileSyncOutlined />}
-            tone="blue"
-            hint="Nhập / xuất / kiểm kê"
-          />
-          <StatCard
-            title="Xuất hôm nay"
-            value={formatNumber(KPIS.outboundToday)}
-            suffix="thùng"
-            icon={<ExportOutlined />}
-            tone="green"
-            delta={8.2}
-            deltaLabel="so với hôm qua"
-          />
-        </div>
-      </div>
 
-      {/* Hàng 2: biểu đồ + cảnh báo */}
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <InventoryTrendChart />
+        {/* Cột thông tin phụ (chuyển xuống dưới) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-4">
+            <StatCard
+              title="Phiếu chờ duyệt"
+              value={formatNumber(KPIS.pendingDocs)}
+              suffix="phiếu"
+              icon={<FileSyncOutlined />}
+              tone="blue"
+              hint="Nhập / xuất / kiểm kê cần xử lý"
+            />
+            <div className="flex-1">
+              <AlertsPanel />
+            </div>
+          </div>
+          
+          <div className="lg:col-span-2">
+            <RecentActivities />
+          </div>
         </div>
-        <div>
-          <AlertsPanel />
-        </div>
-      </div>
-
-      {/* Hàng 3: hoạt động gần đây */}
-      <div className="mt-4">
-        <RecentActivities />
       </div>
     </>
   );

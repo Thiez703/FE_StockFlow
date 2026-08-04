@@ -14,6 +14,7 @@ import FadeSection from '@/components/ui/FadeSection';
 import DocDetailModal from '@/components/ui/DocDetailModal';
 import InventoryTrendChart from '@/features/dashboard/components/InventoryTrendChart';
 import StatCard from '@/features/dashboard/components/StatCard';
+import KpiHero from '@/features/dashboard/components/KpiHero';
 import StocktakeItemsDetail, { DiffValue } from '@/features/stocktakes/components/StocktakeItemsDetail';
 import { TREND } from '@/mock/dashboard';
 import { STOCKTAKES } from '@/mock/stocktakes';
@@ -196,23 +197,28 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatCard
-          title="Tổng phiếu nhập"
-          value={formatNumber(INBOUNDS.length)}
-          suffix="phiếu"
-          icon={<ImportOutlined />}
-          tone="green"
-          hint="Toàn bộ phiếu nhập hiện có"
-        />
-        <StatCard
-          title="Tổng phiếu xuất"
-          value={formatNumber(OUTBOUNDS.length)}
-          suffix="phiếu"
-          icon={<ExportOutlined />}
-          tone="amber"
-          hint="Toàn bộ phiếu xuất hiện có"
-        />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-6">
+          <KpiHero />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:col-span-6 xl:grid-cols-1 xl:grid-rows-2">
+          <StatCard
+            title="Tổng phiếu nhập"
+            value={formatNumber(INBOUNDS.length)}
+            suffix="phiếu"
+            icon={<ImportOutlined />}
+            tone="green"
+            hint="Toàn bộ phiếu nhập hiện có"
+          />
+          <StatCard
+            title="Tổng phiếu xuất"
+            value={formatNumber(OUTBOUNDS.length)}
+            suffix="phiếu"
+            icon={<ExportOutlined />}
+            tone="amber"
+            hint="Toàn bộ phiếu xuất hiện có"
+          />
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -289,7 +295,7 @@ export default function ReportsPage() {
         {detailRecord && <StocktakeItemsDetail items={detailRecord.items} note={detailRecord.note} />}
       </DocDetailModal>
 
-      <Modal
+      <Modal centered
         open={!!periodDetail}
         onCancel={() => setPeriodDetail(null)}
         footer={null}

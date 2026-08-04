@@ -33,7 +33,7 @@ export default function ProductFormModal({
   };
 
   return (
-    <Modal
+    <Modal centered
       open={open}
       title={editing ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}
       okText={editing ? 'Lưu thay đổi' : 'Thêm mới'}

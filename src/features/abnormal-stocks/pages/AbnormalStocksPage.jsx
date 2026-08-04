@@ -255,7 +255,7 @@ export default function AbnormalStocksPage() {
         }
       />
 
-      <Modal
+      <Modal centered
         open={open}
         title="Lập biên bản hàng bất thường"
         okText="Xác nhận lập biên bản"

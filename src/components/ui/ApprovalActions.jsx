@@ -45,7 +45,7 @@ export default function ApprovalActions({ record, onApprove, onReject }) {
         Từ chối
       </Button>
 
-      <Modal
+      <Modal centered
         open={rejectOpen}
         title="Từ chối phiếu"
         okText="Xác nhận từ chối"

@@ -313,7 +313,7 @@ export default function UsersPage() {
         />
       </FadeSection>
 
-      <Modal
+      <Modal centered
         open={open}
         title={editing ? 'Sửa người dùng' : 'Thêm người dùng'}
         okText={editing ? 'Lưu thay đổi' : 'Tạo tài khoản'}
@@ -370,7 +370,7 @@ export default function UsersPage() {
         </Form>
       </Modal>
 
-      <Modal
+      <Modal centered
         open={!!roleTarget}
         title={`Đổi vai trò — ${roleTarget?.fullName ?? ''}`}
         okText="Lưu"

@@ -158,7 +158,7 @@ export default function ProductUnitsModal({ open, product, canEdit = true, onClo
   const noUnitLeft = unitOptions.length === 0;
 
   return (
-    <Modal
+    <Modal centered
       open={open}
       title={`Đơn vị quy đổi — ${product?.name ?? ''}`}
       onCancel={handleClose}

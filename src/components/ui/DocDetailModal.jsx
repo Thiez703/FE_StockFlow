@@ -20,7 +20,7 @@ export default function DocDetailModal({ open, onClose, title, fields, children 
     });
   }, [open]);
   return (
-    <Modal open={open} onCancel={onClose} footer={null} title={title} width={720} destroyOnHidden>
+    <Modal centered open={open} onCancel={onClose} footer={null} title={title} width={720} destroyOnHidden>
       {safeFields.length > 0 && (
         <div className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-slate-50/70 p-3 text-sm sm:grid-cols-3">
           {safeFields.map((f) => (

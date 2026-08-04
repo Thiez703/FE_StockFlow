@@ -49,7 +49,7 @@ export default function ChangePasswordModal({ open, onClose }) {
   );
 
   return (
-    <Modal
+    <Modal centered
       open={open}
       title="Đổi mật khẩu"
       okText="Cập nhật"
