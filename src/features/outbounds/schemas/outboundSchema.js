@@ -5,7 +5,7 @@ const requiredSelect = (message) =>
 
 export const emptyItem = { productId: undefined, lotId: undefined, overrideReason: '', quantity: 1, unitPrice: 0 };
 
-const outboundItemSchema = z.object({
+const baseItemSchema = z.object({
   productId: requiredSelect('Chọn sản phẩm'),
   lotId: requiredSelect('Vui lòng chọn lô hàng'),
   overrideReason: z.string().optional().default(''),
@@ -13,18 +13,29 @@ const outboundItemSchema = z.object({
   unitPrice: z.number().nullable().refine((v) => v != null && v >= 0, 'Đơn giá không hợp lệ'),
 });
 
-export const outboundSchema = z
-  .object({
-    code: z.string().min(1, 'Thiếu mã phiếu'),
-    type: requiredSelect('Chọn loại xuất'),
-    partnerId: z.any().optional(),
-    // Không có `issueDate`: ngày ghi sổ do server đóng dấu lúc tạo.
-    note: z.string().optional(),
-    items: z.array(outboundItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),
-  })
-  .superRefine((val, ctx) => {
-    // Xuất Sỉ / Trả NCC bắt buộc chọn đối tác.
-    if ((val.type === 'Sỉ' || val.type === 'Trả NCC') && !val.partnerId) {
-      ctx.addIssue({ code: 'custom', path: ['partnerId'], message: 'Vui lòng chọn đối tác' });
-    }
-  });
+const baseFields = {
+  code: z.string().min(1, 'Thiếu mã phiếu'),
+  note: z.string().optional(),
+  items: z.array(baseItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),
+};
+
+/** Xuất bán — bắt buộc chọn khách hàng */
+export const retailSchema = z.object({
+  ...baseFields,
+  issue_type: z.literal('RETAIL'),
+  customerId: requiredSelect('Vui lòng chọn khách hàng'),
+});
+
+/** Xuất trả NCC — bắt buộc chọn nhà cung cấp */
+export const returnSupplierSchema = z.object({
+  ...baseFields,
+  issue_type: z.literal('RETURN_SUPPLIER'),
+  supplierId: requiredSelect('Vui lòng chọn nhà cung cấp'),
+});
+
+/** Xuất hủy — bắt buộc chọn lý do */
+export const disposalSchema = z.object({
+  ...baseFields,
+  issue_type: z.literal('DISPOSAL'),
+  reason_type: requiredSelect('Vui lòng chọn lý do hủy'),
+});

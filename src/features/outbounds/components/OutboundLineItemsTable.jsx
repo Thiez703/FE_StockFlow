@@ -9,9 +9,6 @@ import { LOTS } from '@/mock/lots';
 
 const DEFAULT_ITEM = { productId: undefined, lotId: undefined, overrideReason: '', quantity: 1, unitPrice: 0 };
 
-/**
- * Tìm lô FEFO (HSD sớm nhất, còn active) cho sản phẩm.
- */
 function getFefoLot(productId) {
   if (!productId) return null;
   return LOTS
@@ -19,9 +16,6 @@ function getFefoLot(productId) {
     .sort((a, b) => a.expDate.localeCompare(b.expDate))[0] ?? null;
 }
 
-/**
- * Lấy danh sách lô còn active cho sản phẩm, format dạng option cho Select.
- */
 function getLotOptions(productId, fefoLotCode) {
   if (!productId) return [];
   return LOTS
@@ -32,7 +26,7 @@ function getLotOptions(productId, fefoLotCode) {
       label: (
         <span className="flex items-center gap-1.5">
           {l.code} — HSD: {formatDate(l.expDate)}
-          {l.code === fefoLotCode && (
+          {fefoLotCode && l.code === fefoLotCode && (
             <Tag color="green" className="!ml-1 !mr-0 !text-[10px] !leading-none !px-1.5 !py-0.5">FEFO</Tag>
           )}
         </span>
@@ -40,16 +34,15 @@ function getLotOptions(productId, fefoLotCode) {
     }));
 }
 
-/**
- * Lấy đơn vị cơ sở của sản phẩm.
- */
 function getBaseUnit(productId) {
   if (!productId) return '';
   return PRODUCT_OPTIONS.find((p) => p.value === productId)?.unit ?? '';
 }
 
-// Một dòng hàng xuất kho — có gợi ý FEFO và ô lý do override.
-function ItemRow({ name, index, control, errors, setValue, onRemove, removable }) {
+/**
+ * @param {boolean} useFEFO – true: gợi ý lô FEFO + override reason (RETAIL), false: chọn lô tự do
+ */
+function ItemRow({ name, index, control, errors, setValue, onRemove, removable, useFEFO }) {
   const [productId, lotId, overrideReason, quantity, unitPrice] = useWatch({
     control,
     name: [
@@ -63,13 +56,12 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
   const lineTotal = (Number(quantity) || 0) * (Number(unitPrice) || 0);
   const rowErr = errors?.[name]?.[index];
 
-  const fefoLot = getFefoLot(productId);
+  const fefoLot = useFEFO ? getFefoLot(productId) : null;
   const fefoLotCode = fefoLot?.code;
-  const lotOptions = getLotOptions(productId, fefoLotCode);
+  const lotOptions = getLotOptions(productId, useFEFO ? fefoLotCode : null);
   const baseUnit = getBaseUnit(productId);
 
-  // Kiểm tra xem user đã chọn lô khác FEFO chưa
-  const isOverride = lotId && fefoLotCode && lotId !== fefoLotCode;
+  const isOverride = useFEFO && lotId && fefoLotCode && lotId !== fefoLotCode;
   const overrideErr = isOverride && (!overrideReason || !overrideReason.trim());
 
   return (
@@ -92,9 +84,12 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
                 className="w-full"
                 onChange={(value) => {
                   field.onChange(value);
-                  // Auto-chọn lô FEFO khi đổi sản phẩm
-                  const newFefo = getFefoLot(value);
-                  setValue(`${name}.${index}.lotId`, newFefo?.code ?? undefined);
+                  if (useFEFO) {
+                    const newFefo = getFefoLot(value);
+                    setValue(`${name}.${index}.lotId`, newFefo?.code ?? undefined);
+                  } else {
+                    setValue(`${name}.${index}.lotId`, undefined);
+                  }
                   setValue(`${name}.${index}.overrideReason`, '');
                 }}
               />
@@ -102,7 +97,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
           />
         </div>
 
-        {/* Lô hàng — FIX 2 FEFO suggestion */}
+        {/* Lô hàng */}
         <div className="col-span-12 md:col-span-2">
           <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Lô hàng</span>
           <Controller
@@ -118,8 +113,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
                 disabled={!productId}
                 onChange={(value) => {
                   field.onChange(value);
-                  // Reset lý do nếu chọn lại lô FEFO
-                  if (value === fefoLotCode) {
+                  if (useFEFO && value === fefoLotCode) {
                     setValue(`${name}.${index}.overrideReason`, '');
                   }
                 }}
@@ -197,7 +191,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
         </div>
       </div>
 
-      {/* Ô lý do override FEFO — chỉ hiện khi chọn lô khác FEFO */}
+      {/* Ô lý do override FEFO — chỉ hiện khi FEFO mode + chọn lô khác */}
       {isOverride && (
         <div className="mx-4 mb-3 rounded-lg border border-amber/30 bg-amber/5 p-3">
           <Controller
@@ -229,11 +223,10 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable }
 }
 
 /**
- * Bảng dòng hàng cho phiếu xuất kho — có gợi ý FEFO + lý do override.
- * Khi chọn sản phẩm, lô FEFO (HSD sớm nhất) được auto-chọn.
- * Nếu chọn lô khác → hiện ô nhập lý do bắt buộc.
+ * Bảng dòng hàng cho phiếu xuất kho.
+ * @param {boolean} useFEFO – true cho RETAIL (gợi ý FEFO), false cho RETURN_SUPPLIER / DISPOSAL
  */
-export default function OutboundLineItemsTable({ name = 'items', emptyItem = DEFAULT_ITEM, title = 'Danh sách sản phẩm' }) {
+export default function OutboundLineItemsTable({ name = 'items', emptyItem = DEFAULT_ITEM, title = 'Danh sách sản phẩm', useFEFO = true }) {
   const {
     control,
     setValue,
@@ -251,7 +244,6 @@ export default function OutboundLineItemsTable({ name = 'items', emptyItem = DEF
   return (
     <Card
       title={title}
-      // Máy hẹp: cho tiêu đề và cụm nút "Thêm dòng" xuống hai hàng thay vì cắt cụt tiêu đề.
       className="border-hair [&_.ant-card-head-title]:!whitespace-normal [&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-y-2"
       styles={{ header: { borderBottom: '1px solid #f1f5f9' }, body: { padding: 0 } }}
       extra={
@@ -288,6 +280,7 @@ export default function OutboundLineItemsTable({ name = 'items', emptyItem = DEF
             setValue={setValue}
             onRemove={() => remove(index)}
             removable={fields.length > 1}
+            useFEFO={useFEFO}
           />
         ))
       )}

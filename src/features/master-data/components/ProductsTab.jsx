@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Input, Select, Tag, Tooltip, Popconfirm, App, Checkbox, Segmented } from 'antd';
-import { PlusOutlined, SearchOutlined, EditOutlined, SwapOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, EditOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
@@ -10,10 +10,8 @@ import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import StatusPill from '@/components/ui/StatusPill';
 import ProductFormModal from '@/features/master-data/components/ProductFormModal';
-import ProductUnitsModal from '@/features/master-data/components/ProductUnitsModal';
 import { productApi } from '@/api/products';
 import { categoryApi } from '@/api/categories';
-import { unitApi } from '@/api/units';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatNumber } from '@/utils/formatCurrency';
 
@@ -32,12 +30,10 @@ export default function ProductsTab() {
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState(null);
   const [status, setStatus] = useState(null);
-  const [unit, setUnit] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [unitsTarget, setUnitsTarget] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useState('table');
   const { sortableTitle, sortRows } = useColumnSort();
 
   const { data: rows = [], isLoading } = useQuery({
@@ -50,18 +46,11 @@ export default function ProductsTab() {
     queryFn: categoryApi.getAll,
   });
 
-  const { data: units = [] } = useQuery({
-    queryKey: ['units'],
-    queryFn: unitApi.getAll,
-  });
-
   const categoryOptions = categories.map((c) => ({ value: c.id, label: c.name }));
-  const unitOptions = units.map((u) => ({ value: u.id, label: u.name }));
   const categoryName = useMemo(
     () => Object.fromEntries(categories.map((c) => [c.id, c.name])),
     [categories],
   );
-  const unitName = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u.name])), [units]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY });
   const onError = (error) => message.error(getErrorMessage(error));
@@ -108,11 +97,10 @@ export default function ProductsTab() {
       const okKw = !kw || [p.name, p.code].some((v) => String(v ?? '').toLowerCase().includes(kw));
       const okCat = !category || p.categoryId === category;
       const okStatus = !status || p.status === status;
-      const okUnit = !unit || p.baseUnitId === unit;
-      return okKw && okCat && okStatus && okUnit;
+      return okKw && okCat && okStatus;
     });
     return sortRows(filtered);
-  }, [rows, keyword, category, status, unit, sortRows]);
+  }, [rows, keyword, category, status, sortRows]);
 
   const handleSubmit = (values) => {
     saveProduct({
@@ -121,7 +109,7 @@ export default function ProductsTab() {
         code: values.code,
         name: values.name,
         categoryId: values.categoryId ?? null,
-        baseUnitId: values.baseUnitId,
+        unit: values.unit,
         minStock: values.minStock ?? 0,
         status: values.status,
       },
@@ -136,9 +124,9 @@ export default function ProductsTab() {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-ink">{name}</span>
-            {unitName[r.baseUnitId] && (
+            {r.unit && (
               <Tag bordered={false} className="!m-0">
-                {unitName[r.baseUnitId]}
+                {r.unit}
               </Tag>
             )}
           </div>
@@ -169,24 +157,19 @@ export default function ProductsTab() {
       title: '',
       key: 'action',
       align: 'center',
-      width: 96,
+      width: 56,
       render: (_, r) => (
-        <div className="flex items-center justify-center">
-          <Tooltip title="Sửa">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              disabled={!canManageMasterData}
-              onClick={() => {
-                setEditing(r);
-                setModalOpen(true);
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Đơn vị quy đổi">
-            <Button type="text" icon={<SwapOutlined />} onClick={() => setUnitsTarget(r)} />
-          </Tooltip>
-        </div>
+        <Tooltip title="Sửa">
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            disabled={!canManageMasterData}
+            onClick={() => {
+              setEditing(r);
+              setModalOpen(true);
+            }}
+          />
+        </Tooltip>
       ),
     },
   ];
@@ -222,16 +205,6 @@ export default function ProductsTab() {
               options={STATUS_OPTIONS}
               value={status}
               onChange={setStatus}
-            />
-            <Select
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              placeholder="ĐVT"
-              className="w-full sm:w-48"
-              options={unitOptions}
-              value={unit}
-              onChange={setUnit}
             />
           </div>
         </div>
@@ -289,24 +262,21 @@ export default function ProductsTab() {
                 )}
               </AnimatePresence>
             </div>
-            
+
             {canManageMasterData && (
-              <Tooltip title={units.length ? '' : 'Cần có ít nhất một đơn vị tính trước'}>
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  disabled={!units.length}
-                  onClick={() => {
-                    setEditing(null);
-                    setModalOpen(true);
-                  }}
-                >
-                  Thêm sản phẩm
-                </Button>
-              </Tooltip>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditing(null);
+                  setModalOpen(true);
+                }}
+              >
+                Thêm sản phẩm
+              </Button>
             )}
           </div>
-          
+
           <FadeSection dataKey={`${viewMode}-${data.map((p) => p.id).join(',')}`}>
             {viewMode === 'table' ? (
               <DataTable
@@ -345,7 +315,7 @@ export default function ProductsTab() {
                           />
                         </div>
                       )}
-                      
+
                       <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1 bg-white/90 p-1 rounded-xl backdrop-blur-md shadow-sm border border-slate-100">
                         <Tooltip title="Sửa" placement="left">
                           <Button
@@ -357,14 +327,6 @@ export default function ProductsTab() {
                               setEditing(p);
                               setModalOpen(true);
                             }}
-                          />
-                        </Tooltip>
-                        <Tooltip title="Đơn vị quy đổi" placement="left">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<SwapOutlined className="text-blue-600" />}
-                            onClick={() => setUnitsTarget(p)}
                           />
                         </Tooltip>
                       </div>
@@ -394,12 +356,12 @@ export default function ProductsTab() {
                             <span className="font-semibold text-slate-700 truncate">{categoryName[p.categoryId] ?? '—'}</span>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <span className="text-slate-400 font-medium">Đơn vị cơ bản</span>
-                            <span className="font-semibold text-slate-700 truncate">{unitName[p.baseUnitId] ?? '—'}</span>
+                            <span className="text-slate-400 font-medium">Đơn vị</span>
+                            <span className="font-semibold text-slate-700 truncate">{p.unit ?? '—'}</span>
                           </div>
                           <div className="flex flex-col gap-1 col-span-2 mt-1 pt-3 border-t border-slate-100">
                             <span className="text-slate-400 font-medium">Tồn tối thiểu</span>
-                            <span className="font-bold text-slate-800">{formatNumber(p.minStock ?? 0)} <span className="text-slate-500 font-normal">{unitName[p.baseUnitId]}</span></span>
+                            <span className="font-bold text-slate-800">{formatNumber(p.minStock ?? 0)} <span className="text-slate-500 font-normal">{p.unit}</span></span>
                           </div>
                         </div>
                       </div>
@@ -416,17 +378,9 @@ export default function ProductsTab() {
         open={modalOpen}
         editing={editing}
         categoryOptions={categoryOptions}
-        unitOptions={unitOptions}
         confirmLoading={isSaving}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
-      />
-
-      <ProductUnitsModal
-        open={!!unitsTarget}
-        product={unitsTarget}
-        canEdit={canManageMasterData}
-        onClose={() => setUnitsTarget(null)}
       />
     </>
   );

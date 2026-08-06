@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react';
-import { Button, Input, Select, DatePicker, Segmented, Tag, Tooltip, Modal, App } from 'antd';
+import { Button, Input, Select, DatePicker, Segmented, Tag, Tooltip, Modal, App, Dropdown } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
   StopOutlined,
   FileTextOutlined,
   UnorderedListOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSelector } from 'react-redux';
 import { useColumnSort } from '@/hooks/useColumnSort';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
@@ -19,27 +21,35 @@ import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import VoucherGrid from '@/components/ui/VoucherGrid';
 import VoucherPreviewModal from '@/components/ui/VoucherPreviewModal';
-import { OUTBOUNDS, OUTBOUND_TYPES } from '@/mock/outbounds';
+import { OUTBOUNDS, ISSUE_TYPES, ISSUE_TYPE_LABEL } from '@/mock/outbounds';
 import { statusOptions, DOC_STATUSES } from '@/constants/status';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
 import { toVoucher } from '@/utils/voucher';
 
 const { RangePicker } = DatePicker;
-const TYPE_COLOR = { Sỉ: 'blue', 'Trả NCC': 'gold', Hủy: 'red', 'Nội bộ': 'default' };
+
+const TYPE_COLOR = { RETAIL: 'blue', RETURN_SUPPLIER: 'gold', DISPOSAL: 'red' };
 
 const VIEW_OPTIONS = [
   { value: 'table', icon: <UnorderedListOutlined />, label: 'Bảng' },
   { value: 'paper', icon: <FileTextOutlined />, label: 'Phiếu' },
 ];
 
+const CREATE_MENU_ITEMS = [
+  { key: 'RETAIL', label: 'Tạo phiếu xuất bán (khách hàng)' },
+  { key: 'RETURN_SUPPLIER', label: 'Tạo phiếu trả NCC' },
+  { key: 'DISPOSAL', label: 'Tạo phiếu xuất hủy / hư hỏng' },
+];
+
 export default function OutboundsPage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const { canCreateOutbound } = usePermissions();
+  const user = useSelector((state) => state.auth.user);
   const [rows, setRows] = useState(OUTBOUNDS);
   const [keyword, setKeyword] = useState('');
-  const [type, setType] = useState(null);
+  const [issueType, setIssueType] = useState(null);
   const [status, setStatus] = useState(null);
   const [range, setRange] = useState(null);
   const [cancelId, setCancelId] = useState(null);
@@ -51,16 +61,16 @@ export default function OutboundsPage() {
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const filtered = rows.filter((r) => {
+      const isOwnerOrAdminOrManager = ['ADMIN', 'MANAGER'].includes(user?.role) || r.createdBy === user?.fullName;
       const okKw = !kw || [r.code, r.partnerName].some((v) => String(v).toLowerCase().includes(kw));
-      const okType = !type || r.type === type;
+      const okType = !issueType || r.issue_type === issueType;
       const okStatus = !status || r.status === status;
       const okDate = !range || (r.date >= range[0] && r.date <= range[1]);
-      return okKw && okType && okStatus && okDate;
+      return isOwnerOrAdminOrManager && okKw && okType && okStatus && okDate;
     });
     return sortRows(filtered);
-  }, [rows, keyword, type, status, range, sortRows]);
+  }, [rows, keyword, issueType, status, range, sortRows, user]);
 
-  // Chuẩn hoá về khuôn "phiếu giấy" cho lưới thẻ và cho tờ phiếu xem chi tiết.
   const vouchers = useMemo(() => data.map((r) => toVoucher('outbound', r)), [data]);
   const detailVoucher = useMemo(() => toVoucher('outbound', detailRecord), [detailRecord]);
 
@@ -72,19 +82,22 @@ export default function OutboundsPage() {
     setDetailRecord(null);
   };
 
-  // Mở tờ phiếu từ lưới thẻ (nhận voucher đã chuẩn hoá) -> tìm lại bản ghi gốc.
   const openVoucher = (v) => setDetailRecord(rows.find((r) => r.id === v.id) ?? null);
+
+  const handleCreateClick = ({ key }) => {
+    navigate(`/outbounds/create/${key.toLowerCase()}`);
+  };
 
   const columns = [
     { title: 'Mã phiếu', dataIndex: 'code', width: 150, render: (c) => <DocCode>{c}</DocCode> },
     {
       title: 'Loại xuất',
-      dataIndex: 'type',
+      dataIndex: 'issue_type',
       align: 'center',
-      width: 110,
+      width: 120,
       render: (t) => (
-        <Tag bordered={false} color={TYPE_COLOR[t]}>
-          {t}
+        <Tag bordered={false} color={TYPE_COLOR[t] ?? 'default'}>
+          {ISSUE_TYPE_LABEL[t] ?? t}
         </Tag>
       ),
     },
@@ -136,17 +149,19 @@ export default function OutboundsPage() {
       <PageHeader
         title={
           <span className="flex items-center gap-3">
-            Phiếu xuất
+            {['ADMIN', 'MANAGER'].includes(user?.role) ? 'Quản lý phiếu xuất' : 'Phiếu xuất của tôi'}
             {!canCreateOutbound && <Tag color="default">Chỉ xem</Tag>}
           </span>
         }
-        subtitle="Danh sách phiếu xuất kho: sỉ, trả NCC, huỷ, nội bộ"
+        subtitle="Danh sách phiếu xuất kho: xuất bán, trả NCC, xuất hủy"
         breadcrumb={[{ title: 'Nghiệp vụ kho' }, { title: 'Phiếu xuất' }]}
         extra={
           canCreateOutbound && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/outbounds/create')}>
-              Lập phiếu xuất
-            </Button>
+            <Dropdown menu={{ items: CREATE_MENU_ITEMS, onClick: handleCreateClick }}>
+              <Button type="primary" icon={<PlusOutlined />}>
+                Lập phiếu xuất <DownOutlined />
+              </Button>
+            </Dropdown>
           )
         }
       />
@@ -171,9 +186,9 @@ export default function OutboundsPage() {
           allowClear
           placeholder="Loại xuất"
           className="w-full sm:w-40"
-          options={OUTBOUND_TYPES.map((t) => ({ value: t, label: t }))}
-          value={type}
-          onChange={setType}
+          options={ISSUE_TYPES}
+          value={issueType}
+          onChange={setIssueType}
         />
         <Select
           allowClear
@@ -214,7 +229,7 @@ export default function OutboundsPage() {
         destroyOnHidden
       >
         <p className="mt-1 mb-3 text-sm text-ink-sub">
-          Nhập lý do huỷ phiếu. Thao tác này sẽ chuyển phiếu sang trạng thái “Đã huỷ”.
+          Nhập lý do huỷ phiếu. Thao tác này sẽ chuyển phiếu sang trạng thái "Đã huỷ".
         </p>
         <Input.TextArea rows={3} placeholder="VD: Khách huỷ đơn / sai thông tin..." value={reason} onChange={(e) => setReason(e.target.value)} />
       </Modal>

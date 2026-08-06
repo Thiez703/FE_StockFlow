@@ -3,5 +3,5 @@ import OutboundCreatePage from '@/features/outbounds/pages/OutboundCreatePage';
 
 export const outboundRoutes = [
   { path: 'outbounds', element: <OutboundsPage /> },
-  { path: 'outbounds/create', element: <OutboundCreatePage /> },
+  { path: 'outbounds/create/:issueType', element: <OutboundCreatePage /> },
 ];

@@ -5,7 +5,7 @@ import { DEFAULT_WAREHOUSE } from '@/constants/voucher';
  * "giấy" (VoucherPaper, VoucherCard) chỉ phải biết một hình dạng dữ liệu.
  * Nối API thật thì đây là chỗ duy nhất phải chỉnh nếu backend đặt tên khác.
  *
- * @param {'inbound'|'outbound'|'stocktake'|'abnormal'} kind
+ * @param {'inbound'|'outbound'|'stocktake'} kind
  * @param {object} record  Bản ghi từ mock/API.
  */
 export function toVoucher(kind, record) {
@@ -26,27 +26,6 @@ export function toVoucher(kind, record) {
 
   if (kind === 'stocktake') {
     return { ...base, partnerName: record.createdBy };
-  }
-
-  // Mỗi phiếu bất thường chỉ ghi nhận một mặt hàng — gói lại thành 1 dòng để
-  // dùng chung bảng vật tư với các phiếu khác.
-  if (kind === 'abnormal') {
-    return {
-      ...base,
-      subType: record.type,
-      note: record.reason,
-      partnerName: record.createdBy,
-      items: [
-        {
-          productName: record.productName,
-          lot: record.lot,
-          unit: record.unit,
-          quantity: record.quantity,
-          condition: record.type,
-          reason: record.reason,
-        },
-      ],
-    };
   }
 
   const items = record.items ?? [];

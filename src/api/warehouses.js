@@ -19,5 +19,7 @@ export const storageLocationApi = {
   getById: (id) => axiosClient.get(`/storage-locations/${id}`),
   create: (data) => axiosClient.post('/storage-locations', data),
   update: (id, data) => axiosClient.put(`/storage-locations/${id}`, data),
+  activate: (id) => axiosClient.patch(`/storage-locations/${id}/activate`),
+  deactivate: (id) => axiosClient.patch(`/storage-locations/${id}/deactivate`),
   remove: (id) => axiosClient.delete(`/storage-locations/${id}`),
 };

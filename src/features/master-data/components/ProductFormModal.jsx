@@ -6,15 +6,15 @@ const STATUS_OPTIONS = [
   { value: 'INACTIVE', label: 'Ngừng kinh doanh' },
 ];
 
+const UNIT_SUGGESTIONS = ['Lon', 'Chai', 'Thùng', 'Két', 'Hộp', 'Gói', 'Bịch', 'Can'];
+
 /**
- * Modal thêm/sửa sản phẩm. Danh mục và đơn vị cơ sở do trang cha truyền vào
- * (lấy từ API) để tránh mỗi nơi tự gọi lại.
+ * Modal thêm/sửa sản phẩm. Đơn vị là 1 ô nhập/chọn đơn giản (text).
  */
 export default function ProductFormModal({
   open,
   editing,
   categoryOptions = [],
-  unitOptions = [],
   confirmLoading,
   onClose,
   onSubmit,
@@ -78,15 +78,22 @@ export default function ProductFormModal({
             />
           </Form.Item>
           <Form.Item
-            name="baseUnitId"
-            label="Đơn vị cơ sở"
-            rules={[{ required: true, message: 'Chọn đơn vị cơ sở' }]}
+            name="unit"
+            label="Đơn vị"
+            rules={[{ required: true, message: 'Nhập đơn vị tính' }]}
           >
             <Select
               showSearch
-              optionFilterProp="label"
-              options={unitOptions}
-              placeholder="Chọn đơn vị"
+              allowClear
+              placeholder="Chọn hoặc nhập đơn vị"
+              options={UNIT_SUGGESTIONS.map((u) => ({ value: u, label: u }))}
+              mode={undefined}
+              dropdownRender={(menu) => menu}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              notFoundContent={null}
+              open={undefined}
             />
           </Form.Item>
           <Form.Item name="minStock" label="Tồn tối thiểu">

@@ -1,14 +1,12 @@
 import {
   AppstoreOutlined,
   ApartmentOutlined,
-  SwapOutlined,
   EnvironmentOutlined,
   TagsOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import ProductsTab from '@/features/master-data/components/ProductsTab';
 import CategoriesTab from '@/features/master-data/components/CategoriesTab';
-import UnitsTab from '@/features/master-data/components/UnitsTab';
 import LocationsTab from '@/features/master-data/components/LocationsTab';
 import LotsTab from '@/features/master-data/components/LotsTab';
 import PartnersTab from '@/features/master-data/components/PartnersTab';
@@ -48,13 +46,6 @@ const RAW_GROUPS = [
         icon: ApartmentOutlined,
         desc: 'Cây danh mục phân loại sản phẩm',
         component: CategoriesTab,
-      },
-      {
-        slug: 'units',
-        label: 'Đơn vị tính',
-        icon: SwapOutlined,
-        desc: 'Đơn vị cơ sở và tỉ lệ quy đổi',
-        component: UnitsTab,
       },
     ],
   },

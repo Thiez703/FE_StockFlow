@@ -73,22 +73,6 @@ export const VOUCHER_KINDS = {
     signers: ['Người lập biên bản', 'Thủ kho', 'Kế toán trưởng', 'Trưởng ban kiểm kê'],
     listPath: '/stocktakes',
   },
-  abnormal: {
-    title: 'BIÊN BẢN HÀNG HOÁ BẤT THƯỜNG',
-    cardTitle: 'BIÊN BẢN HÀNG BẤT THƯỜNG',
-    formNo: 'Biểu mẫu BB - 01',
-    // Không phải mẫu của Bộ Tài chính nên ghi rõ là biểu mẫu nội bộ.
-    formNote: 'Ban hành theo Quy chế quản lý kho của Công ty',
-    layout: 'incident',
-    partnerLabel: 'Người phát hiện',
-    partnerFallback: 'Bộ phận kho',
-    subTypeLabel: 'Tình trạng',
-    warehouseLabel: 'Phát hiện tại kho',
-    reasonLabel: 'Loại bất thường',
-    quantityLabel: 'Số lượng',
-    signers: ['Người lập biên bản', 'Thủ kho', 'Kế toán trưởng', 'Giám đốc'],
-    listPath: '/abnormal-stocks',
-  },
 };
 
 /**

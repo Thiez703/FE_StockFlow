@@ -1,5 +1,6 @@
-import { Select, Tooltip, Popover } from 'antd';
+import { Select, Tooltip, Popover, Spin } from 'antd';
 import { WarningOutlined, FileSyncOutlined, AlertOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import QuickActionsBar from '@/features/dashboard/components/QuickActionsBar';
 import AlertsPanel from '@/features/dashboard/components/AlertsPanel';
@@ -14,12 +15,29 @@ const ROWS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const COLS = Array.from({ length: 6 }, (_, i) => String(i + 1).padStart(2, '0'));
 
 function DashboardWarehouseMap() {
+  const { data: inventoryData, isLoading: isLoadingInventory } = useQuery({
+    queryKey: ['inventory'],
+    queryFn: async () => {
+      return INVENTORY;
+    }
+  });
+
+  const { data: lotsData, isLoading: isLoadingLots } = useQuery({
+    queryKey: ['lots'],
+    queryFn: async () => {
+      return LOTS;
+    }
+  });
+
   const getCellStatus = (code) => {
-    const inv = INVENTORY.find((i) => i.location === code);
+    const inventoryList = inventoryData || [];
+    const lotsList = lotsData || [];
+
+    const inv = inventoryList.find((i) => i.location === code);
     if (!inv) return { state: 'empty' };
     
     // Check if expiring soon
-    const lotInfo = LOTS.find(l => l.code === inv.lot);
+    const lotInfo = lotsList.find(l => (l.lotCode || l.code) === inv.lot);
     const isExpiring = lotInfo?.status?.toUpperCase() === 'EXPIRED' || lotInfo?.status?.toUpperCase() === 'WARNING';
     
     if (inv.onHand < inv.minStock) return { state: 'low', inv, lotInfo: { ...lotInfo, status: isExpiring ? 'WARNING' : lotInfo?.status } };
@@ -152,6 +170,14 @@ function DashboardWarehouseMap() {
       </Popover>
     );
   };
+
+  if (isLoadingInventory || isLoadingLots) {
+    return (
+      <div className="flex justify-center items-center h-[400px] w-full bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+        <Spin size="large" tip="Đang tải dữ liệu bản đồ lưu trữ..." />
+      </div>
+    );
+  }
 
   return (
     <div className="p-3 md:p-6 bg-slate-50 border border-slate-200 rounded-xl shadow-inner flex-1 w-full">

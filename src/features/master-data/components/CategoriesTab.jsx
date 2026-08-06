@@ -144,7 +144,7 @@ export default function CategoriesTab() {
   const [editing, setEditing] = useState(null);
   const [quickParentId, setQuickParentId] = useState(null);
   const [expandedKeys, setExpandedKeys] = useState(null);
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useState('table');
   const [form] = Form.useForm();
 
   const { data: tree = [], isLoading } = useQuery({

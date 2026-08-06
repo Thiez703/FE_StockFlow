@@ -1,29 +1,20 @@
 import { Card, Form, Input, Select } from 'antd';
-import { useFormContext, Controller, useWatch } from 'react-hook-form';
+import { useFormContext, Controller } from 'react-hook-form';
 import { CUSTOMER_OPTIONS, SUPPLIER_OPTIONS } from '@/mock/partners';
-import { OUTBOUND_TYPES } from '@/mock/outbounds';
+import { REASON_TYPES } from '@/mock/outbounds';
 import { formatDate, TODAY } from '@/utils/date';
 
 const { TextArea } = Input;
-const TYPE_OPTIONS = OUTBOUND_TYPES.map((t) => ({ value: t, label: t }));
-
-// Đối tác theo loại xuất: Sỉ -> khách hàng, Trả NCC -> nhà cung cấp, còn lại -> không cần.
-function partnerConfig(type) {
-  if (type === 'Sỉ') return { options: CUSTOMER_OPTIONS, label: 'Khách hàng', disabled: false };
-  if (type === 'Trả NCC') return { options: SUPPLIER_OPTIONS, label: 'Nhà cung cấp', disabled: false };
-  return { options: [], label: 'Đối tác', disabled: true };
-}
 
 /**
- * Khối thông tin chung của phiếu xuất; đối tác đổi theo loại xuất đang chọn.
+ * Khối thông tin chung — hiển thị field khác nhau tuỳ issue_type.
+ * @param {'RETAIL'|'RETURN_SUPPLIER'|'DISPOSAL'} issueType
  */
-export default function OutboundGeneralInfo() {
+export default function OutboundGeneralInfo({ issueType }) {
   const {
     control,
     formState: { errors },
   } = useFormContext();
-  const type = useWatch({ control, name: 'type' });
-  const partner = partnerConfig(type);
 
   return (
     <Card
@@ -43,47 +34,76 @@ export default function OutboundGeneralInfo() {
             )}
           />
 
-          {/* Ngày ghi sổ không cho chọn: phiếu luôn mang ngày lập. Khi nối API
-              thật thì lấy ngày từ response của server thay vì tự tính ở FE. */}
           <Form.Item label="Ngày xuất">
             <Input value={formatDate(TODAY)} readOnly variant="filled" className="mono" />
           </Form.Item>
 
-          <Controller
-            name="type"
-            control={control}
-            render={({ field }) => (
-              <Form.Item
-                label="Loại xuất"
-                required
-                validateStatus={errors.type ? 'error' : ''}
-                help={errors.type?.message}
-              >
-                <Select {...field} placeholder="Chọn loại xuất" options={TYPE_OPTIONS} />
-              </Form.Item>
-            )}
-          />
+          {issueType === 'RETAIL' && (
+            <Controller
+              name="customerId"
+              control={control}
+              render={({ field }) => (
+                <Form.Item
+                  label="Khách hàng"
+                  required
+                  validateStatus={errors.customerId ? 'error' : ''}
+                  help={errors.customerId?.message}
+                >
+                  <Select
+                    {...field}
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Chọn khách hàng"
+                    options={CUSTOMER_OPTIONS}
+                  />
+                </Form.Item>
+              )}
+            />
+          )}
 
-          <Controller
-            name="partnerId"
-            control={control}
-            render={({ field }) => (
-              <Form.Item
-                label={partner.label}
-                validateStatus={errors.partnerId ? 'error' : ''}
-                help={errors.partnerId?.message}
-              >
-                <Select
-                  {...field}
-                  showSearch
-                  optionFilterProp="label"
-                  placeholder={partner.disabled ? 'Không áp dụng' : `Chọn ${partner.label.toLowerCase()}`}
-                  options={partner.options}
-                  disabled={partner.disabled}
-                />
-              </Form.Item>
-            )}
-          />
+          {issueType === 'RETURN_SUPPLIER' && (
+            <Controller
+              name="supplierId"
+              control={control}
+              render={({ field }) => (
+                <Form.Item
+                  label="Nhà cung cấp"
+                  required
+                  validateStatus={errors.supplierId ? 'error' : ''}
+                  help={errors.supplierId?.message}
+                >
+                  <Select
+                    {...field}
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Chọn nhà cung cấp"
+                    options={SUPPLIER_OPTIONS}
+                  />
+                </Form.Item>
+              )}
+            />
+          )}
+
+          {issueType === 'DISPOSAL' && (
+            <Controller
+              name="reason_type"
+              control={control}
+              render={({ field }) => (
+                <Form.Item
+                  label="Lý do hủy"
+                  required
+                  validateStatus={errors.reason_type ? 'error' : ''}
+                  help={errors.reason_type?.message}
+                >
+                  <Select
+                    {...field}
+                    placeholder="Chọn lý do hủy"
+                    options={REASON_TYPES}
+                  />
+                </Form.Item>
+              )}
+            />
+          )}
         </div>
 
         <Controller

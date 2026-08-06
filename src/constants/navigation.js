@@ -3,9 +3,11 @@ import {
   SwapOutlined,
   ImportOutlined,
   ExportOutlined,
+  ShoppingCartOutlined,
+  RollbackOutlined,
+  DeleteOutlined,
   SafetyCertificateOutlined,
   AuditOutlined,
-  WarningOutlined,
   BarChartOutlined,
   FileSearchOutlined,
   ProfileOutlined,
@@ -54,9 +56,31 @@ export const NAV_GROUPS = [
       },
       {
         key: '/outbounds',
-        label: 'Phiếu xuất',
+        label: 'Phiếu xuất', // Sẽ được override dựa trên role ở component
         icon: ExportOutlined,
-        desc: 'Xuất sỉ / trả NCC / nội bộ',
+        desc: 'Danh sách phiếu xuất',
+        end: true,
+      },
+      {
+        key: '/outbounds/create/retail',
+        label: 'Tạo phiếu xuất bán',
+        icon: ShoppingCartOutlined,
+        desc: 'Xuất hàng bán cho khách hàng',
+        roles: ['STAFF', 'ADMIN', 'MANAGER'],
+      },
+      {
+        key: '/outbounds/create/return_supplier',
+        label: 'Tạo phiếu trả NCC',
+        icon: RollbackOutlined,
+        desc: 'Trả hàng cho nhà cung cấp',
+        roles: ['STAFF', 'ADMIN', 'MANAGER'],
+      },
+      {
+        key: '/outbounds/create/disposal',
+        label: 'Tạo phiếu xuất hủy',
+        icon: DeleteOutlined,
+        desc: 'Xuất hủy hàng hỏng / hết hạn',
+        roles: ['STAFF', 'ADMIN', 'MANAGER'],
       },
     ],
   },
@@ -70,12 +94,7 @@ export const NAV_GROUPS = [
         label: 'Kiểm kê',
         icon: AuditOutlined,
         desc: 'Đếm thực tế & chênh lệch',
-      },
-      {
-        key: '/abnormal-stocks',
-        label: 'Hàng bất thường',
-        icon: WarningOutlined,
-        desc: 'Hỏng / vỡ / mất / hết hạn',
+        roles: ['ADMIN', 'STAFF', 'ACCOUNTANT', 'MANAGER'],
       },
     ],
   },
@@ -89,24 +108,28 @@ export const NAV_GROUPS = [
         label: 'Tra cứu tồn',
         icon: FileSearchOutlined,
         desc: 'Tồn hiện tại theo SP / lô / vị trí',
+        roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'],
       },
       {
         key: '/stock-card',
         label: 'Thẻ kho',
         icon: ProfileOutlined,
         desc: 'Sổ cái biến động, số dư dồn',
+        roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'],
       },
       {
         key: '/alerts',
         label: 'Cảnh báo',
         icon: AlertOutlined,
         desc: 'Tồn thấp & cận hạn',
+        roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'],
       },
       {
         key: '/reports',
         label: 'Báo cáo',
         icon: BarChartOutlined,
         desc: 'Nhập – Xuất – Tồn theo kỳ',
+        roles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'],
       },
     ],
   },
@@ -120,12 +143,14 @@ export const NAV_GROUPS = [
         label: 'Người dùng',
         icon: UserOutlined,
         desc: 'Tài khoản & phân quyền',
+        roles: ['ADMIN'], // Chỉ Admin
       },
       {
         key: '/logs',
         label: 'Nhật ký hoạt động',
         icon: HistoryOutlined,
         desc: 'Lịch sử thao tác hệ thống',
+        roles: ['ADMIN'], // Chỉ Admin
       },
     ],
   },
@@ -153,9 +178,24 @@ function normalizeGroup(group) {
   return {
     key: group.key,
     label: group.label,
-    items: group.items.map((item) => ({ ...item, path: item.key })),
+    items: group.items.map((item) => ({ ...item, path: item.key, end: item.end })),
   };
 }
 
 // Tất cả key (đường dẫn) phẳng — tiện dò nhóm đang active theo path hiện tại.
 export const FLAT_NAV_KEYS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.key));
+
+export function getVisibleSidebarGroups(userRole) {
+  return SIDEBAR_GROUPS.map((group) => {
+    const items = group.items
+      .filter((item) => !item.roles || item.roles.includes(userRole))
+      .map((item) => {
+        let label = item.label;
+        if (item.path === '/outbounds' || item.key === '/outbounds') {
+          label = ['ADMIN', 'MANAGER'].includes(userRole) ? 'Quản lý phiếu xuất' : 'Phiếu xuất của tôi';
+        }
+        return { ...item, label };
+      });
+    return { ...group, items };
+  }).filter((group) => group.items.length > 0);
+}

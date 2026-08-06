@@ -43,7 +43,7 @@ export default function PartnersTab() {
   const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useState('table');
   const [form] = Form.useForm();
 
   const isSupplier = tab === 'suppliers';

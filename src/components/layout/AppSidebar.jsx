@@ -11,7 +11,7 @@ import {
   LogoutOutlined,
 } from '@ant-design/icons';
 import { useSelector } from 'react-redux';
-import { SIDEBAR_GROUPS } from '@/constants/navigation';
+import { SIDEBAR_GROUPS, getVisibleSidebarGroups } from '@/constants/navigation';
 import Logo from '@/components/ui/Logo';
 import { useLogout } from '@/features/auth/hooks/useLogout';
 import ChangePasswordModal from '@/features/auth/components/ChangePasswordModal';
@@ -36,6 +36,8 @@ export default function AppSidebar() {
   const user = useSelector((state) => state.auth.user);
   const handleLogout = useLogout();
   const [pwOpen, setPwOpen] = useState(false);
+  
+  const visibleGroups = getVisibleSidebarGroups(user?.role);
 
   const onUserMenuClick = ({ key }) => {
     if (key === 'change-pw') setPwOpen(true);
@@ -81,7 +83,7 @@ export default function AppSidebar() {
 
       {/* Nav items */}
       <div className="nav-scroll flex-1 flex flex-col gap-1 overflow-y-auto px-3 py-2">
-        {SIDEBAR_GROUPS.map((group) => {
+        {visibleGroups.map((group) => {
           const isExpanded = expandedGroups.includes(group.key);
           return (
             <div key={group.key} className="flex shrink-0 flex-col gap-1 mb-2">
@@ -107,6 +109,7 @@ export default function AppSidebar() {
                   <Tooltip key={item.path} title={collapsed ? item.label : ''} placement="right">
                     <NavLink
                       to={item.path}
+                      end={item.end}
                       className={({ isActive }) =>
                         `relative flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-[14px] font-semibold no-underline transition-all ${
                           collapsed ? 'justify-center' : ''

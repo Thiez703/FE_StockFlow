@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Logo from '@/components/ui/Logo';
 import ChangePasswordModal from '@/features/auth/components/ChangePasswordModal';
-import { SIDEBAR_GROUPS } from '@/constants/navigation';
+import { getVisibleSidebarGroups } from '@/constants/navigation';
 import { useLogout } from '@/features/auth/hooks/useLogout';
 
 const USER_MENU_ITEMS = [
@@ -27,6 +27,7 @@ export default function TopNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const handleLogout = useLogout();
   const user = useSelector((state) => state.auth.user);
+  const visibleGroups = useMemo(() => getVisibleSidebarGroups(user?.role), [user?.role]);
 
   const onUserMenuClick = ({ key }) => {
     if (key === 'change-pw') setPwOpen(true);
@@ -36,14 +37,14 @@ export default function TopNav() {
   };
 
   const pageTitle = useMemo(() => {
-    for (const group of SIDEBAR_GROUPS) {
+    for (const group of visibleGroups) {
       const found = group.items.find(
         (i) => pathname === i.path || pathname.startsWith(`${i.path}/`)
       );
       if (found) return found.label;
     }
     return '';
-  }, [pathname]);
+  }, [pathname, visibleGroups]);
 
   return (
     <header className="sticky top-0 z-30 h-16 w-full bg-navy-900 text-white shadow-[0_2px_12px_rgba(10,30,63,0.35)]">
@@ -116,7 +117,7 @@ export default function TopNav() {
         styles={{ body: { padding: 12 } }}
       >
         <nav className="flex flex-col gap-4">
-          {SIDEBAR_GROUPS.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.key}>
               <div className="px-2 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                 {group.label}

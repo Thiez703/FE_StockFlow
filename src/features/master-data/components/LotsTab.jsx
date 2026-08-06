@@ -40,7 +40,7 @@ export default function LotsTab() {
   const [nearOnly, setNearOnly] = useState(false);
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useState('table');
   const [form] = Form.useForm();
   const { sortableTitle, sortRows } = useColumnSort();
 
