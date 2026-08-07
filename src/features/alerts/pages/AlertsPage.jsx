@@ -3,8 +3,8 @@ import { Progress, Button } from 'antd';
 import { WarningFilled, StopOutlined, ClockCircleOutlined, FieldTimeOutlined, CalendarOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
+import DataTable from '@/components/ui/DataTable';
 import TableEmptyState from '@/components/ui/TableEmptyState';
-import { StaggerList, StaggerItem } from '@/components/ui/StaggerList';
 import { LOW_STOCK, NEAR_EXPIRY } from '@/mock/alerts';
 import { daysUntil, formatDate } from '@/utils/date';
 import { formatNumber } from '@/utils/formatCurrency';
@@ -17,11 +17,11 @@ const EXPIRY_SOON_DAYS = 14;
 // Icon + màu riêng cho từng mức độ — dùng token màu chung của theme (danger/amber/royal
 // ở index.css) để tô nền/viền/badge, tránh lặp lại inline style rải rác.
 const TIER_META = {
-  [TIER.OUT_OF_STOCK]: { icon: StopOutlined, tone: 'bg-danger/10 text-danger', row: 'bg-danger/5', bar: 'bg-danger', hex: '#dc2626' },
-  [TIER.OVERDUE]: { icon: ClockCircleOutlined, tone: 'bg-danger/10 text-danger', row: 'bg-danger/5', bar: 'bg-danger', hex: '#dc2626' },
-  [TIER.EXPIRING_SOON]: { icon: FieldTimeOutlined, tone: 'bg-amber/10 text-amber', row: 'bg-amber/5', bar: 'bg-amber', hex: '#f59e0b' },
-  [TIER.LOW_STOCK]: { icon: WarningFilled, tone: 'bg-amber/10 text-amber', row: 'bg-amber/5', bar: 'bg-amber', hex: '#f59e0b' },
-  [TIER.EXPIRING_LATER]: { icon: CalendarOutlined, tone: 'bg-royal/10 text-royal', row: 'bg-royal/5', bar: 'bg-royal', hex: '#1e5af0' },
+  [TIER.OUT_OF_STOCK]: { icon: StopOutlined, tone: 'bg-danger/10 text-danger', hex: '#dc2626' },
+  [TIER.OVERDUE]: { icon: ClockCircleOutlined, tone: 'bg-danger/10 text-danger', hex: '#dc2626' },
+  [TIER.EXPIRING_SOON]: { icon: FieldTimeOutlined, tone: 'bg-amber/10 text-amber', hex: '#f59e0b' },
+  [TIER.LOW_STOCK]: { icon: WarningFilled, tone: 'bg-amber/10 text-amber', hex: '#f59e0b' },
+  [TIER.EXPIRING_LATER]: { icon: CalendarOutlined, tone: 'bg-royal/10 text-royal', hex: '#1e5af0' },
 };
 
 // Gộp 5 mức độ thành 3 nhóm hiển thị theo khối riêng — mỗi khối là 1 panel có khung
@@ -71,6 +71,87 @@ function groupAggregate(items) {
     stockDeficit: items.filter((a) => a.kind === 'stock').reduce((s, a) => s + a.deficit, 0),
     expiryQty: items.filter((a) => a.kind === 'expiry').reduce((s, a) => s + a.quantity, 0),
   };
+}
+
+// Cột dùng chung cho cả 3 bảng khối — mỗi khối có thể trộn 2 loại cảnh báo (tồn/hạn
+// dùng), nên cột "Mức độ" tự đổi nội dung theo `kind` của từng dòng thay vì tách bảng
+// riêng cho từng loại.
+function buildColumns(goToInventory) {
+  return [
+    {
+      title: 'Sản phẩm',
+      dataIndex: 'title',
+      render: (_, a) => {
+        const meta = TIER_META[a.tier];
+        const Icon = meta.icon;
+        return (
+          <div className="flex items-center gap-3">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base ${meta.tone}`}>
+              <Icon />
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-ink">{a.title}</div>
+              <div className="mono mt-0.5 truncate text-xs text-ink-sub">{a.meta}</div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'badge',
+      align: 'center',
+      width: 150,
+      render: (badge, a) => (
+        <span className={`inline-block w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${TIER_META[a.tier].tone}`}>{badge}</span>
+      ),
+    },
+    {
+      title: 'Mức độ',
+      key: 'progress',
+      width: 260,
+      render: (_, a) => {
+        const meta = TIER_META[a.tier];
+        if (a.kind === 'stock') {
+          return (
+            <div>
+              <div className="flex items-center gap-2">
+                <Progress percent={a.percent} size="small" showInfo={false} className="!mb-0 !flex-1" strokeColor={meta.hex} />
+                <span className="mono shrink-0 text-xs text-ink-sub">
+                  {formatNumber(a.onHand)}/{formatNumber(a.minStock)} {a.unit}
+                </span>
+              </div>
+              {a.deficit > 0 && (
+                <div className="mt-1 text-xs text-ink-sub">
+                  Cần bổ sung <span className="font-semibold" style={{ color: meta.hex }}>{formatNumber(a.deficit)} {a.unit}</span>
+                </div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div>
+            <div className="flex items-center justify-between text-xs text-ink-sub">
+              <span>HSD {formatDate(a.expDate)}</span>
+              <span className="mono">{formatNumber(a.quantity)} {a.unit}</span>
+            </div>
+            <Progress percent={a.urgencyPercent} size="small" showInfo={false} className="!mb-0 !mt-1.5" strokeColor={meta.hex} />
+          </div>
+        );
+      },
+    },
+    {
+      title: '',
+      key: 'action',
+      align: 'right',
+      width: 100,
+      render: (_, a) => (
+        <Button size="small" onClick={() => goToInventory(a.query)}>
+          Xem tồn
+        </Button>
+      ),
+    },
+  ];
 }
 
 export default function AlertsPage() {
@@ -132,6 +213,7 @@ export default function AlertsPage() {
   );
 
   const goToInventory = (query) => navigate(`/inventory?q=${encodeURIComponent(query)}`);
+  const columns = buildColumns(goToInventory);
 
   return (
     <>
@@ -169,11 +251,10 @@ export default function AlertsPage() {
       </div>
 
       {/* 3 khối theo mức độ, mỗi khối là 1 panel riêng biệt kiểu khu vực trên bảng điều
-          khiển kho: khung viền + thanh tiêu đề tô màu + chỉ số tổng hợp. Lưới thẻ bên
-          trong dùng flexbox (không phải CSS grid) với chiều rộng cố định theo %, kèm
-          `justify-center`: mỗi HÀNG tự chia đều theo đúng số thẻ rơi vào hàng đó, và
-          hàng cuối bị lẻ (dư 1-2 thẻ so với số cột) sẽ được CĂN GIỮA thay vì dạt trái để
-          trống — luôn đều/vừa vặn bất kể số lượng cảnh báo trong khối là bao nhiêu. */}
+          khiển kho: khung viền + thanh tiêu đề tô màu + chỉ số tổng hợp. Nội dung mỗi
+          khối là 1 DataTable riêng (cột Sản phẩm / Trạng thái / Mức độ tự đổi theo
+          `kind` của từng dòng vì 1 khối có thể trộn cả cảnh báo tồn lẫn cảnh báo hạn
+          dùng), giữ đúng thứ tự khẩn cấp đã sắp ở `alerts`. */}
       {alerts.length === 0 ? (
         <div className="rounded-2xl border border-hair bg-surface p-5">
           <TableEmptyState message="Không có cảnh báo nào cần xử lý" />
@@ -217,73 +298,12 @@ export default function AlertsPage() {
                 </div>
 
                 <div className="p-4">
-                  {items.length === 0 ? (
-                    <p className="m-0 py-6 text-center text-xs text-ink-sub">Không có cảnh báo ở mức này</p>
-                  ) : (
-                    <StaggerList className="m-0 flex list-none flex-wrap justify-center gap-3 p-0">
-                      {items.map((a) => {
-                        const meta = TIER_META[a.tier];
-                        const Icon = meta.icon;
-                        return (
-                          <StaggerItem
-                            key={a.id}
-                            className={`group relative flex h-full w-full flex-col justify-between overflow-hidden rounded-xl border border-hair p-4 transition-colors hover:border-royal/30 sm:w-[calc(50%-0.375rem)] lg:w-[calc(33.333%-0.5rem)] ${meta.row}`}
-                          >
-                            <span className={`absolute inset-y-0 left-0 w-1 ${meta.bar}`} />
-
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-3">
-                                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base ${meta.tone}`}>
-                                  <Icon />
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-semibold text-ink">{a.title}</div>
-                                  <div className="mono mt-0.5 truncate text-xs text-ink-sub">{a.meta}</div>
-                                </div>
-                              </div>
-
-                              <span className={`mt-3 inline-block w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${meta.tone}`}>
-                                {a.badge}
-                              </span>
-
-                              {a.kind === 'stock' ? (
-                                <>
-                                  <div className="mt-3 flex items-center gap-2">
-                                    <Progress percent={a.percent} size="small" showInfo={false} className="!mb-0 !flex-1" strokeColor={meta.hex} />
-                                    <span className="mono shrink-0 text-xs text-ink-sub">
-                                      {formatNumber(a.onHand)}/{formatNumber(a.minStock)} {a.unit}
-                                    </span>
-                                  </div>
-                                  {a.deficit > 0 && (
-                                    <div className="mt-1.5 text-xs text-ink-sub">
-                                      Cần bổ sung <span className="font-semibold" style={{ color: meta.hex }}>{formatNumber(a.deficit)} {a.unit}</span>
-                                    </div>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <div className="mt-3 flex items-center justify-between text-xs text-ink-sub">
-                                    <span>HSD {formatDate(a.expDate)}</span>
-                                    <span className="mono">{formatNumber(a.quantity)} {a.unit}</span>
-                                  </div>
-                                  <Progress percent={a.urgencyPercent} size="small" showInfo={false} className="!mb-0 !mt-1.5" strokeColor={meta.hex} />
-                                </>
-                              )}
-                            </div>
-
-                            <Button
-                              size="small"
-                              type="text"
-                              className="mt-3 w-fit self-end opacity-0 transition-opacity group-hover:opacity-100"
-                              onClick={() => goToInventory(a.query)}
-                            >
-                              Xem tồn
-                            </Button>
-                          </StaggerItem>
-                        );
-                      })}
-                    </StaggerList>
-                  )}
+                  <DataTable
+                    columns={columns}
+                    dataSource={items}
+                    pagination={false}
+                    locale={{ emptyText: <TableEmptyState message="Không có cảnh báo ở mức này" /> }}
+                  />
                 </div>
               </div>
             );
