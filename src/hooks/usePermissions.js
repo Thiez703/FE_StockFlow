@@ -23,5 +23,6 @@ export function usePermissions() {
     canManageUsers:      can(),
     canViewLogs:         can(),
     canViewReports:      can('MANAGER', 'ACCOUNTANT'),
+    canViewStorageMap:   can('MANAGER', 'ACCOUNTANT'),
   };
 }
