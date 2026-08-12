@@ -10,6 +10,8 @@ import RhfTextField from '@/components/form/RhfTextField';
 import { changePasswordSchema } from '@/features/auth/schemas/changePasswordSchema';
 import { useLogout } from '@/features/auth/hooks/useLogout';
 import { passwordChanged } from '@/store/authSlice';
+import { authApi } from '@/api/auth';
+import { getChangePasswordError } from '@/features/auth/utils/changePasswordError';
 
 const DEFAULTS = { oldPassword: '', newPassword: '', confirm: '' };
 
@@ -17,10 +19,6 @@ const DEFAULTS = { oldPassword: '', newPassword: '', confirm: '' };
  * Trang đổi mật khẩu. Tài khoản mới cấp (hoặc vừa được admin reset) bị
  * ProtectedRoute đẩy thẳng vào đây và không đi đâu khác được cho tới khi đổi
  * xong — cờ `mustChangePassword` lấy từ /auth/me.
- *
- * TODO(BE): backend chưa có endpoint đổi mật khẩu cho chính mình (mới chỉ có
- * POST /api/users/{id}/reset-password dành cho ADMIN). Tạm mô phỏng thành công
- * như ChangePasswordModal, khi có API thì thay phần submit bên dưới.
  */
 export default function ChangePasswordPage() {
   const { message } = App.useApp();
@@ -37,12 +35,18 @@ export default function ChangePasswordPage() {
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(changePasswordSchema), defaultValues: DEFAULTS });
 
-  const onSubmit = async () => {
-    await new Promise((r) => setTimeout(r, 600));
-    dispatch(passwordChanged());
-    message.success('Đổi mật khẩu thành công!');
-    // Quay lại trang bị chặn trước khi đăng nhập, mặc định /dashboard.
-    navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true });
+  const onSubmit = async (values) => {
+    try {
+      await authApi.changePassword({
+        oldPassword: values.oldPassword,
+        newPassword: values.newPassword,
+      });
+      dispatch(passwordChanged());
+      message.success('Đổi mật khẩu thành công!');
+      navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true });
+    } catch (err) {
+      message.error(getChangePasswordError(err));
+    }
   };
 
   const field = (name, label, placeholder) => (
@@ -92,7 +96,7 @@ export default function ChangePasswordPage() {
 
       <Form layout="vertical" requiredMark={false} onFinish={handleSubmit(onSubmit)}>
         {field('oldPassword', 'Mật khẩu hiện tại', 'Mật khẩu được cấp qua email')}
-        {field('newPassword', 'Mật khẩu mới', 'Tối thiểu 6 ký tự')}
+        {field('newPassword', 'Mật khẩu mới', 'Tối thiểu 8 ký tự')}
         {field('confirm', 'Xác nhận mật khẩu mới', 'Nhập lại mật khẩu mới')}
 
         <Button type="primary" htmlType="submit" size="large" block loading={isSubmitting}>

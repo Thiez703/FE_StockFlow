@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { DatePicker, Select, Tag } from 'antd';
+import { Select, Tag } from 'antd';
+import DateRangeSelectGroup from '@/components/ui/DateRangeSelectGroup';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
 import DataTable from '@/components/ui/DataTable';
@@ -30,7 +31,7 @@ export default function LogsPage() {
 
   const [userId, setUserId] = useState(null);
   const [action, setAction] = useState(null);
-  const [range, setRange] = useState(null);
+  const [range, setRange] = useState([dayjs().subtract(1, 'month'), dayjs()]);
   const [page, setPage] = useState(1);
 
   // Đổi bộ lọc thì phải về trang 1, không thì có thể rơi vào trang trống.
@@ -150,13 +151,10 @@ export default function LogsPage() {
           value={action}
           onChange={(v) => setFilter(setAction, v)}
         />
-        <DatePicker.RangePicker
-          format="DD/MM/YYYY"
-          placeholder={['Từ ngày', 'Đến ngày']}
-          className="w-full sm:w-64"
+        <DateRangeSelectGroup
+          className="w-full sm:w-auto"
           value={range}
           onChange={(v) => setFilter(setRange, v)}
-          disabledDate={(d) => d && d.isAfter(dayjs(), 'day')}
         />
       </FilterBar>
 

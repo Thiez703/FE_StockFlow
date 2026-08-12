@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { DatePicker, Button, Input, Select, Segmented, Modal, Tabs, Tag, App } from 'antd';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { DatePicker, Button, Input, Tabs, Alert, App, Spin } from 'antd';
 import {
   FileExcelOutlined,
   SearchOutlined,
@@ -9,270 +10,190 @@ import {
   SwapOutlined,
   AuditOutlined,
   DiffOutlined,
-  CalendarOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useColumnSort } from '@/hooks/useColumnSort';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import AccessDenied from '@/components/feedback/AccessDenied';
 import DataTable from '@/components/ui/DataTable';
 import DocCode from '@/components/ui/DocCode';
-import StatusPill from '@/components/ui/StatusPill';
 import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
-import DocDetailModal from '@/components/ui/DocDetailModal';
-import InventoryTrendChart from '@/features/dashboard/components/InventoryTrendChart';
 import StatCard from '@/features/dashboard/components/StatCard';
-import KpiHero from '@/features/dashboard/components/KpiHero';
-import StocktakeItemsDetail, { DiffValue } from '@/features/stocktakes/components/StocktakeItemsDetail';
-import { TREND } from '@/mock/dashboard';
-import { STOCKTAKES } from '@/mock/stocktakes';
-import { INBOUNDS } from '@/mock/inbounds';
-import { OUTBOUNDS } from '@/mock/outbounds';
-import { statusOptions, APPROVAL_STATUSES } from '@/constants/status';
+import { DiffValue } from '@/features/stocktakes/components/StocktakeItemsDetail';
+import { reportApi } from '@/api/reports';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatNumber, formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
 
-const { RangePicker } = DatePicker;
+import DateRangeSelectGroup from '@/components/ui/DateRangeSelectGroup';
 
-const totalDiff = (items) => items.reduce((s, it) => s + (it.countedQty - it.systemQty), 0);
+const DEFAULT_FROM = dayjs().subtract(1, 'month');
+const DEFAULT_TO = dayjs();
+const BIG_PAGE = { page: 0, size: 500 };
 
-// Nhóm phiếu nhập/xuất theo kỳ (tháng hoặc tuần) dựa trên field `date`, `total` sẵn có.
-const getMonthKey = (date) => date.slice(0, 7); // 'YYYY-MM'
-const getMonthLabel = (key) => {
-  const [y, m] = key.split('-');
-  return `Tháng ${Number(m)}/${y}`;
-};
-
-const getWeekStart = (date) => {
-  const d = new Date(date);
-  const diffToMonday = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - diffToMonday);
-  return d;
-};
-const getWeekKey = (date) => getWeekStart(date).toISOString().slice(0, 10);
-const getWeekLabel = (key) => {
-  const monday = new Date(key);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return `Tuần ${formatDate(monday)} – ${formatDate(sunday)}`;
-};
-
-function groupDocsByPeriod(inbounds, outbounds, keyFn, labelFn) {
-  const map = new Map();
-  const ensure = (key) => {
-    if (!map.has(key)) {
-      map.set(key, { key, label: labelFn(key), inboundCount: 0, inboundTotal: 0, outboundCount: 0, outboundTotal: 0, docs: [] });
-    }
-    return map.get(key);
-  };
-  inbounds.forEach((doc) => {
-    const g = ensure(keyFn(doc.date));
-    g.inboundCount += 1;
-    g.inboundTotal += doc.total;
-    g.docs.push({ ...doc, kind: 'inbound', partner: doc.supplierName });
-  });
-  outbounds.forEach((doc) => {
-    const g = ensure(keyFn(doc.date));
-    g.outboundCount += 1;
-    g.outboundTotal += doc.total;
-    g.docs.push({ ...doc, kind: 'outbound', partner: doc.partnerName });
-  });
-  map.forEach((g) => g.docs.sort((a, b) => b.date.localeCompare(a.date)));
-  return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+function toISO(d) {
+  return d?.toISOString?.() ?? d;
 }
-
-const monthlyDocStats = groupDocsByPeriod(INBOUNDS, OUTBOUNDS, getMonthKey, getMonthLabel);
-const weeklyDocStats = groupDocsByPeriod(INBOUNDS, OUTBOUNDS, getWeekKey, getWeekLabel);
-
-// Số phiếu kiểm kê có lệch số lượng (dùng cho cả tab Tổng quan lẫn tab Chênh lệch kiểm kê).
-const stocktakeDiffCount = STOCKTAKES.filter((r) => totalDiff(r.items) !== 0).length;
-const totalDiffSum = STOCKTAKES.reduce((s, r) => s + totalDiff(r.items), 0);
-
-// Tổng nhập/xuất/tồn cuối lấy từ chuỗi xu hướng — dùng cho dải StatCard đầu tab Nhập-Xuất-Tồn.
-const totalInboundTrend = TREND.reduce((s, t) => s + t.inbound, 0);
-const totalOutboundTrend = TREND.reduce((s, t) => s + t.outbound, 0);
-const netChangeTrend = totalInboundTrend - totalOutboundTrend;
-const latestStockTrend = TREND[TREND.length - 1]?.stock ?? 0;
-
-// 6 chứng từ gần nhất (nhập/xuất/kiểm kê gộp chung) cho khối "Hoạt động gần đây" ở tab Tổng quan.
-const RECENT_KIND_COLOR = { Nhập: 'green', Xuất: 'gold', 'Kiểm kê': 'purple' };
-const recentDocs = [
-  ...INBOUNDS.map((d) => ({ id: `in-${d.code}`, code: d.code, date: d.date, kind: 'Nhập', partner: d.supplierName, status: d.status, amount: d.total })),
-  ...OUTBOUNDS.map((d) => ({ id: `out-${d.code}`, code: d.code, date: d.date, kind: 'Xuất', partner: d.partnerName, status: d.status, amount: d.total })),
-  ...STOCKTAKES.map((d) => ({ id: `kk-${d.code}`, code: d.code, date: d.date, kind: 'Kiểm kê', partner: d.createdBy, status: d.status, amount: null })),
-]
-  .sort((a, b) => b.date.localeCompare(a.date))
-  .slice(0, 6);
-
-const recentDocColumns = [
-  { title: 'Mã phiếu', dataIndex: 'code', width: 130, render: (c) => <DocCode>{c}</DocCode> },
-  {
-    title: 'Loại',
-    dataIndex: 'kind',
-    align: 'center',
-    width: 90,
-    render: (k) => <Tag bordered={false} color={RECENT_KIND_COLOR[k]}>{k}</Tag>,
-  },
-  { title: 'Ngày', dataIndex: 'date', align: 'center', width: 90, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
-  { title: 'Đối tác / Người thực hiện', dataIndex: 'partner', render: (v) => <span className="text-ink-sub">{v}</span> },
-  { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 110, render: (s) => <StatusPill status={s} /> },
-  {
-    title: 'Giá trị',
-    dataIndex: 'amount',
-    align: 'right',
-    width: 130,
-    render: (v) => (v != null ? <span className="font-semibold text-ink">{formatCurrency(v)}</span> : <span className="text-ink-sub">—</span>),
-  },
-];
-
-const periodDocColumns = [
-  { title: 'Mã phiếu', dataIndex: 'code', width: 120, render: (c) => <DocCode>{c}</DocCode> },
-  { title: 'Ngày', dataIndex: 'date', align: 'center', width: 90, render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span> },
-  { title: 'Đối tác', dataIndex: 'partner', render: (v) => <span className="text-ink-sub">{v}</span> },
-  { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 100, render: (s) => <StatusPill status={s} /> },
-  { title: 'Tổng tiền', dataIndex: 'total', align: 'right', width: 120, render: (v) => <span className="font-semibold text-ink">{formatCurrency(v)}</span> },
-];
 
 export default function ReportsPage() {
   const { message } = App.useApp();
   const { canViewReports } = usePermissions();
-  const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState(null);
-  const [range, setRange] = useState(null);
-  const [detailRecord, setDetailRecord] = useState(null);
-  const [periodMode, setPeriodMode] = useState('month');
-  const [periodDetail, setPeriodDetail] = useState(null);
-  const { sortableTitle, sortRows } = useColumnSort();
+  const [range, setRange] = useState([DEFAULT_FROM, DEFAULT_TO]);
+  const [varKeyword, setVarKeyword] = useState('');
+  const [varPage, setVarPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const { sortableTitle } = useColumnSort(null, null);
 
-  const periodStats = periodMode === 'month' ? monthlyDocStats : weeklyDocStats;
+  const from = toISO(range?.[0]?.startOf('day'));
+  const to = toISO(range?.[1]?.endOf('day'));
 
-  // AntD tự focus khung dialog khi mở, khiến trình duyệt cuộn window lên đầu trang
-  // để đưa dialog vào tầm nhìn — khôi phục lại vị trí cuộn ngay sau đó để tránh giật.
-  const periodScrollYRef = useRef(0);
-  useEffect(() => {
-    if (!periodDetail) return;
-    periodScrollYRef.current = window.scrollY;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => window.scrollTo(0, periodScrollYRef.current));
-    });
-  }, [periodDetail]);
+  // NXT data
+  const nxtQuery = useQuery({
+    queryKey: ['reports', 'inventory-summary', from, to],
+    queryFn: () => reportApi.getInventorySummary({ from, to, ...BIG_PAGE }),
+    enabled: !!from && !!to,
+  });
+  // Variance data
+  const varianceQuery = useQuery({
+    queryKey: ['reports', 'stocktake-variance', from, to, varPage],
+    queryFn: () => reportApi.getStocktakeVariance({ from, to, page: varPage, size: 20 }),
+    enabled: !!from && !!to,
+  });
+  const varianceTotalElements = varianceQuery.data?.totalElements ?? 0;
 
-  const variance = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    const filtered = STOCKTAKES.filter((r) => {
-      const okKw = !kw || r.code.toLowerCase().includes(kw);
-      const okStatus = !status || r.status === status;
-      const okDate = !range || (r.date >= range[0].format('YYYY-MM-DD') && r.date <= range[1].format('YYYY-MM-DD'));
-      return okKw && okStatus && okDate;
-    });
-    const withDiff = filtered.map((r) => ({ ...r, diff: totalDiff(r.items) }));
-    return sortRows(withDiff);
-  }, [keyword, status, range, sortRows]);
+  const nxtItems = useMemo(() => nxtQuery.data?.content ?? [], [nxtQuery.data?.content]);
+  const varianceItems = useMemo(() => varianceQuery.data?.content ?? [], [varianceQuery.data?.content]);
 
-  // FIX 5f — STAFF không được xem báo cáo.
+  // Aggregates for overview
+  const aggregates = useMemo(() => {
+    let totalOpeningQty = 0, totalOpeningValue = 0;
+    let totalInboundQty = 0, totalInboundValue = 0;
+    let totalOutboundQty = 0, totalOutboundValue = 0;
+    let totalClosingQty = 0, totalClosingValue = 0;
+    for (const item of nxtItems) {
+      totalOpeningQty += item.openingQty ?? 0;
+      totalOpeningValue += item.openingValue ?? 0;
+      totalInboundQty += item.inboundQty ?? 0;
+      totalInboundValue += item.inboundValue ?? 0;
+      totalOutboundQty += item.outboundQty ?? 0;
+      totalOutboundValue += item.outboundValue ?? 0;
+      totalClosingQty += item.closingQty ?? 0;
+      totalClosingValue += item.closingValue ?? 0;
+    }
+    const netValue = totalInboundValue - totalOutboundValue;
+    return {
+      totalOpeningQty, totalOpeningValue,
+      totalInboundQty, totalInboundValue,
+      totalOutboundQty, totalOutboundValue,
+      totalClosingQty, totalClosingValue,
+      netValue,
+      productCount: new Set(nxtItems.map((i) => i.productId)).size,
+    };
+  }, [nxtItems]);
+
+  // Variance aggregates
+  const varianceAgg = useMemo(() => {
+    const totalDiff = varianceItems.reduce((s, r) => s + (r.diffQty ?? 0), 0);
+    const withDiff = varianceItems.filter((r) => (r.diffQty ?? 0) !== 0).length;
+    const matched = varianceItems.length - withDiff;
+    return { totalDiff, withDiff, matched };
+  }, [varianceItems]);
+
+  // Filtered variance (client-side keyword)
+  const filteredVariance = useMemo(() => {
+    const kw = varKeyword.trim().toLowerCase();
+    if (!kw) return varianceItems;
+    return varianceItems.filter((r) =>
+      [r.stocktakeCode, r.productName, r.productCode, r.lotCode].some(
+        (v) => String(v ?? '').toLowerCase().includes(kw),
+      ),
+    );
+  }, [varianceItems, varKeyword]);
+
+  const isMobile = useIsMobile();
+
   if (!canViewReports) return <AccessDenied />;
 
+  const handleRangeChange = (dates) => {
+    if (dates?.[0] && dates?.[1]) {
+      setRange(dates);
+      setVarPage(0);
+    }
+  };
+
+  const exportExcel = async () => {
+    if (!from || !to) {
+      message.warning('Vui lòng chọn khoảng thời gian trước khi xuất.');
+      return;
+    }
+    setExporting(true);
+    try {
+      const res = await reportApi.exportInventorySummary({ from, to });
+      const blob = new Blob([res.data], {
+        type: res.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const fromLabel = range[0].format('DDMMYYYY');
+      const toLabel = range[1].format('DDMMYYYY');
+      a.href = url;
+      a.download = `Bao-cao-NXT_${fromLabel}-${toLabel}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      message.success('Đã tải xuống file Excel.');
+    } catch (err) {
+      message.error(getErrorMessage(err, 'Không thể xuất file Excel.'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const nxtColumns = [
-    { title: 'Kỳ', dataIndex: 'label', render: (l) => <span className="font-medium text-ink">Tháng {l.replace('T', '')}</span> },
-    { title: 'Nhập (tr.đ)', dataIndex: 'inbound', align: 'right', render: (v) => <span className="mono text-[#15803d]">{formatNumber(v)}</span> },
-    { title: 'Xuất (tr.đ)', dataIndex: 'outbound', align: 'right', render: (v) => <span className="mono text-[#b45309]">{formatNumber(v)}</span> },
-    {
-      title: 'Biến động ròng (tr.đ)',
-      key: 'net',
-      align: 'right',
-      render: (_, r) => {
-        const net = r.inbound - r.outbound;
-        return (
-          <span className={`mono font-semibold ${net >= 0 ? 'text-[#15803d]' : 'text-danger'}`}>
-            {net > 0 ? '+' : ''}
-            {formatNumber(net)}
-          </span>
-        );
-      },
-    },
-    { title: 'Tồn cuối (tr.đ)', dataIndex: 'stock', align: 'right', render: (v) => <span className="mono font-semibold text-navy-700">{formatNumber(v)}</span> },
+    { title: 'Mã SP', dataIndex: 'productCode', width: 100, fixed: isMobile ? 'left' : undefined, render: (c) => <DocCode>{c}</DocCode> },
+    { title: 'Sản phẩm', dataIndex: 'productName', width: isMobile ? 140 : undefined, render: (v) => <span className="font-medium text-ink">{v}</span> },
+    { title: 'Lô', dataIndex: 'lotCode', width: 110, render: (v) => <span className="mono text-ink-sub">{v}</span> },
+    ...(!isMobile ? [{ title: 'ĐVT', dataIndex: 'unit', width: 70, render: (v) => <span className="text-ink-sub">{v}</span> }] : []),
+    { title: 'Tồn đầu', dataIndex: 'openingQty', align: 'right', width: 80, render: (v) => <span className="mono">{formatNumber(v)}</span> },
+    { title: 'Nhập', dataIndex: 'inboundQty', align: 'right', width: 70, render: (v) => <span className="mono text-[#15803d]">{formatNumber(v)}</span> },
+    { title: 'Xuất', dataIndex: 'outboundQty', align: 'right', width: 70, render: (v) => <span className="mono text-[#b45309]">{formatNumber(v)}</span> },
+    { title: 'Tồn cuối', dataIndex: 'closingQty', align: 'right', width: 80, render: (v) => <span className="mono font-semibold text-navy-700">{formatNumber(v)}</span> },
+    ...(!isMobile ? [{ title: 'GT tồn cuối', dataIndex: 'closingValue', align: 'right', width: 120, render: (v) => <span className="mono font-semibold text-ink">{formatCurrency(v)}</span> }] : []),
   ];
 
   const varianceColumns = [
-    { title: 'Mã phiếu', dataIndex: 'code', width: 150, render: (c) => <DocCode>{c}</DocCode> },
-    {
-      title: sortableTitle('Ngày', 'date'),
-      dataIndex: 'date',
+    { title: 'Mã BB', dataIndex: 'stocktakeCode', width: 120, fixed: isMobile ? 'left' : undefined, render: (c) => <DocCode>{c}</DocCode> },
+    ...(!isMobile ? [{
+      title: sortableTitle('Ngày duyệt', 'approvedAt'),
+      dataIndex: 'approvedAt',
       align: 'center',
       width: 120,
-      render: (d) => <span className="mono text-ink-sub">{formatDate(d)}</span>,
-    },
-    { title: 'Số dòng', dataIndex: 'items', align: 'center', width: 90, render: (i) => i.length },
-    { title: 'Người kiểm', dataIndex: 'createdBy', width: 140, render: (v) => <span className="text-ink-sub">{v}</span> },
+      render: (d) => <span className="mono text-ink-sub">{d ? formatDate(d) : '—'}</span>,
+    }] : []),
+    { title: 'Sản phẩm', dataIndex: 'productName', width: isMobile ? 130 : undefined, render: (v) => <span className="font-medium text-ink">{v}</span> },
+    { title: 'Lô', dataIndex: 'lotCode', width: 100, render: (v) => <span className="mono text-ink-sub">{v}</span> },
+    ...(!isMobile ? [{ title: 'Vị trí', dataIndex: 'locationCode', width: 100, render: (v) => <span className="mono text-ink-sub">{v}</span> }] : []),
+    { title: 'Sổ sách', dataIndex: 'systemQty', align: 'right', width: 70, render: (v) => <span className="mono">{formatNumber(v)}</span> },
+    { title: 'Thực tế', dataIndex: 'actualQty', align: 'right', width: 70, render: (v) => <span className="mono">{formatNumber(v)}</span> },
     {
-      title: sortableTitle('Tổng chênh lệch', 'diff'),
-      dataIndex: 'diff',
+      title: sortableTitle('CL', 'diffQty'),
+      dataIndex: 'diffQty',
       align: 'right',
-      width: 140,
-      render: (diff) => <DiffValue value={diff} />,
-    },
-    { title: 'Trạng thái', dataIndex: 'status', align: 'center', width: 130, render: (s) => <StatusPill status={s} /> },
-    {
-      title: '',
-      key: 'detail',
-      align: 'center',
-      width: 100,
-      render: (_, r) =>
-        r.items?.length > 0 && (
-          <Button size="small" onClick={() => setDetailRecord(r)}>
-            Chi tiết
-          </Button>
-        ),
+      width: 80,
+      render: (v) => <DiffValue value={v} />,
     },
   ];
 
-  const periodTotals = periodStats.reduce(
-    (acc, p) => ({
-      inboundCount: acc.inboundCount + p.inboundCount,
-      outboundCount: acc.outboundCount + p.outboundCount,
-      inboundTotal: acc.inboundTotal + p.inboundTotal,
-      outboundTotal: acc.outboundTotal + p.outboundTotal,
-    }),
-    { inboundCount: 0, outboundCount: 0, inboundTotal: 0, outboundTotal: 0 },
-  );
+  const isLoading = nxtQuery.isLoading;
+  const isError = nxtQuery.isError || varianceQuery.isError;
+  const errorMsg = getErrorMessage(nxtQuery.error || varianceQuery.error);
 
-  const periodColumns = [
-    { title: 'Kỳ', dataIndex: 'label', render: (l) => <span className="font-medium text-ink">{l}</span> },
-    { title: 'Số phiếu nhập', dataIndex: 'inboundCount', align: 'center', render: (v) => <span className="mono text-[#15803d]">{v}</span> },
-    { title: 'Giá trị nhập', dataIndex: 'inboundTotal', align: 'right', render: (v) => <span className="mono text-[#15803d]">{formatCurrency(v)}</span> },
-    { title: 'Số phiếu xuất', dataIndex: 'outboundCount', align: 'center', render: (v) => <span className="mono text-[#b45309]">{v}</span> },
-    { title: 'Giá trị xuất', dataIndex: 'outboundTotal', align: 'right', render: (v) => <span className="mono text-[#b45309]">{formatCurrency(v)}</span> },
-    {
-      title: 'Tỉ lệ nhập/xuất',
-      key: 'ratio',
-      width: 130,
-      render: (_, r) => {
-        const total = r.inboundCount + r.outboundCount;
-        const inPct = total > 0 ? (r.inboundCount / total) * 100 : 50;
-        return (
-          <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full bg-[#22c55e]" style={{ width: `${inPct}%` }} />
-            <div className="h-full bg-amber" style={{ width: `${100 - inPct}%` }} />
-          </div>
-        );
-      },
-    },
-    {
-      title: '',
-      key: 'detail',
-      align: 'center',
-      width: 100,
-      render: (_, r) => (
-        <Button size="small" onClick={() => setPeriodDetail(r)}>
-          Chi tiết
-        </Button>
-      ),
-    },
-  ];
-
-  const exportExcel = () => message.info('Tính năng xuất Excel chỉ khả dụng trong bản đầy đủ.');
+  const rangeLabel = `${range[0].format('DD/MM/YYYY')} – ${range[1].format('DD/MM/YYYY')}`;
 
   return (
     <>
@@ -281,65 +202,70 @@ export default function ReportsPage() {
         subtitle="Nhập – Xuất – Tồn theo kỳ và chênh lệch kiểm kê"
         breadcrumb={[{ title: 'Tồn kho & Báo cáo' }, { title: 'Báo cáo' }]}
         extra={
-          canViewReports && (
-            <Button icon={<FileExcelOutlined />} onClick={exportExcel}>
-              Xuất Excel
-            </Button>
+          !isMobile && (
+            <div className="flex items-center gap-3">
+              <DateRangeSelectGroup
+                value={range}
+                onChange={handleRangeChange}
+              />
+              <Button icon={<FileExcelOutlined />} onClick={exportExcel} loading={exporting}>
+                Xuất Excel
+              </Button>
+            </div>
           )
         }
       />
+
+      {isMobile && (
+        <div className="mb-4 flex flex-col gap-2">
+          <DateRangeSelectGroup
+            value={range}
+            onChange={handleRangeChange}
+            className="w-full"
+          />
+          <Button icon={<FileExcelOutlined />} onClick={exportExcel} loading={exporting} block>
+            Xuất Excel
+          </Button>
+        </div>
+      )}
+
+      {isError && (
+        <Alert className="mb-4" type="error" showIcon message="Không tải được dữ liệu báo cáo" description={errorMsg} />
+      )}
 
       <Tabs
         items={[
           {
             key: 'overview',
             label: 'Tổng quan',
-            children: (
+            children: isLoading ? (
+              <div className="flex justify-center py-20"><Spin size="large" /></div>
+            ) : (
               <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-                  <div className="xl:col-span-6">
-                    <KpiHero />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 xl:col-span-6">
-                    <StatCard
-                      title="Tổng phiếu nhập"
-                      value={formatNumber(INBOUNDS.length)}
-                      suffix="phiếu"
-                      icon={<ImportOutlined />}
-                      tone="green"
-                      hint="Toàn bộ phiếu nhập hiện có"
-                    />
-                    <StatCard
-                      title="Tổng phiếu xuất"
-                      value={formatNumber(OUTBOUNDS.length)}
-                      suffix="phiếu"
-                      icon={<ExportOutlined />}
-                      tone="amber"
-                      hint="Toàn bộ phiếu xuất hiện có"
-                    />
-                    <StatCard
-                      title="Phiếu kiểm kê"
-                      value={formatNumber(STOCKTAKES.length)}
-                      suffix="phiếu"
-                      icon={<AuditOutlined />}
-                      tone="blue"
-                      hint="Toàn bộ đợt kiểm kê"
-                    />
-                    <StatCard
-                      title="Có chênh lệch"
-                      value={formatNumber(stocktakeDiffCount)}
-                      suffix="phiếu"
-                      icon={<DiffOutlined />}
-                      tone="red"
-                      cardTone="red"
-                      hint="Cần rà soát nguyên nhân"
-                    />
-                  </div>
+                <div className="rounded-xl border border-hair bg-slate-50 px-4 py-3 text-sm text-ink-sub">
+                  Kỳ báo cáo: <span className="font-semibold text-ink">{rangeLabel}</span>
+                  {' · '}{aggregates.productCount} sản phẩm
                 </div>
 
-                <div>
-                  <h3 className="mb-3 text-base font-semibold text-ink">Hoạt động gần đây</h3>
-                  <DataTable columns={recentDocColumns} dataSource={recentDocs} rowKey="id" pagination={false} />
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                  <StatCard title="Tồn đầu kỳ" value={formatCurrency(aggregates.totalOpeningValue)} icon={<WalletOutlined />} tone="blue" compact />
+                  <StatCard title="Tổng nhập" value={formatCurrency(aggregates.totalInboundValue)} icon={<ImportOutlined />} tone="green" compact />
+                  <StatCard title="Tổng xuất" value={formatCurrency(aggregates.totalOutboundValue)} icon={<ExportOutlined />} tone="amber" compact />
+                  <StatCard title="Tồn cuối kỳ" value={formatCurrency(aggregates.totalClosingValue)} icon={<WalletOutlined />} tone="blue" compact />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                  <StatCard title="SL nhập" value={formatNumber(aggregates.totalInboundQty)} suffix="đơn vị" icon={<ImportOutlined />} tone="green" compact />
+                  <StatCard title="SL xuất" value={formatNumber(aggregates.totalOutboundQty)} suffix="đơn vị" icon={<ExportOutlined />} tone="amber" compact />
+                  <StatCard
+                    title="Biến động ròng"
+                    value={`${aggregates.netValue >= 0 ? '+' : ''}${formatCurrency(aggregates.netValue)}`}
+                    icon={<SwapOutlined />}
+                    tone={aggregates.netValue >= 0 ? 'green' : 'red'}
+                    cardTone={aggregates.netValue < 0 ? 'red' : undefined}
+                    compact
+                  />
+                  <StatCard title="SL tồn cuối" value={formatNumber(aggregates.totalClosingQty)} suffix="đơn vị" icon={<WalletOutlined />} tone="blue" compact />
                 </div>
               </div>
             ),
@@ -347,73 +273,35 @@ export default function ReportsPage() {
           {
             key: 'nxt',
             label: 'Nhập – Xuất – Tồn',
-            children: (
+            children: isLoading ? (
+              <div className="flex justify-center py-20"><Spin size="large" /></div>
+            ) : (
               <div className="flex flex-col gap-4">
                 <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                  <StatCard title="Tổng nhập" value={formatNumber(totalInboundTrend)} suffix="tr.đ" icon={<ImportOutlined />} tone="green" compact />
-                  <StatCard title="Tổng xuất" value={formatNumber(totalOutboundTrend)} suffix="tr.đ" icon={<ExportOutlined />} tone="amber" compact />
+                  <StatCard title="Tổng nhập" value={formatCurrency(aggregates.totalInboundValue)} icon={<ImportOutlined />} tone="green" compact />
+                  <StatCard title="Tổng xuất" value={formatCurrency(aggregates.totalOutboundValue)} icon={<ExportOutlined />} tone="amber" compact />
                   <StatCard
                     title="Biến động ròng"
-                    value={`${netChangeTrend > 0 ? '+' : ''}${formatNumber(netChangeTrend)}`}
-                    suffix="tr.đ"
+                    value={`${aggregates.netValue >= 0 ? '+' : ''}${formatCurrency(aggregates.netValue)}`}
                     icon={<SwapOutlined />}
-                    tone={netChangeTrend >= 0 ? 'green' : 'red'}
-                    cardTone={netChangeTrend < 0 ? 'red' : undefined}
+                    tone={aggregates.netValue >= 0 ? 'green' : 'red'}
                     compact
                   />
-                  <StatCard title="Tồn cuối kỳ" value={formatNumber(latestStockTrend)} suffix="tr.đ" icon={<WalletOutlined />} tone="blue" compact />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                  <InventoryTrendChart />
-                  <div>
-                    <h3 className="mb-3 text-base font-semibold text-ink">Bảng Nhập – Xuất – Tồn</h3>
-                    <FadeSection dataKey={TREND.map((t) => t.label).join(',')}>
-                      <DataTable columns={nxtColumns} dataSource={TREND.map((t, i) => ({ id: i, ...t }))} pagination={false} />
-                    </FadeSection>
-                  </div>
-                </div>
-              </div>
-            ),
-          },
-          {
-            key: 'period',
-            label: 'Theo kỳ',
-            children: (
-              <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                  <StatCard
-                    title="Số kỳ"
-                    value={formatNumber(periodStats.length)}
-                    suffix={periodMode === 'month' ? 'tháng' : 'tuần'}
-                    icon={<CalendarOutlined />}
-                    tone="blue"
-                    compact
-                  />
-                  <StatCard title="Phiếu nhập" value={formatNumber(periodTotals.inboundCount)} suffix="phiếu" icon={<ImportOutlined />} tone="green" compact />
-                  <StatCard title="Phiếu xuất" value={formatNumber(periodTotals.outboundCount)} suffix="phiếu" icon={<ExportOutlined />} tone="amber" compact />
-                  <StatCard
-                    title="Tổng giá trị"
-                    value={formatCurrency(periodTotals.inboundTotal + periodTotals.outboundTotal)}
-                    icon={<WalletOutlined />}
-                    tone="blue"
-                    compact
-                  />
+                  <StatCard title="Tồn cuối kỳ" value={formatCurrency(aggregates.totalClosingValue)} icon={<WalletOutlined />} tone="blue" compact />
                 </div>
 
                 <div>
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="m-0 text-base font-semibold text-ink">Phiếu Nhập – Xuất theo kỳ</h3>
-                    <Segmented
-                      value={periodMode}
-                      onChange={setPeriodMode}
-                      options={[
-                        { label: 'Theo tháng', value: 'month' },
-                        { label: 'Theo tuần', value: 'week' },
-                      ]}
+                  <h3 className="mb-3 text-base font-semibold text-ink">
+                    Bảng Nhập – Xuất – Tồn · {rangeLabel}
+                  </h3>
+                  <FadeSection dataKey={`nxt-${from}-${to}`}>
+                    <DataTable
+                      columns={nxtColumns}
+                      dataSource={nxtItems.map((item, i) => ({ ...item, id: `${item.productId}-${item.lotId ?? i}` }))}
+                      scroll={isMobile ? { x: 700 } : undefined}
+                      locale={{ emptyText: <TableEmptyState message="Không có dữ liệu NXT trong kỳ" /> }}
                     />
-                  </div>
-                  <DataTable columns={periodColumns} dataSource={periodStats} rowKey="key" pagination={false} />
+                  </FadeSection>
                 </div>
               </div>
             ),
@@ -421,14 +309,16 @@ export default function ReportsPage() {
           {
             key: 'variance',
             label: 'Chênh lệch kiểm kê',
-            children: (
+            children: varianceQuery.isLoading ? (
+              <div className="flex justify-center py-20"><Spin size="large" /></div>
+            ) : (
               <div>
                 <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                  <StatCard title="Tổng phiếu kiểm kê" value={formatNumber(STOCKTAKES.length)} suffix="phiếu" icon={<AuditOutlined />} tone="blue" compact />
+                  <StatCard title="Tổng dòng" value={formatNumber(varianceTotalElements)} suffix="dòng" icon={<AuditOutlined />} tone="blue" compact />
                   <StatCard
                     title="Có chênh lệch"
-                    value={formatNumber(stocktakeDiffCount)}
-                    suffix="phiếu"
+                    value={formatNumber(varianceAgg.withDiff)}
+                    suffix="dòng"
                     icon={<DiffOutlined />}
                     tone="amber"
                     cardTone="amber"
@@ -436,48 +326,49 @@ export default function ReportsPage() {
                   />
                   <StatCard
                     title="Khớp tuyệt đối"
-                    value={formatNumber(STOCKTAKES.length - stocktakeDiffCount)}
-                    suffix="phiếu"
+                    value={formatNumber(varianceAgg.matched)}
+                    suffix="dòng"
                     icon={<AuditOutlined />}
                     tone="green"
                     compact
                   />
                   <StatCard
                     title="Tổng chênh lệch"
-                    value={<DiffValue value={totalDiffSum} />}
+                    value={<DiffValue value={varianceAgg.totalDiff} />}
                     icon={<DiffOutlined />}
-                    tone={totalDiffSum < 0 ? 'red' : 'blue'}
-                    cardTone={totalDiffSum < 0 ? 'red' : undefined}
+                    tone={varianceAgg.totalDiff < 0 ? 'red' : 'blue'}
+                    cardTone={varianceAgg.totalDiff < 0 ? 'red' : undefined}
                     compact
                   />
                 </div>
 
-                <FilterBar extra={<span className="text-sm text-ink-sub">{variance.length} phiếu</span>}>
+                <FilterBar extra={<span className="text-sm text-ink-sub">{filteredVariance.length} dòng</span>}>
                   <Input
                     allowClear
                     prefix={<SearchOutlined className="text-slate-400" />}
-                    placeholder="Tìm mã phiếu..."
+                    placeholder="Tìm mã biên bản, sản phẩm, lô..."
                     className="w-full sm:w-64"
-                    value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
+                    value={varKeyword}
+                    onChange={(e) => setVarKeyword(e.target.value)}
                   />
-                  <Select
-                    allowClear
-                    placeholder="Trạng thái"
-                    className="w-full sm:w-44"
-                    options={statusOptions(APPROVAL_STATUSES)}
-                    value={status}
-                    onChange={setStatus}
-                  />
-                  <RangePicker format="DD/MM/YYYY" className="w-full sm:w-auto" onChange={(dates) => setRange(dates)} />
                 </FilterBar>
 
-                <FadeSection dataKey={variance.map((r) => r.id).join(',')}>
+                <FadeSection dataKey={`var-${from}-${to}-${varPage}`}>
                   <DataTable
                     columns={varianceColumns}
-                    dataSource={variance}
-                    pagination={false}
-                    locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu kiểm kê phù hợp" /> }}
+                    dataSource={filteredVariance.map((item, i) => ({
+                      ...item,
+                      id: `${item.stocktakeId}-${item.productId}-${item.lotId}-${item.locationId ?? i}`,
+                    }))}
+                    scroll={isMobile ? { x: 600 } : undefined}
+                    pagination={{
+                      current: varPage + 1,
+                      pageSize: 20,
+                      total: varianceTotalElements,
+                      onChange: (p) => setVarPage(p - 1),
+                      simple: isMobile,
+                    }}
+                    locale={{ emptyText: <TableEmptyState message="Không có dữ liệu chênh lệch kiểm kê trong kỳ" /> }}
                   />
                 </FadeSection>
               </div>
@@ -485,66 +376,6 @@ export default function ReportsPage() {
           },
         ]}
       />
-
-      <DocDetailModal
-        open={!!detailRecord}
-        onClose={() => setDetailRecord(null)}
-        title={detailRecord?.code}
-        fields={
-          detailRecord && [
-            { label: 'Ngày', value: formatDate(detailRecord.date) },
-            { label: 'Người kiểm', value: detailRecord.createdBy },
-            { label: 'Tổng chênh lệch', value: <DiffValue value={totalDiff(detailRecord.items)} /> },
-            { label: 'Trạng thái', value: <StatusPill status={detailRecord.status} /> },
-          ]
-        }
-      >
-        {detailRecord && <StocktakeItemsDetail items={detailRecord.items} note={detailRecord.note} />}
-      </DocDetailModal>
-
-      <Modal centered
-        open={!!periodDetail}
-        onCancel={() => setPeriodDetail(null)}
-        footer={null}
-        title={periodDetail && `Phiếu Nhập – Xuất · ${periodDetail.label}`}
-        width={800}
-        destroyOnHidden
-      >
-        <Tabs
-          size="small"
-          className="text-xs"
-          items={[
-            {
-              key: 'inbound',
-              label: 'Phiếu nhập',
-              children: (
-                <DataTable
-                  size="small"
-                  columns={periodDocColumns}
-                  dataSource={periodDetail?.docs.filter((d) => d.kind === 'inbound') ?? []}
-                  rowKey="id"
-                  pagination={false}
-                  locale={{ emptyText: <TableEmptyState message="Không có phiếu nhập trong kỳ" /> }}
-                />
-              ),
-            },
-            {
-              key: 'outbound',
-              label: 'Phiếu xuất',
-              children: (
-                <DataTable
-                  size="small"
-                  columns={periodDocColumns}
-                  dataSource={periodDetail?.docs.filter((d) => d.kind === 'outbound') ?? []}
-                  rowKey="id"
-                  pagination={false}
-                  locale={{ emptyText: <TableEmptyState message="Không có phiếu xuất trong kỳ" /> }}
-                />
-              ),
-            },
-          ]}
-        />
-      </Modal>
     </>
   );
 }

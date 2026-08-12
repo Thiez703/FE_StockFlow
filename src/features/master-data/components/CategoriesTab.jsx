@@ -69,7 +69,7 @@ const CategoryCardNode = ({ node, level = 0, onEdit, onAddChild, onToggleStatus,
           active ? 'border-slate-200 hover:border-blue-400' : 'border-slate-200 bg-slate-50 opacity-80'
         } ${isRoot ? 'p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4' : 'p-4 flex flex-col'}`}
       >
-        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/90 p-1 rounded-xl backdrop-blur-md shadow-sm border border-slate-100">
+        <div className="absolute top-3 right-3 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex gap-1 bg-white/90 p-1 rounded-xl backdrop-blur-md shadow-sm border border-slate-100">
           <Tooltip title="Sửa" placement="top">
             <Button type="text" size="small" icon={<EditOutlined className="text-blue-600" />} disabled={!canManageMasterData} onClick={() => onEdit(node)} />
           </Tooltip>

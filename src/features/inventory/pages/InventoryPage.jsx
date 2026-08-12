@@ -1,91 +1,108 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Input, Select, Segmented, Tooltip, Button, App, Progress, Tag } from 'antd';
-import { SearchOutlined, WarningFilled, DatabaseOutlined, WalletOutlined, StopOutlined, FileExcelOutlined, HistoryOutlined } from '@ant-design/icons';
+import { useQuery } from '@tanstack/react-query';
+import { Input, Select, Spin, Alert, Button, Tag } from 'antd';
+import { SearchOutlined, DatabaseOutlined, HistoryOutlined, BoxPlotOutlined, EnvironmentOutlined, BarcodeOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
-import DocCode from '@/components/ui/DocCode';
 import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import { StaggerList, StaggerItem } from '@/components/ui/StaggerList';
 import StatCard from '@/features/dashboard/components/StatCard';
-import { INVENTORY, STOCK_CARDS } from '@/mock/inventory';
-import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
+import AccessDenied from '@/components/feedback/AccessDenied';
+import { usePermissions } from '@/hooks/usePermissions';
+import { inventoryApi } from '@/api/inventory';
+import { productApi } from '@/api/products';
+import { storageLocationApi } from '@/api/warehouses';
+import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
+import { getErrorMessage } from '@/utils/getErrorMessage';
+import { formatNumber } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
 
-const CATEGORY_OPTS = [...new Set(INVENTORY.map((i) => i.categoryName))].map((c) => ({ value: c, label: c }));
-const LOCATION_OPTS = [...new Set(INVENTORY.map((i) => i.location))].map((l) => ({ value: l, label: l }));
-const UNIT_OPTS = [...new Set(INVENTORY.map((i) => i.unit))].map((u) => ({ value: u, label: u }));
-
-const STOCK_FILTER_OPTIONS = [
-  { label: 'Tất cả', value: 'all' },
-  { label: 'Dưới định mức', value: 'low' },
-  { label: 'Hết hàng', value: 'out' },
-];
-
-// Tông màu theo tình trạng tồn — dùng chung cho thanh trong danh sách và gauge chi tiết.
-const stockTone = (item) => (item.onHand === 0 ? 'out' : item.onHand < item.minStock ? 'low' : 'ok');
-const TONE_COLOR = { out: '#dc2626', low: '#f59e0b', ok: '#1e5af0' };
-
-// Toạ độ đường xu hướng số dư (0..100) cho SVG mini-sparkline trong panel chi tiết.
-function trendPolyline(rows) {
-  const balances = rows.map((r) => r.balance);
-  const min = Math.min(...balances);
-  const max = Math.max(...balances);
-  const span = max - min || 1;
-  const n = rows.length;
-  return rows
-    .map((r, i) => {
-      const x = n === 1 ? 50 : (i / (n - 1)) * 100;
-      const y = (1 - (r.balance - min) / span) * 100;
-      return `${x},${y}`;
-    })
-    .join(' ');
-}
+const PAGE_SIZE = 50;
 
 export default function InventoryPage() {
   const navigate = useNavigate();
-  const { message } = App.useApp();
+  const { canViewInventory } = usePermissions();
   const [searchParams] = useSearchParams();
-  // Cho phép nhảy thẳng tới đây với 1 sản phẩm đã lọc sẵn (vd từ ô tìm kiếm nhanh
-  // trên Dashboard): /inventory?q=<sku hoặc tên sản phẩm>.
   const [keyword, setKeyword] = useState(searchParams.get('q') ?? '');
-  const [category, setCategory] = useState(null);
-  const [location, setLocation] = useState(null);
-  const [unit, setUnit] = useState(null);
-  const [stockFilter, setStockFilter] = useState('all');
+  const [productId, setProductId] = useState(null);
+  const [locationId, setLocationId] = useState(null);
+  const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState(null);
 
+  // Danh sách sản phẩm & vị trí cho bộ lọc
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => productApi.getAll(),
+  });
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations', DEFAULT_WAREHOUSE_ID],
+    queryFn: () => storageLocationApi.getByWarehouse(DEFAULT_WAREHOUSE_ID),
+  });
+
+  const productOptions = useMemo(
+    () => products.map((p) => ({ value: p.id, label: `${p.code} – ${p.name}` })),
+    [products],
+  );
+  const locationOptions = useMemo(
+    () => locations.map((l) => ({ value: l.id, label: l.locationCode })),
+    [locations],
+  );
+
+  // Tồn kho — phân trang server
+  const queryParams = useMemo(() => {
+    const p = { page, size: PAGE_SIZE };
+    if (productId) p.productId = productId;
+    if (locationId) p.locationId = locationId;
+    return p;
+  }, [page, productId, locationId]);
+
+  const {
+    data: inventoryPage,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ['inventory', queryParams],
+    queryFn: () => inventoryApi.getAll(queryParams),
+    keepPreviousData: true,
+  });
+
+  const totalElements = inventoryPage?.totalElements ?? 0;
+  const totalPages = inventoryPage?.totalPages ?? 0;
+
+  // Client-side keyword filter (API không hỗ trợ keyword search)
   const data = useMemo(() => {
+    const allItems = inventoryPage?.content ?? [];
     const kw = keyword.trim().toLowerCase();
-    return INVENTORY.filter((i) => {
-      const okKw = !kw || [i.productName, i.sku, i.lot].some((v) => v.toLowerCase().includes(kw));
-      const okCat = !category || i.categoryName === category;
-      const okLoc = !location || i.location === location;
-      const okUnit = !unit || i.unit === unit;
-      const okStock =
-        stockFilter === 'all'
-          ? true
-          : stockFilter === 'low'
-            ? i.onHand > 0 && i.onHand < i.minStock
-            : i.onHand === 0;
-      return okKw && okCat && okLoc && okUnit && okStock;
-    });
-  }, [keyword, category, location, unit, stockFilter]);
+    if (!kw) return allItems;
+    return allItems.filter((i) =>
+      [i.productName, i.productCode, i.lotCode, i.locationCode].some(
+        (v) => v && v.toLowerCase().includes(kw),
+      ),
+    );
+  }, [inventoryPage?.content, keyword]);
 
-  const totalValue = data.reduce((s, i) => s + i.value, 0);
-  const totalOnHand = data.reduce((s, i) => s + i.onHand, 0);
-  const belowMinCount = data.filter((i) => i.onHand > 0 && i.onHand < i.minStock).length;
-  const outOfStockCount = data.filter((i) => i.onHand === 0).length;
+  const totalQty = data.reduce((s, i) => s + (i.quantity ?? 0), 0);
 
-  // Sản phẩm không còn nằm trong tập đã lọc (đổi bộ lọc) -> tự rơi về dòng đầu tiên,
-  // tránh giữ panel chi tiết trỏ tới 1 sản phẩm đã biến mất khỏi danh sách.
   const selected = data.find((i) => i.id === selectedId) ?? data[0] ?? null;
-  const selectedCard = selected ? STOCK_CARDS[selected.productId] : null;
-  const selectedTone = selected ? stockTone(selected) : 'ok';
-  const selectedPercent = selected && selected.minStock > 0 ? Math.min(100, Math.round((selected.onHand / selected.minStock) * 100)) : 100;
 
-  const exportExcel = () => message.info('Tính năng xuất Excel chỉ khả dụng trong bản đầy đủ.');
+  const maxQty = useMemo(() => Math.max(0, ...data.map(i => i.quantity || 0)), [data]);
+
+  // Reset page khi đổi filter
+  const handleProductChange = (v) => {
+    setProductId(v ?? null);
+    setPage(0);
+    setSelectedId(null);
+  };
+  const handleLocationChange = (v) => {
+    setLocationId(v ?? null);
+    setPage(0);
+    setSelectedId(null);
+  };
+
+  if (!canViewInventory) return <AccessDenied />;
 
   return (
     <>
@@ -93,174 +110,216 @@ export default function InventoryPage() {
         title="Tra cứu tồn"
         subtitle="Tồn kho hiện tại theo sản phẩm – lô – vị trí"
         breadcrumb={[{ title: 'Tồn kho & Báo cáo' }, { title: 'Tra cứu tồn' }]}
-        extra={
-          <Button icon={<FileExcelOutlined />} onClick={exportExcel}>
-            Xuất Excel
-          </Button>
-        }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard title="Số dòng tồn" value={formatNumber(data.length)} suffix="dòng" icon={<DatabaseOutlined />} tone="blue" compact />
-        <StatCard title="Tổng giá trị tồn" value={formatCurrency(totalValue)} icon={<WalletOutlined />} tone="green" compact />
-        <StatCard title="Dưới định mức" value={formatNumber(belowMinCount)} suffix="dòng" icon={<WarningFilled />} tone="amber" cardTone="amber" compact />
-        <StatCard title="Hết hàng" value={formatNumber(outOfStockCount)} suffix="dòng" icon={<StopOutlined />} tone="red" cardTone="red" compact />
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <StatCard title="Số dòng tồn" value={formatNumber(totalElements)} suffix="dòng" icon={<DatabaseOutlined />} tone="blue" compact />
+        <StatCard title="Tổng tồn (trang này)" value={formatNumber(totalQty)} suffix="đơn vị" icon={<DatabaseOutlined />} tone="green" compact />
+        <StatCard title="Trang" value={`${page + 1} / ${totalPages || 1}`} icon={<DatabaseOutlined />} tone="blue" compact />
       </div>
 
       <FilterBar>
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Tìm sản phẩm, SKU, lô..."
+          placeholder="Tìm sản phẩm, mã, lô..."
           className="w-full sm:min-w-[200px] sm:max-w-xs sm:flex-1"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
         />
-        <Select allowClear placeholder="Danh mục" className="w-full sm:w-36" options={CATEGORY_OPTS} value={category} onChange={setCategory} />
-        <Select allowClear placeholder="Vị trí" className="w-full sm:w-32" options={LOCATION_OPTS} value={location} onChange={setLocation} />
-        <Select allowClear placeholder="ĐVT" className="w-full sm:w-24" options={UNIT_OPTS} value={unit} onChange={setUnit} />
-        <Segmented className="shrink-0" options={STOCK_FILTER_OPTIONS} value={stockFilter} onChange={setStockFilter} />
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="Sản phẩm"
+          className="w-full sm:w-56"
+          options={productOptions}
+          value={productId}
+          onChange={handleProductChange}
+        />
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="Vị trí"
+          className="w-full sm:w-36"
+          options={locationOptions}
+          value={locationId}
+          onChange={handleLocationChange}
+        />
       </FilterBar>
 
-      <FadeSection dataKey={data.map((i) => i.id).join(',')}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
-          {/* Danh sách sản phẩm — chọn 1 dòng để xem chi tiết ở panel bên phải */}
-          <div className="flex flex-col rounded-2xl border border-hair bg-surface">
-            <div className="flex items-center justify-between border-b border-hair px-4 py-3">
-              <span className="text-sm font-semibold text-ink">Danh sách ({data.length})</span>
-              <span className="text-xs text-ink-sub">Tổng {formatNumber(totalOnHand)}</span>
-            </div>
-            <div className="app-scroll max-h-[600px] overflow-y-auto p-2">
-              {data.length === 0 ? (
-                <TableEmptyState message="Không tìm thấy dòng tồn phù hợp" />
-              ) : (
-                <StaggerList className="m-0 flex list-none flex-col gap-1 p-0">
-                  {data.map((item) => {
-                    const tone = stockTone(item);
-                    const percent = item.minStock > 0 ? Math.min(100, Math.round((item.onHand / item.minStock) * 100)) : 100;
-                    const active = selected?.id === item.id;
-                    return (
-                      <StaggerItem
-                        key={item.id}
-                        onClick={() => setSelectedId(item.id)}
-                        className={`cursor-pointer rounded-xl border p-3 transition-colors ${
-                          active ? 'border-royal/40 bg-tint/60' : 'border-transparent hover:border-hair hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-semibold text-ink">{item.productName}</div>
-                            <div className="mono truncate text-xs text-ink-sub">{item.sku}</div>
+      {isError && (
+        <Alert className="mb-4" type="error" showIcon message="Không tải được dữ liệu tồn kho" description={getErrorMessage(error)} />
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center py-20"><Spin size="large" /></div>
+      ) : (
+        <FadeSection dataKey={data.map((i) => i.id).join(',')}>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[400px_1fr]">
+            {/* Danh sách — chọn 1 dòng để xem chi tiết ở panel bên phải */}
+            <div className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-5 py-4">
+                <span className="text-[15px] font-bold text-slate-700">Kết quả tra cứu <Tag color="blue" className="ml-2 rounded-full border-none">{data.length}</Tag></span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tổng <span className="text-slate-700">{formatNumber(totalQty)}</span></span>
+              </div>
+              <div className="app-scroll max-h-[650px] overflow-y-auto p-3">
+                {data.length === 0 ? (
+                  <TableEmptyState message="Không tìm thấy dòng tồn phù hợp" />
+                ) : (
+                  <StaggerList className="m-0 flex list-none flex-col gap-2 p-0">
+                    {data.map((item) => {
+                      const active = selected?.id === item.id;
+                      const pct = maxQty > 0 ? (item.quantity / maxQty) * 100 : 0;
+                      return (
+                        <StaggerItem
+                          key={item.id}
+                          onClick={() => setSelectedId(item.id)}
+                          className={`relative cursor-pointer overflow-hidden rounded-xl border p-3.5 transition-all duration-300 ${
+                            active 
+                              ? 'border-blue-400 bg-blue-50/30 shadow-sm ring-1 ring-blue-400/20' 
+                              : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          {/* Visual quantity bar background */}
+                          <div 
+                            className={`absolute left-0 top-0 bottom-0 transition-all duration-700 ease-out opacity-20 ${active ? 'bg-blue-300' : 'bg-slate-200'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                          
+                          <div className="relative z-10 flex items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className={`truncate text-[14px] font-semibold transition-colors ${active ? 'text-blue-900' : 'text-slate-800'}`}>
+                                {item.productName}
+                              </div>
+                              <div className="mono mt-1 truncate text-[11px] uppercase tracking-wider font-medium text-slate-400">
+                                {item.productCode}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end shrink-0">
+                              <span className={`mono text-lg font-black leading-none ${active ? 'text-blue-600' : 'text-slate-700'}`}>
+                                {formatNumber(item.quantity)}
+                              </span>
+                              <span className="text-[9px] uppercase tracking-widest font-bold text-slate-400 mt-1">Số lượng</span>
+                            </div>
                           </div>
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            {tone !== 'ok' && (
-                              <Tooltip title={tone === 'out' ? 'Hết hàng' : 'Dưới định mức tối thiểu'}>
-                                <WarningFilled style={{ color: TONE_COLOR[tone] }} />
-                              </Tooltip>
-                            )}
-                            <span className="mono text-sm font-bold" style={{ color: tone === 'out' ? TONE_COLOR.out : undefined }}>
-                              {formatNumber(item.onHand)}
-                            </span>
+                          
+                          <div className="relative z-10 mt-3 flex items-center gap-4 text-xs font-medium">
+                            <div className="flex items-center gap-1.5 text-slate-500 bg-white/60 px-2 py-0.5 rounded-md border border-slate-100 backdrop-blur-sm shadow-sm">
+                              <BarcodeOutlined className={active ? 'text-blue-500' : 'text-slate-400'} />
+                              <span className="mono">{item.lotCode}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-slate-500 bg-white/60 px-2 py-0.5 rounded-md border border-slate-100 backdrop-blur-sm shadow-sm">
+                              <EnvironmentOutlined className={active ? 'text-emerald-500' : 'text-slate-400'} />
+                              <span className="mono">{item.locationCode}</span>
+                            </div>
+                          </div>
+                        </StaggerItem>
+                      );
+                    })}
+                  </StaggerList>
+                )}
+              </div>
+              {/* Phân trang */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-3">
+                  <Button size="small" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="rounded-lg font-medium">
+                    Trang trước
+                  </Button>
+                  <span className="text-xs font-semibold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <Button size="small" disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="rounded-lg font-medium">
+                    Trang sau
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Panel chi tiết sản phẩm đang chọn */}
+            <div className="flex flex-col">
+              {!selected ? (
+                <div className="flex-1 rounded-2xl border border-slate-200 bg-white flex items-center justify-center p-8 shadow-sm">
+                  <TableEmptyState message="Vui lòng chọn một dòng tồn kho để xem chi tiết" />
+                </div>
+              ) : (
+                <div className="flex-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
+                  {/* Header Detail */}
+                  <div className="bg-gradient-to-br from-slate-800 to-slate-900 px-8 py-8 text-white relative overflow-hidden">
+                    <div className="absolute right-0 top-0 opacity-10 transform translate-x-1/4 -translate-y-1/4">
+                      <BoxPlotOutlined style={{ fontSize: '180px' }} />
+                    </div>
+                    <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold tracking-widest uppercase text-blue-200 backdrop-blur-md border border-white/10">
+                          Mã SP: <span className="mono text-white">{selected.productCode}</span>
+                        </div>
+                        <h2 className="m-0 mt-1 text-2xl lg:text-3xl font-extrabold tracking-tight text-white leading-tight">
+                          {selected.productName}
+                        </h2>
+                      </div>
+                      <Button type="primary" size="large" className="rounded-xl font-semibold bg-blue-500 hover:bg-blue-400 border-none shadow-lg shadow-blue-500/30" icon={<HistoryOutlined />} onClick={() => navigate(`/stock-card?productId=${selected.productId}`)}>
+                        Xem Thẻ kho
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Body Detail */}
+                  <div className="p-8 flex-1 bg-slate-50/30">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                      
+                      {/* Quantity Highlight */}
+                      <div className="col-span-1 md:col-span-2 bg-white border border-blue-100 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-50 to-transparent opacity-50"></div>
+                        <div className="relative z-10 flex items-center justify-between">
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-widest text-blue-400 mb-1">Hiện có trong kho</div>
+                            <div className="flex items-baseline gap-2">
+                              <span className="mono text-5xl font-black text-blue-600 tracking-tighter">{formatNumber(selected.quantity)}</span>
+                              <span className="text-sm font-semibold text-slate-400">đơn vị</span>
+                            </div>
+                          </div>
+                          <div className="h-16 w-16 rounded-full bg-blue-100/50 flex items-center justify-center text-blue-500 text-3xl group-hover:scale-110 transition-transform duration-500">
+                            <DatabaseOutlined />
                           </div>
                         </div>
-                        <Progress percent={percent} size="small" showInfo={false} className="!mb-0 !mt-1.5" strokeColor={TONE_COLOR[tone]} />
-                      </StaggerItem>
-                    );
-                  })}
-                </StaggerList>
+                      </div>
+
+                      {/* Info Cards */}
+                      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center text-lg"><EnvironmentOutlined /></div>
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Vị trí lưu trữ</div>
+                        </div>
+                        <div className="mono text-lg font-bold text-slate-800">{selected.locationCode}</div>
+                        <div className="mt-1 text-[13px] text-slate-500 font-medium">Kho: {selected.warehouseCode}</div>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center text-lg"><BarcodeOutlined /></div>
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Lô hàng</div>
+                        </div>
+                        <div className="mono text-lg font-bold text-slate-800">{selected.lotCode}</div>
+                        <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                          ID Hệ thống: {selected.lotId}
+                        </div>
+                      </div>
+
+                      <div className="col-span-1 md:col-span-2 mt-2 flex items-center justify-center gap-2 text-xs font-medium text-slate-400">
+                        <ClockCircleOutlined />
+                        Dữ liệu cập nhật lần cuối vào lúc {formatDate(selected.updatedAt, 'HH:mm - DD/MM/YYYY')}
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
-
-          {/* Panel chi tiết sản phẩm đang chọn */}
-          <div className="rounded-2xl border border-hair bg-surface p-6">
-            {!selected ? (
-              <TableEmptyState message="Không có dữ liệu để hiển thị" />
-            ) : (
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="m-0 truncate text-xl font-bold text-ink">{selected.productName}</h2>
-                    <div className="mono mt-1 text-sm text-ink-sub">{selected.sku}</div>
-                    <Tag bordered={false} color="blue" className="mt-2">
-                      {selected.categoryName}
-                    </Tag>
-                  </div>
-                  {selectedCard && (
-                    <Button icon={<HistoryOutlined />} onClick={() => navigate(`/stock-card?productId=${selected.productId}`)}>
-                      Xem Thẻ kho
-                    </Button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-[auto_1fr]">
-                  <div className="flex justify-center">
-                    <Progress
-                      type="dashboard"
-                      percent={selectedPercent}
-                      size={168}
-                      strokeWidth={9}
-                      strokeColor={TONE_COLOR[selectedTone]}
-                      trailColor="#e2e8f0"
-                      format={() => (
-                        <div className="flex flex-col items-center">
-                          <span className="mono text-2xl font-bold text-ink">{formatNumber(selected.onHand)}</span>
-                          <span className="mono text-xs text-ink-sub">/ {formatNumber(selected.minStock)} {selected.unit}</span>
-                        </div>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-5 content-start">
-                    <div>
-                      <div className="mb-1 text-xs text-ink-sub">Lô</div>
-                      <DocCode>{selected.lot}</DocCode>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-xs text-ink-sub">Vị trí</div>
-                      <DocCode>{selected.location}</DocCode>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-xs text-ink-sub">Đơn vị tính</div>
-                      <span className="text-sm font-medium text-ink">{selected.unit}</span>
-                    </div>
-                    <div>
-                      <div className="mb-1 text-xs text-ink-sub">Giá trị tồn</div>
-                      <span className="font-semibold text-ink">{formatCurrency(selected.value)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-hair pt-5">
-                  <div className="mb-2 text-xs font-medium text-ink-sub">Xu hướng số dư (Thẻ kho)</div>
-                  {selectedCard ? (
-                    <>
-                      <svg className="h-14 w-full" viewBox="0 0 100 40" preserveAspectRatio="none">
-                        <polyline
-                          points={trendPolyline(selectedCard.rows)}
-                          fill="none"
-                          stroke="#1e5af0"
-                          strokeWidth="2"
-                          vectorEffect="non-scaling-stroke"
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                          transform="scale(1, 0.85) translate(0, 3)"
-                        />
-                      </svg>
-                      <div className="mt-1 flex justify-between text-[11px] text-ink-sub">
-                        <span>{formatDate(selectedCard.rows[0].date)}</span>
-                        <span>{formatDate(selectedCard.rows[selectedCard.rows.length - 1].date)}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="m-0 text-sm text-ink-sub">Chưa có dữ liệu biến động cho sản phẩm này.</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </FadeSection>
+        </FadeSection>
+      )}
     </>
   );
 }

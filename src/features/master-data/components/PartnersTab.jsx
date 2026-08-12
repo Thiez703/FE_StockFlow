@@ -11,6 +11,7 @@ import {
   UnorderedListOutlined
 } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import DataTable from '@/components/ui/DataTable';
 import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
@@ -36,6 +37,7 @@ const orNull = (v) => {
 export default function PartnersTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
+  const isMobile = useIsMobile();
   const queryClient = useQueryClient();
 
   const [tab, setTab] = useState('suppliers');
@@ -43,7 +45,7 @@ export default function PartnersTab() {
   const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [viewMode, setViewMode] = useState('table');
+  const [viewMode, setViewMode] = useState(isMobile ? 'card' : 'table');
   const [form] = Form.useForm();
 
   const isSupplier = tab === 'suppliers';
@@ -162,34 +164,36 @@ export default function PartnersTab() {
   };
 
   const supplierColumns = [
-    { title: 'Mã', dataIndex: 'code', width: 110, render: (c) => <DocCode muted>{c}</DocCode> },
-    { title: 'Nhà cung cấp', dataIndex: 'name', render: (n) => <span className="font-medium text-ink">{n}</span> },
-    { title: 'Người liên hệ', dataIndex: 'contactPerson', width: 150, className: '!text-ink-sub' },
-    { title: 'Điện thoại', dataIndex: 'phone', width: 140 },
-    { title: 'Mã số thuế', dataIndex: 'taxCode', width: 130, render: (t) => <span className="mono text-ink-sub">{t}</span> },
-    { title: 'Địa chỉ', dataIndex: 'address', className: '!text-ink-sub', ellipsis: true },
-    statusCol,
-    actionCol,
+    { title: 'Mã', dataIndex: 'code', width: 100, fixed: isMobile ? 'left' : undefined, render: (c) => <DocCode muted>{c}</DocCode> },
+    { title: 'Nhà cung cấp', dataIndex: 'name', width: isMobile ? 150 : undefined, render: (n) => <span className="font-medium text-ink">{n}</span> },
+    ...(!isMobile ? [{ title: 'Người liên hệ', dataIndex: 'contactPerson', width: 150, className: '!text-ink-sub' }] : []),
+    { title: 'SĐT', dataIndex: 'phone', width: 120 },
+    ...(!isMobile ? [
+      { title: 'Mã số thuế', dataIndex: 'taxCode', width: 130, render: (t) => <span className="mono text-ink-sub">{t}</span> },
+      { title: 'Địa chỉ', dataIndex: 'address', className: '!text-ink-sub', ellipsis: true },
+    ] : []),
+    { ...statusCol, title: isMobile ? 'TT' : 'Trạng thái', width: isMobile ? 90 : 130 },
+    ...(!isMobile ? [actionCol] : []),
   ];
 
   const customerColumns = [
-    { title: 'Khách hàng', dataIndex: 'name', render: (n) => <span className="font-medium text-ink">{n}</span> },
-    { title: 'Điện thoại', dataIndex: 'phone', width: 140 },
-    { title: 'Địa chỉ', dataIndex: 'address', className: '!text-ink-sub', ellipsis: true },
-    statusCol,
-    actionCol,
+    { title: 'Khách hàng', dataIndex: 'name', width: isMobile ? 150 : undefined, fixed: isMobile ? 'left' : undefined, render: (n) => <span className="font-medium text-ink">{n}</span> },
+    { title: 'SĐT', dataIndex: 'phone', width: 120 },
+    ...(!isMobile ? [{ title: 'Địa chỉ', dataIndex: 'address', className: '!text-ink-sub', ellipsis: true }] : []),
+    { ...statusCol, title: isMobile ? 'TT' : 'Trạng thái', width: isMobile ? 90 : 130 },
+    ...(!isMobile ? [actionCol] : []),
   ];
 
   return (
     <>
       <div className="flex flex-col gap-4">
         {/* Top Filter Bar */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex flex-wrap items-center gap-4">
+        <div className="bg-white p-3 md:p-4 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
             <Input
               allowClear
               prefix={<SearchOutlined className="text-slate-400" />}
-              placeholder="Tìm theo tên, mã, điện thoại..."
+              placeholder="Tìm tên, mã, SĐT..."
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               className="w-full sm:w-80"
@@ -212,12 +216,12 @@ export default function PartnersTab() {
               activeKey={tab}
               onChange={changeTab}
               items={[
-                { key: 'suppliers', label: `Nhà cung cấp (${suppliers.length})` },
-                { key: 'customers', label: `Khách hàng (${customers.length})` },
+                { key: 'suppliers', label: isMobile ? `NCC (${suppliers.length})` : `Nhà cung cấp (${suppliers.length})` },
+                { key: 'customers', label: isMobile ? `KH (${customers.length})` : `Khách hàng (${customers.length})` },
               ]}
               className="!mb-0 [&_.ant-tabs-nav]:!m-0"
             />
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <Segmented
                 options={[
                   { value: 'card', icon: <AppstoreOutlined /> },
@@ -226,7 +230,7 @@ export default function PartnersTab() {
                 value={viewMode}
                 onChange={setViewMode}
               />
-              {canManageMasterData && (
+              {canManageMasterData && !isMobile && (
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
@@ -241,98 +245,151 @@ export default function PartnersTab() {
             </div>
           </div>
 
+          {canManageMasterData && isMobile && (
+            <Button
+              type="primary"
+              shape="circle"
+              icon={<PlusOutlined />}
+              size="large"
+              className="!fixed bottom-20 right-4 z-50 shadow-lg !w-12 !h-12 !flex items-center justify-center"
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            />
+          )}
+
           <FadeSection dataKey={`${tab}-${viewMode}-${data.map((r) => r.id).join(',')}`}>
             {viewMode === 'table' ? (
               <DataTable
                 columns={isSupplier ? supplierColumns : customerColumns}
                 dataSource={data}
                 loading={isSupplier ? loadingSuppliers : loadingCustomers}
+                scroll={isMobile ? { x: isSupplier ? 520 : 400 } : undefined}
+                onRow={isMobile && canManageMasterData ? (r) => ({
+                  onClick: () => { setEditing(r); setOpen(true); },
+                }) : undefined}
                 locale={{ emptyText: <TableEmptyState message="Không tìm thấy đối tác phù hợp" /> }}
               />
             ) : data.length === 0 ? (
               <TableEmptyState message="Không tìm thấy đối tác phù hợp" />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5'}`}>
                 {data.map((r) => {
                   const active = r.status === 'ACTIVE';
                   return (
                     <div
                       key={r.id}
+                      onClick={isMobile && canManageMasterData ? () => { setEditing(r); setOpen(true); } : undefined}
                       className={`group relative rounded-2xl border bg-white overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
                         active ? 'border-slate-200 hover:border-blue-400' : 'border-slate-200 bg-slate-50'
-                      }`}
+                      } ${isMobile ? 'active:bg-slate-50' : ''}`}
                     >
-                      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white/90 p-1 rounded-xl backdrop-blur-md shadow-sm border border-slate-100">
-                        <Tooltip title="Sửa" placement="left">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<EditOutlined className="text-blue-600" />}
-                            disabled={!canManageMasterData}
-                            onClick={() => {
-                              setEditing(r);
-                              setOpen(true);
-                            }}
-                          />
-                        </Tooltip>
-                        <Tooltip title={active ? 'Ngừng hợp tác' : 'Kích hoạt lại'} placement="left">
-                          <Button
-                            type="text"
-                            size="small"
-                            danger={active}
-                            icon={active ? <StopOutlined /> : <CheckCircleOutlined className="text-green-500" />}
-                            disabled={!canManageMasterData}
-                            onClick={() => toggleStatus({ id: r.id, active, supplier: isSupplier })}
-                          />
-                        </Tooltip>
-                      </div>
+                      {!isMobile && (
+                        <div className="absolute top-3 right-3 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex gap-1 bg-white/90 p-1 rounded-xl backdrop-blur-md shadow-sm border border-slate-100">
+                          <Tooltip title="Sửa" placement="left">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<EditOutlined className="text-blue-600" />}
+                              disabled={!canManageMasterData}
+                              onClick={() => { setEditing(r); setOpen(true); }}
+                            />
+                          </Tooltip>
+                          <Tooltip title={active ? 'Ngừng hợp tác' : 'Kích hoạt lại'} placement="left">
+                            <Button
+                              type="text"
+                              size="small"
+                              danger={active}
+                              icon={active ? <StopOutlined /> : <CheckCircleOutlined className="text-green-500" />}
+                              disabled={!canManageMasterData}
+                              onClick={() => toggleStatus({ id: r.id, active, supplier: isSupplier })}
+                            />
+                          </Tooltip>
+                        </div>
+                      )}
 
-                      <div className="p-4 border-b border-slate-100 flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br ${isSupplier ? 'from-indigo-100 to-blue-200 text-indigo-700' : 'from-orange-100 to-amber-200 text-orange-700'}`}>
-                          {isSupplier ? (
-                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                          ) : (
-                            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
+                      {isMobile ? (
+                        /* Mobile: compact card */
+                        <div className="p-3.5 flex items-center gap-3">
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br ${isSupplier ? 'from-indigo-100 to-blue-200 text-indigo-700' : 'from-orange-100 to-amber-200 text-orange-700'}`}>
+                            {isSupplier ? (
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-slate-800 truncate">{r.name}</span>
+                              <StatusPill status={r.status} />
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500">
+                              {isSupplier && r.code && <span className="mono">{r.code}</span>}
+                              {r.phone && <span>{r.phone}</span>}
+                            </div>
+                            {r.address && (
+                              <div className="text-[11px] text-slate-400 mt-0.5 truncate">{r.address}</div>
+                            )}
+                          </div>
+                          {canManageMasterData && (
+                            <EditOutlined className="text-slate-300 text-xs shrink-0" />
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          {isSupplier && <DocCode muted>{r.code}</DocCode>}
-                          <div className={`font-bold text-slate-800 truncate mt-1 ${isSupplier ? 'text-base' : 'text-lg'}`}>{r.name}</div>
-                        </div>
-                      </div>
-
-                      <div className="p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Trạng thái</span>
-                          <StatusPill status={r.status} />
-                        </div>
-                        <div className="flex flex-col gap-3 text-xs">
-                          {r.contactPerson && (
-                            <div className="flex items-center gap-3 text-slate-600">
-                              <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                                <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      ) : (
+                        /* Desktop: full card */
+                        <>
+                          <div className="p-4 border-b border-slate-100 flex items-center gap-4">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br ${isSupplier ? 'from-indigo-100 to-blue-200 text-indigo-700' : 'from-orange-100 to-amber-200 text-orange-700'}`}>
+                              {isSupplier ? (
+                                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                              ) : (
+                                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {isSupplier && <DocCode muted>{r.code}</DocCode>}
+                              <div className={`font-bold text-slate-800 truncate mt-1 ${isSupplier ? 'text-base' : 'text-lg'}`}>{r.name}</div>
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-4">
+                              <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Trạng thái</span>
+                              <StatusPill status={r.status} />
+                            </div>
+                            <div className="flex flex-col gap-3 text-xs">
+                              {r.contactPerson && (
+                                <div className="flex items-center gap-3 text-slate-600">
+                                  <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                                    <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                  </div>
+                                  <span className="truncate font-medium">{r.contactPerson}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-3 text-slate-600">
+                                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                </div>
+                                <span className="truncate font-medium">{r.phone || '—'}</span>
                               </div>
-                              <span className="truncate font-medium">{r.contactPerson}</span>
+                              <div className="flex items-center gap-3 text-slate-600">
+                                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                </div>
+                                <span className="truncate font-medium leading-relaxed">{r.address || '—'}</span>
+                              </div>
                             </div>
-                          )}
-                          <div className="flex items-center gap-3 text-slate-600">
-                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                            </div>
-                            <span className="truncate font-medium">{r.phone || '—'}</span>
                           </div>
-                          <div className="flex items-center gap-3 text-slate-600">
-                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            </div>
-                            <span className="truncate font-medium leading-relaxed">{r.address || '—'}</span>
-                          </div>
-                        </div>
-                      </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}

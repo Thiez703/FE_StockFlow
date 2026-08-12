@@ -20,7 +20,17 @@ const AuthSlice = createSlice({
       }
     },
     setUser: (state, action) => {
-      state.user = action.payload;
+      const userPayload = action.payload;
+      if (userPayload) {
+        // Chuẩn hóa cờ đổi mật khẩu nếu BE trả về snake_case hoặc chuỗi
+        userPayload.mustChangePassword = 
+          userPayload.mustChangePassword === true || 
+          userPayload.must_change_password === true ||
+          userPayload.mustChangePassword === 'true' || 
+          userPayload.mustChangePassword === 1 || 
+          userPayload.must_change_password === 1;
+      }
+      state.user = userPayload;
       state.isAuthenticated = true;
     },
     // Hạ cờ mustChangePassword sau khi người dùng đổi xong, để ProtectedRoute

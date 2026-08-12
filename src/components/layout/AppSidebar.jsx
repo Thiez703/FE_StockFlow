@@ -34,6 +34,7 @@ export default function AppSidebar() {
   );
 
   const user = useSelector((state) => state.auth.user);
+  
   const handleLogout = useLogout();
   const [pwOpen, setPwOpen] = useState(false);
   
@@ -62,7 +63,7 @@ export default function AppSidebar() {
 
   return (
     <aside
-      className={`hidden shrink-0 flex-col bg-slate-900 border-r border-slate-800 transition-[width] duration-200 lg:flex sticky top-0 h-screen z-20 text-white ${
+      className={`flex shrink-0 flex-col bg-slate-900 border-r border-slate-800 transition-[width] duration-200 sticky top-0 h-screen z-20 text-white ${
         collapsed ? 'w-[72px]' : 'w-[256px]'
       }`}
     >

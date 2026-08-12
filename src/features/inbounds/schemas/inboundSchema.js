@@ -2,17 +2,31 @@ import { z } from 'zod';
 
 /**
  * Schema kiểm tra phiếu nhập kho (RHF + Zod).
- * preprocess đưa undefined/null (Select/Date chưa chọn) về '' để có thông báo thân thiện.
+ * Cập nhật theo Swagger InboundCreateRequest:
+ *   details: [{ productId*, lotCode*, locationId*, quantity*, unitPrice*,
+ *               lotId?, mfgDate?, expDate? }]
  */
-const requiredSelect = (message) =>
-  z.preprocess((v) => (v == null ? '' : v), z.string().min(1, message));
+const requiredId = (message) =>
+  z.preprocess((v) => (v == null ? '' : v), z.union([z.string().min(1, message), z.number().min(1, message)]));
 
-// Dòng hàng rỗng để append khi thêm dòng mới.
-export const emptyItem = { productId: undefined, lotId: undefined, quantity: 1, unitPrice: 0 };
+export const emptyItem = {
+  productId: undefined,
+  lotCode: '',
+  lotId: undefined,
+  locationId: undefined,
+  mfgDate: undefined,
+  expDate: undefined,
+  quantity: 1,
+  unitPrice: 0,
+};
 
 export const inboundItemSchema = z.object({
-  productId: requiredSelect('Chọn sản phẩm'),
-  lotId: requiredSelect('Vui lòng chọn hoặc nhập mã lô'),
+  productId: requiredId('Chọn sản phẩm'),
+  lotCode: z.preprocess((v) => (v == null ? '' : v), z.string().min(1, 'Vui lòng chọn hoặc nhập mã lô')),
+  lotId: z.number().nullable().optional(),
+  locationId: requiredId('Chọn vị trí kho'),
+  mfgDate: z.string().nullable().optional(),
+  expDate: z.string().nullable().optional(),
   quantity: z
     .number()
     .nullable()
@@ -23,11 +37,8 @@ export const inboundItemSchema = z.object({
     .refine((v) => v != null && v >= 0, 'Đơn giá không hợp lệ'),
 });
 
-// Không có `receiptDate`: ngày ghi sổ do server đóng dấu lúc tạo, người dùng
-// không chọn nên cũng không cần kiểm tra ở form.
 export const inboundSchema = z.object({
-  code: z.string().min(1, 'Thiếu mã phiếu'),
-  supplierId: requiredSelect('Vui lòng chọn nhà cung cấp'),
+  supplierId: requiredId('Vui lòng chọn nhà cung cấp'),
   note: z.string().optional(),
   items: z.array(inboundItemSchema).min(1, 'Cần thêm ít nhất 1 sản phẩm'),
 });

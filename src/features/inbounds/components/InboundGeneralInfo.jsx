@@ -1,14 +1,14 @@
 import { Card, Form, Input, Select } from 'antd';
 import { useFormContext, Controller } from 'react-hook-form';
-import { SUPPLIER_OPTIONS } from '@/mock/partners';
 import { formatDate, TODAY } from '@/utils/date';
 
 const { TextArea } = Input;
 
 /**
  * Khối "Thông tin chung" của phiếu nhập. Đọc control từ FormProvider ở trang cha.
+ * Nhận supplierOptions và loadingSuppliers từ props thay vì import mock.
  */
-export default function InboundGeneralInfo() {
+export default function InboundGeneralInfo({ supplierOptions = [], loadingSuppliers = false }) {
   const {
     control,
     formState: { errors },
@@ -22,16 +22,6 @@ export default function InboundGeneralInfo() {
     >
       <Form layout="vertical" component={false}>
         <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2">
-          <Controller
-            name="code"
-            control={control}
-            render={({ field }) => (
-              <Form.Item label="Mã phiếu nhập">
-                <Input {...field} readOnly variant="filled" className="mono" />
-              </Form.Item>
-            )}
-          />
-
           {/* Ngày ghi sổ không cho chọn: phiếu luôn mang ngày lập. Khi nối API
               thật thì lấy ngày từ response của server thay vì tự tính ở FE. */}
           <Form.Item label="Ngày nhập">
@@ -48,7 +38,14 @@ export default function InboundGeneralInfo() {
                 validateStatus={errors.supplierId ? 'error' : ''}
                 help={errors.supplierId?.message}
               >
-                <Select {...field} showSearch optionFilterProp="label" placeholder="Chọn nhà cung cấp" options={SUPPLIER_OPTIONS} />
+                <Select
+                  {...field}
+                  showSearch
+                  optionFilterProp="label"
+                  placeholder="Chọn nhà cung cấp"
+                  options={supplierOptions}
+                  loading={loadingSuppliers}
+                />
               </Form.Item>
             )}
           />

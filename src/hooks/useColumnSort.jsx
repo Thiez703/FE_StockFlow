@@ -6,8 +6,8 @@ import { CaretUpOutlined, CaretDownOutlined } from '@ant-design/icons';
  * có `sorter` tự thêm icon riêng, chồng lên chỉ báo tự vẽ). Bấm tiêu đề đổi
  * chiều: asc -> desc -> tắt. Dùng chung cho mọi bảng có cột sort được.
  */
-export function useColumnSort() {
-  const [sortState, setSortState] = useState({ field: null, order: null });
+export function useColumnSort(defaultField = 'date', defaultOrder = 'desc') {
+  const [sortState, setSortState] = useState({ field: defaultField, order: defaultOrder });
 
   const toggleSort = (field) => {
     setSortState((prev) => {

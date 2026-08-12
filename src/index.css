@@ -12,6 +12,8 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+@plugin "@tailwindcss/typography";
+
 /**
  * Design tokens dùng chung (Tailwind v4 sinh utility từ đây: bg-navy-900, text-royal...).
  * Đồng bộ với src/constants/antdTheme.js — sửa 1 chỗ nhớ sửa chỗ kia.
@@ -300,6 +302,26 @@
     font-weight: 700;
     text-align: center;
     line-height: 1.2;
+  }
+}
+
+/**
+ * MOBILE: đảm bảo touch target tối thiểu 44×44px và loại bỏ hover-only interaction.
+ */
+@media (max-width: 767px) {
+  /* Ant Design buttons & interactive elements: minimum touch target */
+  .ant-btn {
+    min-height: 44px;
+  }
+
+  /* Drawer bottom-sheet rounded top */
+  .ant-drawer-bottom .ant-drawer-content {
+    border-radius: 16px 16px 0 0;
+  }
+
+  /* Tooltips hiện luôn nội dung thay vì hover — ẩn tooltip trên mobile */
+  .ant-tooltip {
+    display: none !important;
   }
 }
 

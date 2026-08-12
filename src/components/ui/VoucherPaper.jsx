@@ -51,6 +51,11 @@ export default function VoucherPaper({ voucher, print = false, className = '' })
       />
 
       <div className="mt-9 flex flex-col gap-2 text-[13px]">
+        {(voucher.rejectReason || voucher.voidReason) && (
+          <div className="mb-2 rounded border border-red-200 bg-red-50 p-2 text-[13px] font-semibold text-red-700">
+            Lý do {voucher.rejectReason ? 'từ chối' : 'huỷ'}: <span className="font-normal">{voucher.rejectReason || voucher.voidReason}</span>
+          </div>
+        )}
         {!isMoney && <DocField label="Biên bản số" value={voucher.code} />}
         <DocField label={cfg.partnerLabel} value={voucher.partnerName || cfg.partnerFallback} />
         {/* Hàng bất thường: dòng này ghi loại bất thường, còn diễn giải nằm ở

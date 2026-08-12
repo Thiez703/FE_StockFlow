@@ -8,6 +8,7 @@ import {
   DeleteOutlined,
   SafetyCertificateOutlined,
   AuditOutlined,
+  WarningOutlined,
   BarChartOutlined,
   FileSearchOutlined,
   ProfileOutlined,
@@ -15,6 +16,7 @@ import {
   SettingOutlined,
   UserOutlined,
   HistoryOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { MASTER_DATA_ITEMS } from '@/features/master-data/constants/masterDataSections';
 
@@ -40,6 +42,20 @@ export const NAV_GROUPS = [
         label: 'Bảng điều khiển',
         icon: DashboardOutlined,
         desc: 'KPI tồn kho & hoạt động hôm nay',
+      },
+    ],
+  },
+  {
+    key: 'ai-features',
+    label: 'AI Copilot',
+    icon: RobotOutlined,
+    items: [
+      {
+        key: '/copilot',
+        label: 'Trợ lý tài chính',
+        icon: RobotOutlined,
+        desc: 'Phân tích & báo cáo tự động',
+        roles: ['ADMIN', 'ACCOUNTANT'],
       },
     ],
   },
@@ -94,6 +110,13 @@ export const NAV_GROUPS = [
         label: 'Kiểm kê',
         icon: AuditOutlined,
         desc: 'Đếm thực tế & chênh lệch',
+        roles: ['ADMIN', 'STAFF', 'ACCOUNTANT', 'MANAGER'],
+      },
+      {
+        key: '/abnormal-stocks',
+        label: 'Hàng bất thường',
+        icon: WarningOutlined,
+        desc: 'Hư hỏng, mất, hết hạn',
         roles: ['ADMIN', 'STAFF', 'ACCOUNTANT', 'MANAGER'],
       },
     ],
@@ -185,6 +208,49 @@ function normalizeGroup(group) {
 // Tất cả key (đường dẫn) phẳng — tiện dò nhóm đang active theo path hiện tại.
 export const FLAT_NAV_KEYS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.key));
 
+/**
+ * Danh sách đường dẫn (prefix) được phép hiển thị trên mobile.
+ * Các route không nằm trong danh sách này sẽ hiện trang "Tối ưu cho desktop".
+ * So sánh bằng startsWith để bao gồm cả route con (ví dụ /outbounds/create/retail).
+ */
+/**
+ * Đường dẫn luôn cho phép trên mobile (không cần quyền đặc biệt).
+ */
+export const MOBILE_ALLOWED_PATHS = [
+  '/dashboard',
+  '/inbounds',
+  '/outbounds',
+  '/stocktakes',
+  '/abnormal-stocks',
+];
+
+/**
+ * Đường dẫn cho phép trên mobile khi có quyền tương ứng.
+ * Key = permission name trong usePermissions(), value = danh sách path prefix.
+ */
+export const MOBILE_PERMISSION_PATHS = {
+  canViewInventory: ['/inventory', '/stock-card', '/alerts'],
+  canViewReports: ['/reports'],
+  canManageMasterData: ['/master-data'],
+};
+
+/**
+ * Kiểm tra path hiện tại có được phép trên mobile không.
+ * - Luôn cho phép các path trong MOBILE_ALLOWED_PATHS.
+ * - Cho phép thêm các path trong MOBILE_PERMISSION_PATHS nếu user có quyền tương ứng.
+ */
+export function isMobileAllowedPath(pathname, permissions = {}) {
+  const matchPath = (p) => pathname === p || pathname.startsWith(`${p}/`);
+
+  if (MOBILE_ALLOWED_PATHS.some(matchPath)) return true;
+
+  for (const [perm, paths] of Object.entries(MOBILE_PERMISSION_PATHS)) {
+    if (permissions[perm] && paths.some(matchPath)) return true;
+  }
+
+  return false;
+}
+
 export function getVisibleSidebarGroups(userRole) {
   return SIDEBAR_GROUPS.map((group) => {
     const items = group.items
@@ -192,7 +258,11 @@ export function getVisibleSidebarGroups(userRole) {
       .map((item) => {
         let label = item.label;
         if (item.path === '/outbounds' || item.key === '/outbounds') {
-          label = ['ADMIN', 'MANAGER'].includes(userRole) ? 'Quản lý phiếu xuất' : 'Phiếu xuất của tôi';
+          label = ['ADMIN', 'MANAGER'].includes(userRole) ? 'Quản lý phiếu xuất'
+            : userRole === 'ACCOUNTANT' ? 'Xem phiếu xuất' : 'Phiếu xuất của tôi';
+        }
+        if ((item.path === '/inbounds' || item.key === '/inbounds') && userRole === 'ACCOUNTANT') {
+          label = 'Xem phiếu nhập';
         }
         return { ...item, label };
       });

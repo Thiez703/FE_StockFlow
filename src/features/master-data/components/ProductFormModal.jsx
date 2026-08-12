@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { Modal, Form, Input, InputNumber, Select } from 'antd';
+import { Modal, Form, Input, InputNumber, Select, Tooltip } from 'antd';
+import { useQuery } from '@tanstack/react-query';
+import { inventoryApi } from '@/api/inventory';
 
 const STATUS_OPTIONS = [
   { value: 'ACTIVE', label: 'Hoạt động' },
@@ -26,6 +28,14 @@ export default function ProductFormModal({
       form.setFieldsValue(editing ?? { status: 'ACTIVE', minStock: 0 });
     }
   }, [open, editing, form]);
+
+  const { data: txData } = useQuery({
+    queryKey: ['transactions', editing?.id],
+    queryFn: () => inventoryApi.getTransactionsByProduct(editing.id, { size: 1 }),
+    enabled: !!editing?.id,
+  });
+
+  const hasTransactions = txData?.totalElements > 0;
 
   const handleOk = async () => {
     const values = await form.validateFields();
@@ -66,7 +76,13 @@ export default function ProductFormModal({
               { max: 30, message: 'Tối đa 30 ký tự' },
             ]}
           >
-            <Input placeholder="BIA-SG-LAGER-330" />
+            {hasTransactions ? (
+              <Tooltip title="Không thể sửa mã vì sản phẩm đã phát sinh giao dịch/tồn kho">
+                <Input placeholder="BIA-SG-LAGER-330" disabled />
+              </Tooltip>
+            ) : (
+              <Input placeholder="BIA-SG-LAGER-330" disabled={false} />
+            )}
           </Form.Item>
           <Form.Item name="categoryId" label="Danh mục">
             <Select

@@ -8,6 +8,7 @@ import { dashboardRoutes } from '@/features/dashboard/routes';
 import { inboundRoutes } from '@/features/inbounds/routes';
 import { outboundRoutes } from '@/features/outbounds/routes';
 import { stocktakeRoutes } from '@/features/stocktakes/routes';
+import { abnormalStockRoutes } from '@/features/abnormal-stocks/routes';
 import { inventoryRoutes } from '@/features/inventory/routes';
 import { stockCardRoutes } from '@/features/stock-card/routes';
 import { alertRoutes } from '@/features/alerts/routes';
@@ -15,6 +16,7 @@ import { reportRoutes } from '@/features/reports/routes';
 import { userRoutes } from '@/features/users/routes';
 import { logRoutes } from '@/features/logs/routes';
 import { masterDataRoutes } from '@/features/master-data/routes';
+import { aiCopilotRoutes } from '@/features/ai-copilot/routes';
 
 export const router = createBrowserRouter([
   {
@@ -38,12 +40,14 @@ export const router = createBrowserRouter([
           ...inboundRoutes,
           ...outboundRoutes,
           ...stocktakeRoutes,
+          ...abnormalStockRoutes,
           ...inventoryRoutes,
           ...stockCardRoutes,
           ...alertRoutes,
           ...reportRoutes,
           ...userRoutes,
           ...logRoutes,
+          ...aiCopilotRoutes,
           { path: '*', element: <ComingSoon /> },
         ],
       },

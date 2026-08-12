@@ -1,20 +1,26 @@
 import { Card, Form, Input, Select } from 'antd';
-import { useFormContext, Controller } from 'react-hook-form';
-import { CUSTOMER_OPTIONS, SUPPLIER_OPTIONS } from '@/mock/partners';
-import { REASON_TYPES } from '@/mock/outbounds';
+import { DISPOSAL_REASON_OPTIONS } from '@/features/outbounds/constants/issueTypes';
 import { formatDate, TODAY } from '@/utils/date';
 
 const { TextArea } = Input;
 
 /**
- * Khối thông tin chung — hiển thị field khác nhau tuỳ issue_type.
- * @param {'RETAIL'|'RETURN_SUPPLIER'|'DISPOSAL'} issueType
+ * Khối thông tin chung của phiếu xuất — field thay đổi theo loại xuất.
+ *
+ * Chỉ `customerId` là field thật của backend. Nhà cung cấp (phiếu trả NCC) và
+ * lý do huỷ (phiếu xuất huỷ) không có cột riêng trong OutboundCreateRequest,
+ * trang lập phiếu ghép hai giá trị này vào `note` trước khi gửi đi.
  */
-export default function OutboundGeneralInfo({ issueType }) {
-  const {
-    control,
-    formState: { errors },
-  } = useFormContext();
+export default function OutboundGeneralInfo({
+  issueType,
+  value,
+  onChange,
+  customerOptions,
+  supplierOptions,
+  loadingPartners,
+  createdBy,
+}) {
+  const set = (patch) => onChange({ ...value, ...patch });
 
   return (
     <Card
@@ -24,97 +30,73 @@ export default function OutboundGeneralInfo({ issueType }) {
     >
       <Form layout="vertical" component={false}>
         <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2">
-          <Controller
-            name="code"
-            control={control}
-            render={({ field }) => (
-              <Form.Item label="Mã phiếu xuất">
-                <Input {...field} readOnly variant="filled" className="mono" />
-              </Form.Item>
-            )}
-          />
-
           <Form.Item label="Ngày xuất">
             <Input value={formatDate(TODAY)} readOnly variant="filled" className="mono" />
           </Form.Item>
 
           {issueType === 'RETAIL' && (
-            <Controller
-              name="customerId"
-              control={control}
-              render={({ field }) => (
-                <Form.Item
-                  label="Khách hàng"
-                  required
-                  validateStatus={errors.customerId ? 'error' : ''}
-                  help={errors.customerId?.message}
-                >
-                  <Select
-                    {...field}
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn khách hàng"
-                    options={CUSTOMER_OPTIONS}
-                  />
-                </Form.Item>
-              )}
-            />
+            <Form.Item label="Khách hàng" required>
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Chọn khách hàng"
+                options={customerOptions}
+                loading={loadingPartners}
+                value={value.customerId}
+                onChange={(v) => set({ customerId: v })}
+              />
+            </Form.Item>
           )}
 
           {issueType === 'RETURN_SUPPLIER' && (
-            <Controller
-              name="supplierId"
-              control={control}
-              render={({ field }) => (
-                <Form.Item
-                  label="Nhà cung cấp"
-                  required
-                  validateStatus={errors.supplierId ? 'error' : ''}
-                  help={errors.supplierId?.message}
-                >
-                  <Select
-                    {...field}
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn nhà cung cấp"
-                    options={SUPPLIER_OPTIONS}
-                  />
-                </Form.Item>
-              )}
-            />
+            <Form.Item name="supplierId" label="Trả về nhà cung cấp" rules={[{ required: true, message: 'Vui lòng chọn NCC' }]}>
+              <Select
+                showSearch
+                optionFilterProp="label"
+                placeholder="Chọn nhà cung cấp"
+                options={supplierOptions}
+                loading={loadingPartners}
+                value={value.supplierId}
+                onChange={(v) => set({ supplierId: v })}
+              />
+            </Form.Item>
           )}
 
           {issueType === 'DISPOSAL' && (
-            <Controller
-              name="reason_type"
-              control={control}
-              render={({ field }) => (
-                <Form.Item
-                  label="Lý do hủy"
-                  required
-                  validateStatus={errors.reason_type ? 'error' : ''}
-                  help={errors.reason_type?.message}
-                >
-                  <Select
-                    {...field}
-                    placeholder="Chọn lý do hủy"
-                    options={REASON_TYPES}
-                  />
-                </Form.Item>
-              )}
-            />
-          )}
-        </div>
-
-        <Controller
-          name="note"
-          control={control}
-          render={({ field }) => (
-            <Form.Item label="Ghi chú" className="!mb-0">
-              <TextArea {...field} rows={2} placeholder="Ghi chú thêm cho phiếu xuất (không bắt buộc)" />
+            <Form.Item name="disposalReason" label="Lý do xuất huỷ" rules={[{ required: true, message: 'Vui lòng chọn lý do' }]}>
+              <Select
+                placeholder="Chọn lý do hủy"
+                options={DISPOSAL_REASON_OPTIONS}
+                value={value.disposalReason}
+                onChange={(v) => set({ disposalReason: v })}
+              />
             </Form.Item>
           )}
-        />
+
+          {/* Người lập lấy từ token ở backend, không sửa được tại đây. */}
+          <Form.Item label="Người lập phiếu">
+            <Input value={createdBy ?? '—'} readOnly variant="filled" />
+          </Form.Item>
+        </div>
+
+        <Form.Item
+          label="Ghi chú"
+          className="!mb-0"
+          extra={
+            issueType !== 'RETAIL' && value.note.length > 200
+              ? 'Ghi chú sẽ được ghép với thông tin NCC/lý do hủy và cắt ở 255 ký tự.'
+              : undefined
+          }
+        >
+          <TextArea
+            rows={2}
+            maxLength={255}
+            showCount
+            placeholder="Ghi chú thêm cho phiếu xuất (không bắt buộc)"
+            value={value.note}
+            onChange={(e) => set({ note: e.target.value })}
+          />
+        </Form.Item>
       </Form>
     </Card>
   );

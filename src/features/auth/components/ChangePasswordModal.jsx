@@ -4,12 +4,13 @@ import { Modal, Form, Input, App } from 'antd';
 import { LockOutlined } from '@ant-design/icons';
 import { changePasswordSchema } from '@/features/auth/schemas/changePasswordSchema';
 import RhfTextField from '@/components/form/RhfTextField';
+import { authApi } from '@/api/auth';
+import { getChangePasswordError } from '@/features/auth/utils/changePasswordError';
 
 const DEFAULTS = { oldPassword: '', newPassword: '', confirm: '' };
 
 /**
  * Modal đổi mật khẩu — mở từ dropdown avatar trên TopNav.
- * Demo tĩnh: submit chỉ hiện thông báo thành công rồi đóng (không gọi API).
  */
 export default function ChangePasswordModal({ open, onClose }) {
   const { message } = App.useApp();
@@ -28,10 +29,17 @@ export default function ChangePasswordModal({ open, onClose }) {
     onClose();
   };
 
-  const onSubmit = async () => {
-    await new Promise((r) => setTimeout(r, 600));
-    message.success('Đổi mật khẩu thành công!');
-    close();
+  const onSubmit = async (values) => {
+    try {
+      await authApi.changePassword({
+        oldPassword: values.oldPassword,
+        newPassword: values.newPassword,
+      });
+      message.success('Đổi mật khẩu thành công!');
+      close();
+    } catch (err) {
+      message.error(getChangePasswordError(err));
+    }
   };
 
   const field = (name, label, placeholder) => (
@@ -65,7 +73,7 @@ export default function ChangePasswordModal({ open, onClose }) {
       </p>
       <Form layout="vertical" requiredMark={false} onFinish={handleSubmit(onSubmit)}>
         {field('oldPassword', 'Mật khẩu hiện tại', 'Nhập mật khẩu đang dùng')}
-        {field('newPassword', 'Mật khẩu mới', 'Tối thiểu 6 ký tự')}
+        {field('newPassword', 'Mật khẩu mới', 'Tối thiểu 8 ký tự')}
         {field('confirm', 'Xác nhận mật khẩu mới', 'Nhập lại mật khẩu mới')}
       </Form>
     </Modal>

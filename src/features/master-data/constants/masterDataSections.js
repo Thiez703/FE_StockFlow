@@ -28,6 +28,8 @@ import PartnersTab from '@/features/master-data/components/PartnersTab';
  */
 const MASTER_DATA_BASE = '/master-data';
 
+const MASTER_DATA_ROLES = ['ADMIN', 'MANAGER'];
+
 const RAW_GROUPS = [
   {
     key: 'goods',
@@ -39,6 +41,7 @@ const RAW_GROUPS = [
         icon: AppstoreOutlined,
         desc: 'Mã, tên, danh mục và đơn vị tính của sản phẩm',
         component: ProductsTab,
+        roles: MASTER_DATA_ROLES,
       },
       {
         slug: 'categories',
@@ -46,6 +49,7 @@ const RAW_GROUPS = [
         icon: ApartmentOutlined,
         desc: 'Cây danh mục phân loại sản phẩm',
         component: CategoriesTab,
+        roles: MASTER_DATA_ROLES,
       },
     ],
   },
@@ -59,6 +63,7 @@ const RAW_GROUPS = [
         icon: EnvironmentOutlined,
         desc: 'Kho, khu vực và kệ lưu trữ',
         component: LocationsTab,
+        roles: MASTER_DATA_ROLES,
       },
       {
         slug: 'lots',
@@ -66,6 +71,7 @@ const RAW_GROUPS = [
         icon: TagsOutlined,
         desc: 'Lô hàng theo ngày sản xuất và hạn dùng',
         component: LotsTab,
+        roles: MASTER_DATA_ROLES,
       },
     ],
   },
@@ -79,6 +85,7 @@ const RAW_GROUPS = [
         icon: TeamOutlined,
         desc: 'Đối tác mua vào và bán ra',
         component: PartnersTab,
+        roles: MASTER_DATA_ROLES,
       },
     ],
   },

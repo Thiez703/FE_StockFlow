@@ -1,103 +1,173 @@
-import { useState } from 'react';
-import { Card, Form, Select, Input, InputNumber, Button, Empty, App, Popconfirm } from 'antd';
-import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, CheckOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Alert,
+  Card,
+  Form,
+  Input,
+  InputNumber,
+  Button,
+  Empty,
+  Spin,
+  Checkbox,
+  App,
+  Popconfirm,
+} from 'antd';
+import { ArrowLeftOutlined, DeleteOutlined, CheckOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import MobileQuantityInput from '@/components/ui/MobileQuantityInput';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import PageHeader from '@/components/ui/PageHeader';
 import DocCode from '@/components/ui/DocCode';
 import VoucherResult from '@/components/ui/VoucherResult';
-import { DEFAULT_WAREHOUSE } from '@/constants/voucher';
-import { PRODUCT_OPTIONS } from '@/mock/products';
-import { INVENTORY } from '@/mock/inventory';
+import AccessDenied from '@/components/feedback/AccessDenied';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useInventorySnapshot } from '@/hooks/useInventorySnapshot';
+import { toStocktakeRecord } from '@/features/stocktakes/utils/mapStocktake';
+import { stocktakeApi } from '@/api/stocktakes';
+import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatNumber } from '@/utils/formatCurrency';
 import { formatDate, TODAY } from '@/utils/date';
-
-let rowSeq = 1;
-const newRow = () => ({
-  key: `r${rowSeq++}`,
-  productId: undefined,
-  productName: '',
-  lot: '',
-  unit: '',
-  systemQty: 0,
-  countedQty: 0,
-});
-
-function generateCode() {
-  return `KK-2026-00${Math.floor(10 + Math.random() * 89)}`;
-}
+import { toVoucher } from '@/utils/voucher';
 
 function DiffCell({ value }) {
   const cls = value === 0 ? 'text-ink-sub' : value > 0 ? 'text-[#15803d]' : 'text-[#b91c1c]';
   return <span className={`mono font-semibold ${cls}`}>{value > 0 ? `+${value}` : value}</span>;
 }
 
+const DRAFT_STORAGE_KEY = 'stockflow.stocktake.draft';
+
+function saveDraft(counts, excluded, note) {
+  try {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ counts, excluded, note, savedAt: Date.now() }));
+  } catch { /* quota exceeded — không chặn UX */ }
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    // Bỏ draft quá 24 giờ
+    if (Date.now() - data.savedAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      return null;
+    }
+    return data;
+  } catch { return null; }
+}
+
+function clearDraft() {
+  localStorage.removeItem(DRAFT_STORAGE_KEY);
+}
+
 export default function StocktakeCreatePage() {
+  const isMobile = useIsMobile();
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const fullName = useSelector((state) => state.auth.user?.fullName);
+  const { canCreateStocktake } = usePermissions();
 
-  const [code, setCode] = useState(generateCode);
-  const [inspector, setInspector] = useState(fullName || 'Lê Minh Quân');
-  const [reason, setReason] = useState('');
-  const [rows, setRows] = useState([newRow()]);
-  // Có giá trị => đã xác nhận, chuyển sang xem tờ biên bản vừa lập.
+  const { cells, isLoading, isError, error, isFetching, refetch } = useInventorySnapshot(undefined, {
+    enabled: canCreateStocktake,
+  });
+
+  const location = useLocation();
+  const inherited = location.state?.inheritFrom;
+
+  // Load draft từ localStorage nếu có (ưu tiên inherited từ navigation state)
+  const draft = useMemo(() => (inherited ? null : loadDraft()), [inherited]);
+
+  const [note, setNote] = useState(() => draft?.note || inherited?.note || '');
+  const [keyword, setKeyword] = useState('');
+  const [diffOnly, setDiffOnly] = useState(false);
+  const [counts, setCounts] = useState(() => {
+    if (inherited?.items) {
+      const init = {};
+      inherited.items.forEach((d) => { init[`${d.lotId}-${d.locationId}`] = d.actualQty; });
+      return init;
+    }
+    return draft?.counts || {};
+  });
+  const [excluded, setExcluded] = useState(() => draft?.excluded || []);
   const [created, setCreated] = useState(null);
 
-  const patchRow = (key, patch) => setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const removeRow = (key) => setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.key !== key) : prev));
+  // Mobile: track dòng đang focus để auto-advance
+  const [activeRowIdx, setActiveRowIdx] = useState(0);
+  const activeRowRef = useRef(null);
 
-  // Chọn sản phẩm thì lấy luôn lô, đơn vị và tồn hệ thống để đối chiếu.
-  const onPickProduct = (key, productId) => {
-    const opt = PRODUCT_OPTIONS.find((p) => p.value === productId);
-    const inv = INVENTORY.find((i) => i.productId === productId);
-    patchRow(key, {
-      productId,
-      productName: opt?.label ?? '',
-      lot: inv?.lot ?? '',
-      unit: inv?.unit ?? opt?.unit ?? '',
-      systemQty: inv?.onHand ?? 0,
-      countedQty: inv?.onHand ?? 0,
+  // Auto-save draft khi counts/excluded/note thay đổi
+  useEffect(() => {
+    if (Object.keys(counts).length > 0 || excluded.length > 0) {
+      saveDraft(counts, excluded, note);
+    }
+  }, [counts, excluded, note]);
+
+  const countOf = (cell) => counts[cell.key] ?? cell.quantity ?? 0;
+
+  const rows = useMemo(
+    () => cells.filter((c) => !excluded.includes(c.key)),
+    [cells, excluded],
+  );
+
+  const visibleRows = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return rows.filter((c) => {
+      const okKw =
+        !kw ||
+        [c.productName, c.productCode, c.lotCode, c.locationCode].some((v) =>
+          String(v ?? '').toLowerCase().includes(kw),
+        );
+      const okDiff = !diffOnly || countOf(c) !== c.quantity;
+      return okKw && okDiff;
     });
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, keyword, diffOnly, counts]);
 
-  const totalDiff = rows.reduce((s, r) => s + (r.countedQty - r.systemQty), 0);
+  const totalDiff = rows.reduce((sum, c) => sum + (countOf(c) - (c.quantity ?? 0)), 0);
+
+  const { mutate: save, isPending: isSaving } = useMutation({
+    mutationFn: (payload) => stocktakeApi.create(payload),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['stocktakes', DEFAULT_WAREHOUSE_ID] });
+      setCreated(toStocktakeRecord(res));
+      clearDraft();
+      message.success('Đã lưu biên bản kiểm kê, chờ duyệt');
+      window.scrollTo({ top: 0 });
+    },
+    onError: (err) => message.error(getErrorMessage(err)),
+  });
 
   const submit = () => {
-    const counted = rows.filter((r) => r.productId);
-    if (!counted.length) {
-      message.error('Cần kiểm kê ít nhất 1 mặt hàng.');
+    if (!rows.length) {
+      message.error('Cần kiểm kê ít nhất 1 vị trí.');
       return;
     }
-
-    setCreated({
-      kind: 'stocktake',
-      code,
-      // Ngày ghi sổ = ngày lập, không cho người dùng chọn.
-      date: TODAY,
-      status: 'PENDING',
-      note: reason,
-      partnerName: inspector,
-      createdBy: inspector,
-      warehouse: DEFAULT_WAREHOUSE,
-      items: counted.map((r) => ({
-        productName: r.productName,
-        lot: r.lot,
-        unit: r.unit,
-        systemQty: r.systemQty,
-        countedQty: r.countedQty,
+    save({
+      warehouseId: DEFAULT_WAREHOUSE_ID,
+      note: note.trim() || null,
+      details: rows.map((c) => ({
+        lotId: c.lotId,
+        locationId: c.locationId,
+        actualQty: countOf(c),
       })),
     });
-    message.success('Đã lưu biên bản kiểm kê, chờ duyệt');
-    window.scrollTo({ top: 0 });
   };
 
   const startNew = () => {
-    setCode(generateCode());
-    setReason('');
-    setRows([newRow()]);
+    setNote('');
+    setCounts({});
+    setExcluded([]);
     setCreated(null);
+    clearDraft();
+    refetch();
   };
+
+  // Đặt sau toàn bộ hook để không vi phạm rules-of-hooks.
+  if (!canCreateStocktake) return <AccessDenied />;
 
   if (created) {
     return (
@@ -109,7 +179,7 @@ export default function StocktakeCreatePage() {
           />
         </div>
         <VoucherResult
-          voucher={created}
+          voucher={toVoucher('stocktake', created)}
           title="Đã lưu biên bản kiểm kê, chờ duyệt"
           onEdit={() => setCreated(null)}
           onNew={startNew}
@@ -123,7 +193,7 @@ export default function StocktakeCreatePage() {
     <>
       <PageHeader
         title="Lập biên bản kiểm kê"
-        subtitle="Nhập số đếm thực tế, hệ thống tự tính chênh lệch"
+        subtitle="Nhập số đếm thực tế theo từng vị trí, hệ thống tự tính chênh lệch"
         breadcrumb={[{ title: 'Kiểm soát' }, { title: 'Kiểm kê', href: '/stocktakes' }, { title: 'Lập phiếu' }]}
         extra={
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/stocktakes')}>
@@ -131,6 +201,27 @@ export default function StocktakeCreatePage() {
           </Button>
         }
       />
+
+      {isError && (
+        <Alert
+          className="mb-4"
+          type="error"
+          showIcon
+          message="Không tải được tồn kho hiện tại"
+          // Spring trả 403 với body chỉ có chữ "Forbidden" — nói rõ nguyên nhân
+          // để người dùng khỏi tưởng là lỗi mạng.
+          description={
+            error?.response?.status === 403
+              ? 'Máy chủ chưa cho vai trò của bạn lập biên bản kiểm kê. Hiện chỉ Quản lý kho, Kế toán và Nhân viên kho lập được.'
+              : getErrorMessage(error)
+          }
+          action={
+            <Button size="small" onClick={() => refetch()}>
+              Thử lại
+            </Button>
+          }
+        />
+      )}
 
       <div className="flex flex-col gap-4">
         <Card
@@ -140,21 +231,18 @@ export default function StocktakeCreatePage() {
         >
           <Form layout="vertical" component={false}>
             <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2">
-              <Form.Item label="Số biên bản">
-                <Input value={code} readOnly variant="filled" className="mono" />
-              </Form.Item>
-              {/* Ngày ghi sổ không cho chọn: biên bản luôn mang ngày lập. Khi nối
-                  API thật thì lấy ngày từ response của server. */}
+
               <Form.Item label="Ngày kiểm kê">
                 <Input value={formatDate(TODAY)} readOnly variant="filled" className="mono" />
               </Form.Item>
-              <Form.Item label="Ban kiểm kê / người kiểm">
-                <Input value={inspector} onChange={(e) => setInspector(e.target.value)} />
+              {/* Người kiểm lấy từ token ở backend, không sửa được tại đây. */}
+              <Form.Item label="Người kiểm">
+                <Input value={fullName ?? '—'} readOnly variant="filled" />
               </Form.Item>
               <Form.Item label="Lý do / phạm vi kiểm kê" className="!mb-0">
                 <Input
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
                   placeholder="VD: Kiểm kê định kỳ quý III khu A"
                 />
               </Form.Item>
@@ -167,93 +255,208 @@ export default function StocktakeCreatePage() {
           className="border-hair"
           styles={{ header: { borderBottom: '1px solid #f1f5f9' }, body: { padding: 0 } }}
           extra={
-            <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => setRows((p) => [...p, newRow()])}>
-              Thêm dòng
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Input
+                allowClear
+                size="small"
+                prefix={<SearchOutlined className="text-slate-400" />}
+                placeholder="Tìm sản phẩm, lô, vị trí..."
+                className="w-full sm:w-56"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+              />
+              <Checkbox checked={diffOnly} onChange={(e) => setDiffOnly(e.target.checked)}>
+                Chỉ dòng lệch
+              </Checkbox>
+              <Button size="small" icon={<ReloadOutlined />} loading={isFetching} onClick={() => refetch()}>
+                Tải lại tồn
+              </Button>
+            </div>
           }
         >
           <div className="hidden grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
-            <span className="col-span-5">Sản phẩm</span>
+            <span className="col-span-4">Sản phẩm</span>
             <span className="col-span-2">Lô</span>
+            <span className="col-span-1">Vị trí</span>
             <span className="col-span-2 text-right">Tồn hệ thống</span>
             <span className="col-span-2 text-right">Đếm thực tế</span>
             <span className="col-span-1 text-right">Lệch</span>
           </div>
 
-          {rows.length === 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Spin tip="Đang tải tồn kho hiện tại..." />
+            </div>
+          ) : visibleRows.length === 0 ? (
             <div className="py-10">
-              <Empty description="Chưa có dòng nào" />
+              <Empty
+                description={
+                  rows.length === 0
+                    ? 'Kho chưa có lô hàng nào để kiểm kê'
+                    : 'Không có dòng nào khớp bộ lọc'
+                }
+              />
+            </div>
+          ) : isMobile ? (
+            /* ─── MOBILE: card-based counting with auto-advance ─── */
+            <div className="flex flex-col gap-3 p-3">
+              {/* Progress indicator */}
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                <span className="text-ink-sub">Tiến độ</span>
+                <span className="font-bold text-ink">
+                  {Object.keys(counts).length} / {visibleRows.length} đã đếm
+                </span>
+              </div>
+
+              {visibleRows.map((c, idx) => {
+                const counted = countOf(c);
+                const diff = counted - (c.quantity ?? 0);
+                const isActive = idx === activeRowIdx;
+
+                return (
+                  <div
+                    key={c.key}
+                    ref={isActive ? activeRowRef : undefined}
+                    className={`rounded-xl border-2 p-3 transition-colors ${
+                      isActive ? 'border-royal bg-blue-50/30' : 'border-hair bg-white'
+                    }`}
+                    onClick={() => setActiveRowIdx(idx)}
+                  >
+                    {/* Product info */}
+                    <div className="mb-2">
+                      <div className="text-sm font-bold text-ink">{c.productName}</div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-ink-sub mt-0.5">
+                        <span className="mono">{c.productCode}</span>
+                        <span>· Lô: <strong>{c.lotCode}</strong></span>
+                        <span>· {c.locationCode}</span>
+                      </div>
+                    </div>
+
+                    {/* System qty + count input + diff */}
+                    <div className="flex items-center gap-3">
+                      <div className="shrink-0 text-center">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase">Hệ thống</div>
+                        <div className="mono text-lg font-bold text-ink-sub">{formatNumber(c.quantity)}</div>
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Đếm thực tế</div>
+                        <MobileQuantityInput
+                          value={counted}
+                          onChange={(v) => {
+                            setCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }));
+                            // Auto-advance: chuyển sang dòng tiếp theo sau khi đổi giá trị
+                            if (idx < visibleRows.length - 1) {
+                              setTimeout(() => {
+                                setActiveRowIdx(idx + 1);
+                                activeRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }, 300);
+                            }
+                          }}
+                          min={0}
+                        />
+                      </div>
+
+                      <div className="shrink-0 text-center">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase">Lệch</div>
+                        <div className="text-lg"><DiffCell value={diff} /></div>
+                      </div>
+                    </div>
+
+                    {/* Remove button */}
+                    <div className="mt-2 flex justify-end">
+                      <Button
+                        type="text"
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={(e) => { e.stopPropagation(); setExcluded((prev) => [...prev, c.key]); }}
+                        className="min-h-[44px]"
+                      >
+                        Bỏ qua
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            rows.map((r) => (
-              <div
-                key={r.key}
-                className="grid grid-cols-12 items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
-              >
-                <div className="col-span-12 md:col-span-5">
-                  <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Sản phẩm</span>
-                  <Select
-                    showSearch
-                    optionFilterProp="label"
-                    placeholder="Chọn sản phẩm"
-                    options={PRODUCT_OPTIONS}
-                    value={r.productId}
-                    onChange={(v) => onPickProduct(r.key, v)}
-                    className="w-full"
-                  />
+            /* ─── DESKTOP: original grid layout ─── */
+            visibleRows.map((c) => {
+              const counted = countOf(c);
+              return (
+                <div
+                  key={c.key}
+                  className="grid grid-cols-12 items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
+                >
+                  <div className="col-span-12 md:col-span-4">
+                    <div className="font-medium text-ink">{c.productName}</div>
+                    <div className="text-xs text-ink-sub">
+                      {c.productCode}
+                      {c.unit ? ` · ${c.unit}` : ''}
+                    </div>
+                  </div>
+                  <div className="col-span-6 md:col-span-2">
+                    <DocCode muted>{c.lotCode}</DocCode>
+                  </div>
+                  <div className="col-span-6 md:col-span-1">
+                    <span className="mono text-ink-sub">{c.locationCode}</span>
+                  </div>
+                  <div className="col-span-6 md:col-span-2 md:text-right">
+                    <span className="mono text-ink-sub">{formatNumber(c.quantity)}</span>
+                  </div>
+                  <div className="col-span-6 md:col-span-2">
+                    <InputNumber
+                      min={0}
+                      value={counted}
+                      onChange={(v) => setCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }))}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="col-span-12 flex items-center justify-end gap-1 md:col-span-1">
+                    <DiffCell value={counted - (c.quantity ?? 0)} />
+                    <Popconfirm
+                      title="Bỏ dòng này?"
+                      description="Vị trí này sẽ không nằm trong biên bản kiểm kê."
+                      onConfirm={() => setExcluded((prev) => [...prev, c.key])}
+                      okText="Bỏ"
+                      cancelText="Hủy"
+                      okButtonProps={{ danger: true }}
+                    >
+                      <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                  </div>
                 </div>
-                <div className="col-span-6 md:col-span-2">
-                  <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Lô</span>
-                  <DocCode muted>{r.lot || '—'}</DocCode>
-                </div>
-                <div className="col-span-6 md:col-span-2 md:text-right">
-                  <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Tồn hệ thống</span>
-                  <span className="mono text-ink-sub">{formatNumber(r.systemQty)}</span>
-                </div>
-                <div className="col-span-8 md:col-span-2">
-                  <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Đếm thực tế</span>
-                  <InputNumber
-                    min={0}
-                    value={r.countedQty}
-                    onChange={(v) => patchRow(r.key, { countedQty: v ?? 0 })}
-                    className="w-full"
-                  />
-                </div>
-                <div className="col-span-4 flex items-center justify-end gap-1 md:col-span-1">
-                  <DiffCell value={r.countedQty - r.systemQty} />
-                  <Popconfirm
-                    title="Xóa dòng này?"
-                    description="Xác nhận xóa sản phẩm khỏi biên bản?"
-                    onConfirm={() => removeRow(r.key)}
-                    okText="Xóa"
-                    cancelText="Hủy"
-                    okButtonProps={{ danger: true }}
-                  >
-                    <Button type="text" danger size="small" icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
 
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-sm text-ink-sub">Tổng chênh lệch</span>
+          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+            <span className="text-sm text-ink-sub">
+              Tổng chênh lệch — {rows.length} vị trí được kiểm
+              {excluded.length > 0 && `, ${excluded.length} vị trí đã bỏ`}
+            </span>
             <DiffCell value={totalDiff} />
           </div>
         </Card>
 
         <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
           <span className="text-center text-xs text-slate-400 sm:mr-auto sm:text-left">
-            Xác nhận xong sẽ hiện biên bản hoàn chỉnh để xem lại và in.
+            {excluded.length > 0 && (
+              <Button type="link" size="small" className="!px-0" onClick={() => setExcluded([])}>
+                Khôi phục {excluded.length} vị trí đã bỏ
+              </Button>
+            )}
           </span>
           <Popconfirm
             title="Lưu biên bản kiểm kê?"
-            description="Bạn có chắc chắn muốn lưu biên bản này?"
+            description="Biên bản sẽ được gửi đi chờ duyệt."
             onConfirm={submit}
             okText="Xác nhận"
             cancelText="Hủy"
+            disabled={!rows.length}
           >
-            <Button type="primary" size="large" icon={<CheckOutlined />}>
+            <Button type="primary" size="large" icon={<CheckOutlined />} loading={isSaving} disabled={!rows.length}>
               Lưu biên bản kiểm kê
             </Button>
           </Popconfirm>

@@ -1,7 +1,8 @@
 import { useId, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Select, Tag, Tooltip, Input, DatePicker } from 'antd';
+import { Select, Tag, Tooltip, Input, DatePicker, Spin, Alert } from 'antd';
 import { SearchOutlined, AppstoreOutlined, InboxOutlined, SwapOutlined, WalletOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
@@ -10,16 +11,50 @@ import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
 import { StaggerList, StaggerItem } from '@/components/ui/StaggerList';
 import StatCard from '@/features/dashboard/components/StatCard';
-import { STOCK_CARDS, STOCK_CARD_OPTIONS } from '@/mock/inventory';
+import AccessDenied from '@/components/feedback/AccessDenied';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { inventoryApi } from '@/api/inventory';
+import { productApi } from '@/api/products';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatDate } from '@/utils/date';
 import { formatNumber } from '@/utils/formatCurrency';
 
-const { RangePicker } = DatePicker;
-const TYPE_COLOR = { Nhập: 'blue', Xuất: 'gold', 'Kiểm kê': 'purple', 'Bất thường': 'red' };
-const ALL_TYPES = Object.keys(TYPE_COLOR);
+import DateRangeSelectGroup from '@/components/ui/DateRangeSelectGroup';
+import dayjs from 'dayjs';
 
-// Nền/viền/chữ khi chip lọc BẬT — map trực tiếp bằng class Tailwind (không qua
-// prop `color` của Tag) để cả 4 loại chắc chắn lên đúng màu, đồng nhất như nhau.
+// refType → label hiển thị + màu Tag
+const REF_TYPE_MAP = {
+  INBOUND: { label: 'Nhập', color: 'blue' },
+  INBOUND_VOID: { label: 'Huỷ nhập', color: 'red' },
+  OUTBOUND: { label: 'Xuất', color: 'gold' },
+  OUTBOUND_VOID: { label: 'Huỷ xuất', color: 'red' },
+  STOCKTAKE: { label: 'Kiểm kê', color: 'purple' },
+  ABNORMAL: { label: 'Bất thường', color: 'red' },
+};
+
+// refType → đường dẫn chi tiết phiếu gốc
+const REF_TYPE_PATH = {
+  INBOUND: '/inbounds',
+  INBOUND_VOID: '/inbounds',
+  OUTBOUND: '/outbounds',
+  OUTBOUND_VOID: '/outbounds',
+  STOCKTAKE: '/stocktakes',
+  ABNORMAL: '/abnormal-stocks',
+};
+
+const TYPE_HEX = {
+  INBOUND: '#1e5af0',
+  INBOUND_VOID: '#dc2626',
+  OUTBOUND: '#f59e0b',
+  OUTBOUND_VOID: '#dc2626',
+  STOCKTAKE: '#7c3aed',
+  ABNORMAL: '#dc2626',
+};
+const OPENING_HEX = '#12356b';
+
+const ALL_REF_TYPES = Object.keys(REF_TYPE_MAP);
+
 const TYPE_CHIP_ACTIVE_CLASS = {
   blue: 'border-royal/30 bg-tint text-royal',
   gold: 'border-amber/40 bg-amber/10 text-amber',
@@ -27,17 +62,9 @@ const TYPE_CHIP_ACTIVE_CLASS = {
   red: 'border-danger/40 bg-danger/10 text-danger',
 };
 
-// Màu chấm dùng cho biểu đồ số dư + trục dòng thời gian — cùng ngôn ngữ màu với
-// chip lọc loại chứng từ (Tag color ở trên) để cả trang nhất quán một bảng màu.
-const TYPE_HEX = { Nhập: '#1e5af0', Xuất: '#f59e0b', 'Kiểm kê': '#7c3aed', 'Bất thường': '#dc2626' };
-const OPENING_HEX = '#12356b';
-
-// Chừa lề trong khung 0..100 để đường không dí sát mép, nhìn "đầy đặn" hơn.
 const CHART_PAD_X = 4;
 const CHART_PAD_Y = 16;
 
-// Đường cong mượt qua các điểm bằng quadratic bezier nối trung điểm — kỹ thuật
-// "smooth sparkline" phổ biến, không cần thư viện chart.
 function smoothLinePath(points) {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
@@ -52,46 +79,100 @@ function smoothLinePath(points) {
   return d;
 }
 
+// Lấy tổng trang lớn để có toàn bộ lịch sử
+const BIG_PAGE = { page: 0, size: 500 };
+
 export default function StockCardPage() {
+  const { canViewInventory } = usePermissions();
   const [searchParams] = useSearchParams();
-  // Cho phép nhảy thẳng tới đây với 1 sản phẩm đã chọn sẵn (vd từ nút "Thẻ kho"
-  // trên trang Tra cứu tồn): /stock-card?productId=<mã sản phẩm>.
   const paramProductId = searchParams.get('productId');
-  const [productId, setProductId] = useState(
-    STOCK_CARDS[paramProductId] ? paramProductId : STOCK_CARD_OPTIONS[0].value,
-  );
+
+  const [productId, setProductId] = useState(paramProductId ? Number(paramProductId) : null);
   const [selectedTypes, setSelectedTypes] = useState([]);
-  const [dateRange, setDateRange] = useState(null);
+  const [dateRange, setDateRange] = useState([dayjs().subtract(1, 'month'), dayjs()]);
   const [keyword, setKeyword] = useState('');
   const [hoverIndex, setHoverIndex] = useState(null);
-  const card = STOCK_CARDS[productId];
 
-  const filteredRows = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    return card.rows.filter((r) => {
-      const okType = selectedTypes.length === 0 || selectedTypes.includes(r.type);
-      const okDate = !dateRange || (r.date >= dateRange[0].format('YYYY-MM-DD') && r.date <= dateRange[1].format('YYYY-MM-DD'));
-      const okKw = !kw || [r.docCode, r.note].some((v) => v.toLowerCase().includes(kw));
-      return okType && okDate && okKw;
-    });
-  }, [card, selectedTypes, dateRange, keyword]);
+  // Danh sách sản phẩm cho selector
+  const { data: products = [] } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => productApi.getAll(),
+  });
 
-  // Dòng "Số dư đầu kỳ" (số dư gốc, không đổi theo bộ lọc) + các dòng biến động đã lọc —
-  // dùng chung cho cả biểu đồ số dư lẫn dòng thời gian bên dưới.
-  const rows = useMemo(
-    () => [
-      { key: 'opening', opening: true, balance: card.opening },
-      ...filteredRows.map((r, i) => ({ key: `r${i}`, ...r })),
-    ],
-    [card.opening, filteredRows],
+  const productOptions = useMemo(
+    () => products.map((p) => ({ value: p.id, label: `${p.code} – ${p.name}` })),
+    [products],
   );
 
-  // Số dư cuối kỳ luôn phản ánh tồn kho thực tế hiện tại (dòng cuối cùng trong toàn bộ
-  // lịch sử), không phụ thuộc bộ lọc — tránh gây hiểu lầm "tồn kho thay đổi theo filter".
-  const closing = card.rows[card.rows.length - 1]?.balance ?? card.opening;
+  // Tự chọn sản phẩm đầu tiên nếu chưa có
+  const effectiveProductId = productId ?? products[0]?.id ?? null;
+  const selectedProduct = products.find((p) => p.id === effectiveProductId);
 
-  // Toạ độ % (0..100) cho từng điểm trên biểu đồ số dư — chuẩn hoá theo min/max số dư
-  // (có chừa lề trên/dưới) để đường luôn khớp khung, kể cả khi số dư âm.
+  // Lịch sử biến động
+  const {
+    data: txPage,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ['inventory-transactions', effectiveProductId],
+    queryFn: () => inventoryApi.getTransactionsByProduct(effectiveProductId, BIG_PAGE),
+    enabled: !!effectiveProductId,
+  });
+
+  // Map API → UI row shape
+  const mappedRows = useMemo(
+    () =>
+      (txPage?.content ?? []).map((tx) => {
+        const change = tx.quantityChange ?? 0;
+        return {
+          key: `tx-${tx.id}`,
+          id: tx.id,
+          date: tx.performedAt,
+          refType: tx.refType,
+          refId: tx.refId,
+          refCode: tx.refCode,
+          type: REF_TYPE_MAP[tx.refType]?.label ?? tx.refType,
+          typeColor: REF_TYPE_MAP[tx.refType]?.color ?? 'default',
+          inQty: change > 0 ? change : 0,
+          outQty: change < 0 ? Math.abs(change) : 0,
+          balance: tx.balanceAfter,
+          note: `${tx.lotCode ?? ''} · ${tx.locationCode ?? ''}`.trim().replace(/^·\s*/, '').replace(/\s*·$/, '') || tx.performedBy || '',
+          productName: tx.productName,
+        };
+      }),
+    [txPage?.content],
+  );
+
+  // Tính số dư đầu kỳ từ dòng đầu tiên
+  const opening = useMemo(() => {
+    if (mappedRows.length === 0) return 0;
+    const first = mappedRows[0];
+    return first.balance - (first.inQty > 0 ? first.inQty : -first.outQty);
+  }, [mappedRows]);
+
+  // Client-side filter
+  const filteredRows = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return mappedRows.filter((r) => {
+      const okType = selectedTypes.length === 0 || selectedTypes.includes(r.refType);
+      const okDate =
+        !dateRange ||
+        (r.date >= dateRange[0].format('YYYY-MM-DD') && r.date <= dateRange[1].format('YYYY-MM-DD'));
+      const okKw = !kw || [r.refCode, r.note].some((v) => v.toLowerCase().includes(kw));
+      return okType && okDate && okKw;
+    });
+  }, [mappedRows, selectedTypes, dateRange, keyword]);
+
+  // Dòng "Số dư đầu kỳ" + các dòng biến động đã lọc
+  const rows = useMemo(
+    () => [{ key: 'opening', opening: true, balance: opening }, ...filteredRows],
+    [opening, filteredRows],
+  );
+
+  const closing = mappedRows[mappedRows.length - 1]?.balance ?? opening;
+
+  // Toạ độ cho biểu đồ
   const { chartPoints, balanceMin, balanceMax, zeroY } = useMemo(() => {
     const balances = rows.map((r) => r.balance);
     const min = Math.min(...balances);
@@ -105,7 +186,7 @@ export default function StockCardPage() {
       ...r,
       x: n === 1 ? 50 : CHART_PAD_X + (i / (n - 1)) * usableX,
       y: toY(r.balance),
-      color: r.opening ? OPENING_HEX : TYPE_HEX[r.type],
+      color: r.opening ? OPENING_HEX : TYPE_HEX[r.refType] ?? '#94a3b8',
     }));
     return {
       chartPoints: points,
@@ -126,237 +207,293 @@ export default function StockCardPage() {
   const hovered = hoverIndex !== null ? chartPoints[hoverIndex] : null;
   const lastPoint = chartPoints[chartPoints.length - 1];
 
+  // Nhóm các loại refType có cùng chip style
+  const chipColorMap = {};
+  for (const rt of ALL_REF_TYPES) {
+    chipColorMap[rt] = REF_TYPE_MAP[rt].color;
+  }
+
+  const isMobile = useIsMobile();
+
+  if (!canViewInventory) return <AccessDenied />;
+
   return (
     <>
       <PageHeader
         title="Thẻ kho"
-        subtitle="Sổ cái biến động nhập – xuất với số dư chạy dồn"
+        subtitle={!isMobile ? 'Sổ cái biến động nhập – xuất với số dư chạy dồn' : undefined}
         breadcrumb={[{ title: 'Tồn kho & Báo cáo' }, { title: 'Thẻ kho' }]}
         extra={
-          <Select
-            className="w-72"
-            options={STOCK_CARD_OPTIONS}
-            value={productId}
-            onChange={setProductId}
-            showSearch
-            optionFilterProp="label"
-          />
+          !isMobile && (
+            <Select
+              className="w-72"
+              options={productOptions}
+              value={effectiveProductId}
+              onChange={(v) => setProductId(v)}
+              showSearch
+              optionFilterProp="label"
+              placeholder="Chọn sản phẩm"
+            />
+          )
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard
-          title="Sản phẩm"
-          value={
-            <Tooltip title={card.productName}>
-              <span className="line-clamp-2 block text-base font-bold leading-snug text-ink">
-                {card.productName}
-              </span>
-            </Tooltip>
-          }
-          hint={`ĐVT: ${card.unit}`}
-          icon={<AppstoreOutlined />}
-          tone="blue"
-          compact
+      {isMobile && (
+        <Select
+          className="w-full mb-3"
+          options={productOptions}
+          value={effectiveProductId}
+          onChange={(v) => setProductId(v)}
+          showSearch
+          optionFilterProp="label"
+          placeholder="Chọn sản phẩm"
+          size="large"
         />
-        <StatCard title="Số dư đầu kỳ" value={formatNumber(card.opening)} icon={<InboxOutlined />} tone="blue" compact />
-        <StatCard title="Số biến động" value={formatNumber(filteredRows.length)} suffix="dòng" icon={<SwapOutlined />} tone="blue" compact />
-        <StatCard
-          title="Số dư cuối kỳ"
-          value={formatNumber(closing)}
-          icon={<WalletOutlined />}
-          tone={closing < 0 ? 'red' : 'green'}
-          cardTone={closing < 0 ? 'red' : undefined}
-          compact
-        />
-      </div>
+      )}
 
-      <FilterBar>
-        <Input
-          allowClear
-          prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Tìm mã chứng từ, diễn giải..."
-          className="w-full sm:min-w-[200px] sm:max-w-[300px] sm:flex-1"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-        />
-        <RangePicker
-          format="DD/MM/YYYY"
-          className="w-full sm:w-auto"
-          onChange={(dates) => setDateRange(dates)}
-        />
-        <div className="flex flex-wrap items-center gap-1.5">
-          {ALL_TYPES.map((t) => {
-            const active = selectedTypes.includes(t);
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() =>
-                  setSelectedTypes((prev) => (active ? prev.filter((x) => x !== t) : [...prev, t]))
+      {isError && (
+        <Alert className="mb-4" type="error" showIcon message="Không tải được dữ liệu thẻ kho" description={getErrorMessage(error)} />
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center py-20"><Spin size="large" /></div>
+      ) : !effectiveProductId ? (
+        <TableEmptyState message="Chọn sản phẩm để xem thẻ kho" />
+      ) : (
+        <>
+          <div className={`mb-4 grid gap-3 ${isMobile ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4 gap-4'}`}>
+            {!isMobile && (
+              <StatCard
+                title="Sản phẩm"
+                value={
+                  <Tooltip title={selectedProduct?.name}>
+                    <span className="line-clamp-2 block text-base font-bold leading-snug text-ink">
+                      {selectedProduct?.name ?? ''}
+                    </span>
+                  </Tooltip>
                 }
-                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                  active ? TYPE_CHIP_ACTIVE_CLASS[TYPE_COLOR[t]] : 'border-slate-300 bg-white text-ink-sub'
-                }`}
-              >
-                {t}
-              </button>
-            );
-          })}
-        </div>
-      </FilterBar>
-
-      <FadeSection dataKey={rows.map((r) => r.key).join(',')}>
-        {/* Biểu đồ số dư chạy dồn theo thời gian */}
-        <div className="mb-4 rounded-2xl border border-hair bg-surface p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="m-0 text-sm font-semibold text-ink">Số dư tồn kho theo thời gian</h3>
-            <span className="rounded-full bg-tint px-3 py-1 text-xs font-semibold text-royal">
-              Hiện tại: {formatNumber(lastPoint?.balance ?? 0)}
-            </span>
+                icon={<AppstoreOutlined />}
+                tone="blue"
+                compact
+              />
+            )}
+            <StatCard title="Đầu kỳ" value={formatNumber(opening)} icon={<InboxOutlined />} tone="blue" compact />
+            <StatCard title="Biến động" value={formatNumber(filteredRows.length)} suffix="dòng" icon={<SwapOutlined />} tone="blue" compact />
+            <StatCard
+              title="Cuối kỳ"
+              value={formatNumber(closing)}
+              icon={<WalletOutlined />}
+              tone={closing < 0 ? 'red' : 'green'}
+              cardTone={closing < 0 ? 'red' : undefined}
+              compact
+            />
           </div>
 
-          <div className="flex h-60" onMouseLeave={() => setHoverIndex(null)}>
-            {/* Trục giá trị: số dư cao nhất / 0 (nếu có) / thấp nhất trong kỳ */}
-            <div className="relative w-16 shrink-0 pr-2">
-              <span className="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-ink-sub" style={{ top: `${CHART_PAD_Y}%` }}>
-                {formatNumber(balanceMax)}
-              </span>
-              {zeroY !== null && (
-                <span className="absolute right-2 -translate-y-1/2 text-[11px] text-ink-sub/70" style={{ top: `${zeroY}%` }}>
-                  0
+          <FilterBar>
+            <Input
+              allowClear
+              prefix={<SearchOutlined className="text-slate-400" />}
+              placeholder="Tìm mã chứng từ..."
+              className="w-full sm:min-w-[200px] sm:max-w-[300px] sm:flex-1"
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+            />
+            {!isMobile && (
+              <DateRangeSelectGroup
+                className="w-full sm:w-auto"
+                value={dateRange}
+                onChange={(dates) => setDateRange(dates?.[0] && dates?.[1] ? dates : null)}
+              />
+            )}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {ALL_REF_TYPES.map((rt) => {
+                const active = selectedTypes.includes(rt);
+                const color = chipColorMap[rt];
+                return (
+                  <button
+                    key={rt}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTypes((prev) => (active ? prev.filter((x) => x !== rt) : [...prev, rt]))
+                    }
+                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      active ? TYPE_CHIP_ACTIVE_CLASS[color] : 'border-slate-300 bg-white text-ink-sub'
+                    }`}
+                  >
+                    {REF_TYPE_MAP[rt].label}
+                  </button>
+                );
+              })}
+            </div>
+          </FilterBar>
+          {isMobile && (
+            <div className="mb-3">
+              <DateRangeSelectGroup
+                className="w-full"
+                value={dateRange}
+                onChange={(dates) => setDateRange(dates?.[0] && dates?.[1] ? dates : null)}
+              />
+            </div>
+          )}
+
+          <FadeSection dataKey={rows.map((r) => r.key).join(',')}>
+            {/* Biểu đồ số dư */}
+            <div className="mb-4 rounded-2xl border border-hair bg-surface p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="m-0 text-sm font-semibold text-ink">Số dư tồn kho theo thời gian</h3>
+                <span className="rounded-full bg-tint px-3 py-1 text-xs font-semibold text-royal">
+                  Hiện tại: {formatNumber(lastPoint?.balance ?? 0)}
                 </span>
-              )}
-              <span className="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-ink-sub" style={{ top: `${100 - CHART_PAD_Y}%` }}>
-                {formatNumber(balanceMin)}
-              </span>
-            </div>
+              </div>
 
-            <div className="relative flex-1">
-              <div className="absolute inset-x-0 border-t border-dashed border-hair" style={{ top: `${CHART_PAD_Y}%` }} />
-              <div className="absolute inset-x-0 border-t border-dashed border-hair" style={{ top: `${100 - CHART_PAD_Y}%` }} />
-              {zeroY !== null && (
-                <div className="absolute inset-x-0 border-t border-dashed border-slate-300" style={{ top: `${zeroY}%` }} />
-              )}
-
-              <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1e5af0" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#1e5af0" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
-                <path
-                  d={linePath}
-                  fill="none"
-                  stroke="#1e5af0"
-                  strokeWidth="2.2"
-                  vectorEffect="non-scaling-stroke"
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  style={{ filter: 'drop-shadow(0 3px 4px rgba(30, 90, 240, 0.25))' }}
-                />
-              </svg>
-
-              {chartPoints.map((p, i) => (
-                <span
-                  key={p.key}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-white shadow-sm transition-all"
-                  style={{
-                    left: `${p.x}%`,
-                    top: `${p.y}%`,
-                    backgroundColor: p.color,
-                    width: hoverIndex === i ? 13 : 8,
-                    height: hoverIndex === i ? 13 : 8,
-                  }}
-                  onMouseEnter={() => setHoverIndex(i)}
-                />
-              ))}
-
-              {/* Chấm hiệu ứng lan toả đánh dấu số dư hiện tại (điểm cuối cùng) */}
-              {lastPoint && (
-                <motion.span
-                  className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                  style={{ left: `${lastPoint.x}%`, top: `${lastPoint.y}%`, backgroundColor: lastPoint.color }}
-                  initial={{ opacity: 0.55, scale: 1 }}
-                  animate={{ opacity: 0, scale: 2.4 }}
-                  transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
-                />
-              )}
-
-              {hovered && (
-                <motion.div
-                  className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-hair bg-white px-3 py-2 text-xs shadow-lg"
-                  initial={false}
-                  animate={{ left: `${hovered.x}%`, top: `${Math.max(hovered.y, 12)}%` }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-                >
-                  <p className="m-0 mb-1 font-semibold text-ink">
-                    {hovered.opening ? 'Số dư đầu kỳ' : `${formatDate(hovered.date)} · ${hovered.type}`}
-                  </p>
-                  {!hovered.opening && <p className="m-0 mb-1 text-ink-sub">{hovered.docCode} — {hovered.note}</p>}
-                  <p className="m-0 font-semibold text-navy-700">Số dư: {formatNumber(hovered.balance)}</p>
-                  <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white" />
-                </motion.div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-2 flex justify-between pl-16 text-[11px] text-ink-sub">
-            <span>{formatDate(filteredRows[0]?.date ?? '')}</span>
-            <span>{formatDate(chartPoints[chartPoints.length - 1]?.date ?? '')}</span>
-          </div>
-        </div>
-
-        {/* Dòng thời gian biến động */}
-        <div className="rounded-2xl border border-hair bg-surface p-5">
-          <h3 className="m-0 mb-4 text-sm font-semibold text-ink">Lịch sử biến động ({filteredRows.length})</h3>
-          <div className="relative">
-            <div className="absolute bottom-2 left-[15px] top-2 w-px bg-hair" />
-            <StaggerList as="ul" className="m-0 flex list-none flex-col gap-0 p-0">
-              {rows.map((r) => (
-                <StaggerItem key={r.key} as="li" className="relative flex gap-4 py-3">
-                  <span className="relative z-10 mt-1 flex h-8 w-8 shrink-0 items-center justify-center">
-                    <span
-                      className="h-3 w-3 rounded-full border-2 border-white shadow-sm"
-                      style={{ backgroundColor: r.opening ? OPENING_HEX : TYPE_HEX[r.type] }}
-                    />
+              <div className={`flex ${isMobile ? 'h-40' : 'h-60'}`} onMouseLeave={() => setHoverIndex(null)} onTouchEnd={() => setHoverIndex(null)}>
+                <div className="relative w-16 shrink-0 pr-2">
+                  <span className="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-ink-sub" style={{ top: `${CHART_PAD_Y}%` }}>
+                    {formatNumber(balanceMax)}
                   </span>
-                  {r.opening ? (
-                    <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <span className="font-semibold text-ink">Số dư đầu kỳ</span>
-                        <div className="mt-0.5 text-sm text-ink-sub">Tồn kho mang sang</div>
-                      </div>
-                      <span className="mono shrink-0 font-bold text-navy-700">{formatNumber(r.balance)}</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="mono text-xs text-ink-sub">{formatDate(r.date)}</span>
-                          <Tag bordered={false} color={TYPE_COLOR[r.type]} className="!m-0">{r.type}</Tag>
-                          <DocCode>{r.docCode}</DocCode>
-                        </div>
-                        <div className="mt-1 text-sm text-ink-sub">{r.note}</div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        {r.inQty > 0 && <div className="mono font-semibold text-ok">+{formatNumber(r.inQty)}</div>}
-                        {r.outQty > 0 && <div className="mono font-semibold text-danger">-{formatNumber(r.outQty)}</div>}
-                        <div className={`mono font-bold ${r.balance < 0 ? 'text-danger' : 'text-navy-700'}`}>
-                          {formatNumber(r.balance)}
-                        </div>
-                      </div>
-                    </div>
+                  {zeroY !== null && (
+                    <span className="absolute right-2 -translate-y-1/2 text-[11px] text-ink-sub/70" style={{ top: `${zeroY}%` }}>
+                      0
+                    </span>
                   )}
-                </StaggerItem>
-              ))}
-            </StaggerList>
-            {filteredRows.length === 0 && <TableEmptyState message="Không tìm thấy biến động phù hợp" />}
-          </div>
-        </div>
-      </FadeSection>
+                  <span className="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-ink-sub" style={{ top: `${100 - CHART_PAD_Y}%` }}>
+                    {formatNumber(balanceMin)}
+                  </span>
+                </div>
+
+                <div className="relative flex-1">
+                  <div className="absolute inset-x-0 border-t border-dashed border-hair" style={{ top: `${CHART_PAD_Y}%` }} />
+                  <div className="absolute inset-x-0 border-t border-dashed border-hair" style={{ top: `${100 - CHART_PAD_Y}%` }} />
+                  {zeroY !== null && (
+                    <div className="absolute inset-x-0 border-t border-dashed border-slate-300" style={{ top: `${zeroY}%` }} />
+                  )}
+
+                  <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#1e5af0" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#1e5af0" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
+                    <path
+                      d={linePath}
+                      fill="none"
+                      stroke="#1e5af0"
+                      strokeWidth="2.2"
+                      vectorEffect="non-scaling-stroke"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      style={{ filter: 'drop-shadow(0 3px 4px rgba(30, 90, 240, 0.25))' }}
+                    />
+                  </svg>
+
+                  {chartPoints.map((p, i) => (
+                    <span
+                      key={p.key}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2 border-white shadow-sm transition-all"
+                      style={{
+                        left: `${p.x}%`,
+                        top: `${p.y}%`,
+                        backgroundColor: p.color,
+                        width: hoverIndex === i ? 13 : isMobile ? 10 : 8,
+                        height: hoverIndex === i ? 13 : isMobile ? 10 : 8,
+                      }}
+                      onMouseEnter={() => setHoverIndex(i)}
+                      onTouchStart={() => setHoverIndex(i)}
+                    />
+                  ))}
+
+                  {lastPoint && (
+                    <motion.span
+                      className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                      style={{ left: `${lastPoint.x}%`, top: `${lastPoint.y}%`, backgroundColor: lastPoint.color }}
+                      initial={{ opacity: 0.55, scale: 1 }}
+                      animate={{ opacity: 0, scale: 2.4 }}
+                      transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
+                    />
+                  )}
+
+                  {hovered && (
+                    <motion.div
+                      className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg border border-hair bg-white px-3 py-2 text-xs shadow-lg"
+                      initial={false}
+                      animate={{ left: `${hovered.x}%`, top: `${Math.max(hovered.y, 12)}%` }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                    >
+                      <p className="m-0 mb-1 font-semibold text-ink">
+                        {hovered.opening ? 'Số dư đầu kỳ' : `${formatDate(hovered.date)} · ${hovered.type}`}
+                      </p>
+                      {!hovered.opening && <p className="m-0 mb-1 text-ink-sub">{hovered.refCode} — {hovered.note}</p>}
+                      <p className="m-0 font-semibold text-navy-700">Số dư: {formatNumber(hovered.balance)}</p>
+                      <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-white" />
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-2 flex justify-between pl-16 text-[11px] text-ink-sub">
+                <span>{formatDate(filteredRows[0]?.date ?? '')}</span>
+                <span>{formatDate(chartPoints[chartPoints.length - 1]?.date ?? '')}</span>
+              </div>
+            </div>
+
+            {/* Dòng thời gian biến động */}
+            <div className="rounded-2xl border border-hair bg-surface p-5">
+              <h3 className="m-0 mb-4 text-sm font-semibold text-ink">Lịch sử biến động ({filteredRows.length})</h3>
+              <div className="relative">
+                <div className="absolute bottom-2 left-[15px] top-2 w-px bg-hair" />
+                <StaggerList as="ul" className="m-0 flex list-none flex-col gap-0 p-0">
+                  {rows.map((r) => (
+                    <StaggerItem key={r.key} as="li" className="relative flex gap-4 py-3">
+                      <span className="relative z-10 mt-1 flex h-8 w-8 shrink-0 items-center justify-center">
+                        <span
+                          className="h-3 w-3 rounded-full border-2 border-white shadow-sm"
+                          style={{ backgroundColor: r.opening ? OPENING_HEX : TYPE_HEX[r.refType] ?? '#94a3b8' }}
+                        />
+                      </span>
+                      {r.opening ? (
+                        <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <span className="font-semibold text-ink">Số dư đầu kỳ</span>
+                            <div className="mt-0.5 text-sm text-ink-sub">Tồn kho mang sang</div>
+                          </div>
+                          <span className="mono shrink-0 font-bold text-navy-700">{formatNumber(r.balance)}</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="mono text-xs text-ink-sub">{formatDate(r.date)}</span>
+                              <Tag bordered={false} color={r.typeColor} className="!m-0">{r.type}</Tag>
+                              {REF_TYPE_PATH[r.refType] && r.refId ? (
+                                <Link to={`${REF_TYPE_PATH[r.refType]}/${r.refId}`} className="no-underline">
+                                  <DocCode>{r.refCode}</DocCode>
+                                </Link>
+                              ) : (
+                                <DocCode>{r.refCode}</DocCode>
+                              )}
+                            </div>
+                            <div className="mt-1 text-sm text-ink-sub">{r.note}</div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            {r.inQty > 0 && <div className="mono font-semibold text-ok">+{formatNumber(r.inQty)}</div>}
+                            {r.outQty > 0 && <div className="mono font-semibold text-danger">-{formatNumber(r.outQty)}</div>}
+                            <div className={`mono font-bold ${r.balance < 0 ? 'text-danger' : 'text-navy-700'}`}>
+                              {formatNumber(r.balance)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </StaggerItem>
+                  ))}
+                </StaggerList>
+                {filteredRows.length === 0 && <TableEmptyState message="Không tìm thấy biến động phù hợp" />}
+              </div>
+            </div>
+          </FadeSection>
+        </>
+      )}
     </>
   );
 }

@@ -7,7 +7,7 @@ import { z } from 'zod';
 export const changePasswordSchema = z
   .object({
     oldPassword: z.string().min(1, 'Nhập mật khẩu hiện tại'),
-    newPassword: z.string().min(6, 'Mật khẩu mới tối thiểu 6 ký tự'),
+    newPassword: z.string().min(8, 'Mật khẩu mới tối thiểu 8 ký tự'),
     confirm: z.string().min(1, 'Nhập lại mật khẩu mới'),
   })
   .superRefine((val, ctx) => {

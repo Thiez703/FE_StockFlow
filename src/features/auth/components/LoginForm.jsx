@@ -43,14 +43,17 @@ export default function LoginForm() {
       dispatch(loginSuccess({ accessToken, refreshToken }));
 
       // /login không kèm user nên phải gọi thêm /me.
-      const me = await authApi.getMe();
+      const rawMe = await authApi.getMe();
+      // Đề phòng backend trả về dạng ApiResponse { code, message, data }
+      const me = rawMe?.data && rawMe?.code !== undefined ? rawMe.data : rawMe;
       dispatch(setUser(me));
 
       message.success('Đăng nhập thành công!');
 
       // Mật khẩu do hệ thống cấp / vừa được reset: bắt đổi ngay, mang theo
       // trang định vào để đổi xong quay lại đúng chỗ.
-      if (me?.mustChangePassword) {
+      // Kiểm tra cả camelCase lẫn snake_case để tương thích
+      if (me?.mustChangePassword || me?.must_change_password || me?.mustChangePassword === 'true' || me?.mustChangePassword === 1) {
         navigate(CHANGE_PASSWORD_PATH, { replace: true, state: location.state });
         return;
       }

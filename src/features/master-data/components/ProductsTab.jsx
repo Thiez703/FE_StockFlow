@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, Input, Select, Tag, Tooltip, Popconfirm, App, Checkbox, Segmented } from 'antd';
-import { PlusOutlined, SearchOutlined, EditOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Tag, Tooltip, Popconfirm, App } from 'antd';
+import { PlusOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useColumnSort } from '@/hooks/useColumnSort';
 import DataTable from '@/components/ui/DataTable';
 import TableEmptyState from '@/components/ui/TableEmptyState';
@@ -26,6 +27,7 @@ export default function ProductsTab() {
   const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const [keyword, setKeyword] = useState('');
   const [category, setCategory] = useState(null);
@@ -33,8 +35,7 @@ export default function ProductsTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [viewMode, setViewMode] = useState('table');
-  const { sortableTitle, sortRows } = useColumnSort();
+  const { sortableTitle, sortRows } = useColumnSort(null, null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: PRODUCTS_KEY,
@@ -213,14 +214,6 @@ export default function ProductsTab() {
         <div className="min-w-0 flex-1">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-4">
-              <Segmented
-                options={[
-                  { value: 'card', icon: <AppstoreOutlined /> },
-                  { value: 'table', icon: <UnorderedListOutlined /> },
-                ]}
-                value={viewMode}
-                onChange={setViewMode}
-              />
               <AnimatePresence mode="wait">
                 {selectedRowKeys.length > 0 ? (
                   <motion.div
@@ -229,7 +222,7 @@ export default function ProductsTab() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
                     transition={{ duration: 0.15 }}
-                    className="flex items-center gap-2"
+                    className="flex flex-wrap items-center gap-2"
                   >
                     <span className="text-sm font-medium text-blue-700 bg-blue-50 px-2 py-1 rounded-md">
                       Đã chọn {selectedRowKeys.length}
@@ -263,7 +256,7 @@ export default function ProductsTab() {
               </AnimatePresence>
             </div>
 
-            {canManageMasterData && (
+            {canManageMasterData && !isMobile && (
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -277,99 +270,33 @@ export default function ProductsTab() {
             )}
           </div>
 
-          <FadeSection dataKey={`${viewMode}-${data.map((p) => p.id).join(',')}`}>
-            {viewMode === 'table' ? (
-              <DataTable
-                columns={columns}
-                dataSource={data}
-                loading={isLoading}
-                rowSelection={
-                  canManageMasterData
-                    ? { selectedRowKeys, onChange: setSelectedRowKeys }
-                    : undefined
-                }
-                locale={{ emptyText: <TableEmptyState message="Không tìm thấy sản phẩm phù hợp" /> }}
-              />
-            ) : data.length === 0 ? (
-              <TableEmptyState message="Không tìm thấy sản phẩm phù hợp" />
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
-                {data.map((p) => {
-                  const isSelected = selectedRowKeys.includes(p.id);
-                  return (
-                    <div
-                      key={p.id}
-                      className={`group relative rounded-2xl border bg-white overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
-                        isSelected ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md' : 'border-slate-200 hover:border-blue-300'
-                      }`}
-                    >
-                      {canManageMasterData && (
-                        <div className="absolute top-3 left-3 z-10">
-                          <Checkbox
-                            checked={isSelected}
-                            className="scale-110"
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedRowKeys((prev) => [...prev, p.id]);
-                              else setSelectedRowKeys((prev) => prev.filter((k) => k !== p.id));
-                            }}
-                          />
-                        </div>
-                      )}
+          {canManageMasterData && isMobile && (
+            <Button
+              type="primary"
+              shape="circle"
+              icon={<PlusOutlined />}
+              size="large"
+              className="fixed bottom-20 right-4 z-50 shadow-lg w-12 h-12 flex items-center justify-center bg-blue-600"
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+            />
+          )}
 
-                      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1 bg-white/90 p-1 rounded-xl backdrop-blur-md shadow-sm border border-slate-100">
-                        <Tooltip title="Sửa" placement="left">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<EditOutlined className="text-blue-600" />}
-                            disabled={!canManageMasterData}
-                            onClick={() => {
-                              setEditing(p);
-                              setModalOpen(true);
-                            }}
-                          />
-                        </Tooltip>
-                      </div>
-
-                      {/* Skeleton Image with gradient & shimmer */}
-                      <div className="aspect-video w-full bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center border-b border-indigo-100/50 p-4 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.4)_50%,transparent_75%)] bg-[length:250%_250%] animate-[pulse_2s_infinite]"></div>
-                        <div className="w-16 h-16 bg-white/90 rounded-2xl shadow-sm mb-3 flex items-center justify-center backdrop-blur-sm border border-white relative z-1">
-                          <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div className="w-1/2 h-1.5 bg-indigo-200/50 rounded-full relative z-1"></div>
-                      </div>
-
-                      {/* Info */}
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h3 className="font-bold text-slate-800 text-sm truncate m-0 flex-1">{p.name}</h3>
-                          <StatusPill status={p.status} />
-                        </div>
-                        <div className="font-mono text-xs font-semibold text-blue-600/70 mb-4">{p.code}</div>
-
-                        <div className="grid grid-cols-2 gap-3 text-xs">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-slate-400 font-medium">Danh mục</span>
-                            <span className="font-semibold text-slate-700 truncate">{categoryName[p.categoryId] ?? '—'}</span>
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <span className="text-slate-400 font-medium">Đơn vị</span>
-                            <span className="font-semibold text-slate-700 truncate">{p.unit ?? '—'}</span>
-                          </div>
-                          <div className="flex flex-col gap-1 col-span-2 mt-1 pt-3 border-t border-slate-100">
-                            <span className="text-slate-400 font-medium">Tồn tối thiểu</span>
-                            <span className="font-bold text-slate-800">{formatNumber(p.minStock ?? 0)} <span className="text-slate-500 font-normal">{p.unit}</span></span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <FadeSection dataKey={`table-${data.map((p) => p.id).join(',')}`}>
+            <DataTable
+              columns={columns}
+              dataSource={data}
+              loading={isLoading}
+              scroll={{ x: 650 }}
+              rowSelection={
+                canManageMasterData
+                  ? { selectedRowKeys, onChange: setSelectedRowKeys }
+                  : undefined
+              }
+              locale={{ emptyText: <TableEmptyState message="Không tìm thấy sản phẩm phù hợp" /> }}
+            />
           </FadeSection>
         </div>
       </div>

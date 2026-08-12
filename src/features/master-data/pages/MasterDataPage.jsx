@@ -1,5 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
+import AccessDenied from '@/components/feedback/AccessDenied';
+import { usePermissions } from '@/hooks/usePermissions';
 import { MASTER_DATA_ITEMS } from '@/features/master-data/constants/masterDataSections';
 
 /**
@@ -13,12 +15,15 @@ import { MASTER_DATA_ITEMS } from '@/features/master-data/constants/masterDataSe
  * xem và có thể gửi link thẳng tới một mục.
  */
 export default function MasterDataPage() {
+  const { canManageMasterData } = usePermissions();
   const { pathname } = useLocation();
 
   // /master-data/<slug> -> phần tử thứ 3 sau khi tách; dùng để đổi tiêu đề, mô
   // tả và breadcrumb theo đúng mục đang xem thay vì liệt kê cả 6 mục như trước.
   const slug = pathname.split('/')[2];
   const current = MASTER_DATA_ITEMS.find((i) => i.slug === slug);
+
+  if (!canManageMasterData) return <AccessDenied />;
 
   return (
     <>

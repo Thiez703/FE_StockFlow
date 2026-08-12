@@ -13,7 +13,7 @@ export default function DataTable({ className = '', pagination, scroll, ...props
         sticky
         rowKey="id"
         className={`enterprise-table ${className}`}
-        scroll={scroll ?? { x: 'max-content' }}
+        scroll={scroll ?? { x: '100%' }}
         pagination={
           pagination === false
             ? false

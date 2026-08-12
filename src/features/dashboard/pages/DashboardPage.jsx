@@ -1,5 +1,5 @@
-import { Popover, Spin, Alert } from 'antd';
-import { WarningOutlined, FileSyncOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { Popover, Spin, Alert, Button } from 'antd';
+import { WarningOutlined, FileSyncOutlined, AppstoreOutlined, ExportOutlined, PlusOutlined, ImportOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import QuickActionsBar from '@/features/dashboard/components/QuickActionsBar';
@@ -7,11 +7,12 @@ import AlertsPanel from '@/features/dashboard/components/AlertsPanel';
 import RecentActivities from '@/features/dashboard/components/RecentActivities';
 import StatCard from '@/features/dashboard/components/StatCard';
 import { formatNumber } from '@/utils/formatCurrency';
-import { KPIS } from '@/mock/dashboard';
 import { dashboardApi } from '@/api/dashboard';
+import { useNavigate } from 'react-router-dom';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getErrorMessage } from '@/utils/getErrorMessage';
+import AccountantDashboard from '@/features/dashboard/pages/AccountantDashboard';
 
 // Style theo trạng thái ô (enum trả về từ BE). Giữ nguyên bảng màu đã có sẵn
 // của khối sơ đồ (emerald/rose/amber) khi còn 4 state; EXPIRED là state mới,
@@ -46,6 +47,7 @@ const STATUS_THEME = {
 };
 
 function DashboardWarehouseMap() {
+  const navigate = useNavigate();
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['dashboard', 'storage-map', DEFAULT_WAREHOUSE_ID],
     queryFn: () => dashboardApi.getStorageMap(DEFAULT_WAREHOUSE_ID),
@@ -101,8 +103,43 @@ function DashboardWarehouseMap() {
             </div>
           </div>
         )}
+        <div className="mt-4 flex gap-2">
+          <Button 
+            type="primary" 
+            className="flex-1" 
+            icon={<ExportOutlined />} 
+            onClick={() => navigate('/outbounds/create/retail', { 
+              state: { prefill: [{ cellKey: `${cell.lotId}-${cell.locationId}` }] } 
+            })}
+          >
+            Xuất kho
+          </Button>
+          <Button 
+            className="flex-1 border-emerald-500 text-emerald-600 hover:text-emerald-500 hover:border-emerald-400" 
+            icon={<ImportOutlined />} 
+            onClick={() => navigate('/inbounds/create', { 
+              state: { prefill: [{ productId: cell.productId, lotCode: cell.lotCode, lotId: cell.lotId, locationId: cell.locationId }] } 
+            })}
+          >
+            Nhập thêm
+          </Button>
+        </div>
       </div>
-    ) : null;
+    ) : (
+      <div className="w-[220px] p-2 text-center">
+        <div className="text-[13px] font-medium text-slate-600 mb-3">Vị trí {cell.locationCode} đang trống</div>
+        <Button 
+          type="primary" 
+          block 
+          icon={<PlusOutlined />} 
+          onClick={() => navigate('/inbounds/create', { 
+            state: { prefill: [{ locationId: cell.locationId }] } 
+          })}
+        >
+          Nhập kho vào vị trí này
+        </Button>
+      </div>
+    );
 
     const cellContent = (
       <div
@@ -160,11 +197,9 @@ function DashboardWarehouseMap() {
       </div>
     );
 
-    if (isEmpty) return <div key={cell.locationCode}>{cellContent}</div>;
-
     return (
-      <Popover key={cell.locationCode} content={popoverContent} title={`Chi tiết vị trí: ${cell.locationCode}`} trigger="click" placement="right">
-        {cellContent}
+      <Popover key={cell.locationCode} content={popoverContent} title={!isEmpty ? `Chi tiết vị trí: ${cell.locationCode}` : 'Trạng thái vị trí'} trigger="click" placement="right">
+        <div className="cursor-pointer h-full">{cellContent}</div>
       </Popover>
     );
   };
@@ -253,7 +288,13 @@ function DashboardWarehouseMap() {
 }
 
 export default function DashboardPage() {
-  const { canViewStorageMap } = usePermissions();
+  const { role, canViewStorageMap } = usePermissions();
+
+  if (role === 'ACCOUNTANT' || role === 'ROLE_ACCOUNTANT') {
+    return <AccountantDashboard />;
+  }
+
+  console.log('[DashboardPage] Current role:', role);
 
   return (
     <>
@@ -270,7 +311,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-6">
         {/* Sơ đồ vị trí lưu trữ — ADMIN/MANAGER/ACCOUNTANT only, STAFF nhận 403 nên ẩn hẳn khối */}
         {canViewStorageMap && (
-          <div className="w-full">
+          <div className="hidden w-full lg:block">
             <h3 className="mb-3 text-base font-semibold text-ink flex items-center gap-2">
               <AppstoreOutlined className="text-blue-600" /> Bản đồ lưu trữ & Tình trạng lô
             </h3>
@@ -283,7 +324,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-4">
             <StatCard
               title="Phiếu chờ duyệt"
-              value={formatNumber(KPIS.pendingDocs)}
+              value={formatNumber(0)}
               suffix="phiếu"
               icon={<FileSyncOutlined />}
               tone="blue"

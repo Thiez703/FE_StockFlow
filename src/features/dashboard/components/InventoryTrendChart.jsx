@@ -4,8 +4,8 @@ import { Card } from 'antd';
 import { TREND } from '@/mock/dashboard';
 import { formatNumber } from '@/utils/formatCurrency';
 
-const MAX = Math.max(...TREND.flatMap((d) => [d.inbound, d.outbound, d.stock]));
-const n = TREND.length;
+const MAX = TREND.length > 0 ? Math.max(...TREND.flatMap((d) => [d.inbound, d.outbound, d.stock])) : 1;
+const n = Math.max(1, TREND.length);
 
 // Toạ độ đường "Tồn cuối kỳ" (0..100) cho SVG overlay.
 const stockPoints = TREND.map((d, i) => {
@@ -30,7 +30,15 @@ function LegendDot({ className, label }) {
 export default function InventoryTrendChart() {
   const [hoverIndex, setHoverIndex] = useState(null);
   const activeIndex = hoverIndex ?? 0;
-  const active = TREND[activeIndex];
+  const active = TREND.length > 0 ? TREND[activeIndex] : null;
+
+  if (TREND.length === 0) {
+    return (
+      <Card className="h-full border-hair flex items-center justify-center min-h-[300px]">
+        <div className="text-center text-ink-sub">Chưa có dữ liệu biểu đồ</div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="h-full border-hair" styles={{ body: { padding: 22 } }}>
