@@ -17,6 +17,7 @@ import {
   UserOutlined,
   HistoryOutlined,
   RobotOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 import { MASTER_DATA_ITEMS } from '@/features/master-data/constants/masterDataSections';
 
@@ -34,7 +35,7 @@ import { MASTER_DATA_ITEMS } from '@/features/master-data/constants/masterDataSe
 export const NAV_GROUPS = [
   {
     key: 'overview',
-    label: 'Tổng quan',
+    label: null,
     icon: DashboardOutlined,
     items: [
       {
@@ -45,55 +46,64 @@ export const NAV_GROUPS = [
       },
     ],
   },
+
   {
-    key: 'ai-features',
-    label: 'AI Copilot',
-    icon: RobotOutlined,
+    key: 'inbound-ops',
+    label: 'Quản lý Nhập',
+    icon: ImportOutlined,
     items: [
       {
-        key: '/copilot',
-        label: 'Trợ lý tài chính',
-        icon: RobotOutlined,
-        desc: 'Phân tích & báo cáo tự động',
-        roles: ['ADMIN', 'ACCOUNTANT'],
+        key: '/inbounds',
+        label: 'Xem phiếu nhập',
+        icon: FileSearchOutlined,
+        desc: 'Danh sách phiếu nhập',
+        end: true,
+      },
+      {
+        key: '/inbounds/create/new',
+        label: 'Nhập mới',
+        icon: ImportOutlined,
+        desc: 'Tạo phiếu nhập mới',
+        roles: ['STAFF', 'ADMIN', 'MANAGER'],
+      },
+      {
+        key: '/inbounds/create/old',
+        label: 'Nhập cũ',
+        icon: RollbackOutlined,
+        desc: 'Nhập lại lô cũ',
+        roles: ['STAFF', 'ADMIN', 'MANAGER'],
       },
     ],
   },
   {
-    key: 'warehouse-ops',
-    label: 'Nghiệp vụ kho',
-    icon: SwapOutlined,
+    key: 'outbound-ops',
+    label: 'Quản lý Xuất',
+    icon: ExportOutlined,
     items: [
       {
-        key: '/inbounds',
-        label: 'Phiếu nhập',
-        icon: ImportOutlined,
-        desc: 'Nhập hàng từ nhà cung cấp',
-      },
-      {
         key: '/outbounds',
-        label: 'Phiếu xuất', // Sẽ được override dựa trên role ở component
-        icon: ExportOutlined,
+        label: 'Xem phiếu xuất',
+        icon: FileSearchOutlined,
         desc: 'Danh sách phiếu xuất',
         end: true,
       },
       {
         key: '/outbounds/create/retail',
-        label: 'Tạo phiếu xuất bán',
+        label: 'Xuất bán',
         icon: ShoppingCartOutlined,
         desc: 'Xuất hàng bán cho khách hàng',
         roles: ['STAFF', 'ADMIN', 'MANAGER'],
       },
       {
         key: '/outbounds/create/return_supplier',
-        label: 'Tạo phiếu trả NCC',
+        label: 'Xuất trả',
         icon: RollbackOutlined,
         desc: 'Trả hàng cho nhà cung cấp',
         roles: ['STAFF', 'ADMIN', 'MANAGER'],
       },
       {
         key: '/outbounds/create/disposal',
-        label: 'Tạo phiếu xuất hủy',
+        label: 'Xuất hủy',
         icon: DeleteOutlined,
         desc: 'Xuất hủy hàng hỏng / hết hạn',
         roles: ['STAFF', 'ADMIN', 'MANAGER'],
@@ -172,8 +182,30 @@ export const NAV_GROUPS = [
         key: '/logs',
         label: 'Nhật ký hoạt động',
         icon: HistoryOutlined,
-        desc: 'Lịch sử thao tác hệ thống',
-        roles: ['ADMIN'], // Chỉ Admin
+        desc: 'Theo dõi lịch sử',
+        permission: 'canViewLogs',
+      },
+      {
+        key: '/settings',
+        label: 'Cấu hình',
+        icon: SettingOutlined,
+        desc: 'Cấu hình hệ thống',
+        permission: 'isAdmin',
+      },
+    ],
+  },
+  {
+    key: 'ai-features',
+    label: 'StockAI',
+    icon: RobotOutlined,
+    highlight: true,
+    items: [
+      {
+        key: '/copilot',
+        label: 'Trợ lý StockAI',
+        icon: RobotOutlined,
+        desc: 'Phân tích & báo cáo tự động',
+        roles: ['ADMIN', 'ACCOUNTANT'],
       },
     ],
   },
@@ -193,7 +225,7 @@ export const NAV_GROUPS = [
  */
 export const SIDEBAR_GROUPS = [
   ...NAV_GROUPS.slice(0, 1).map(normalizeGroup),
-  { key: 'master-data', label: 'Dữ liệu nền', items: MASTER_DATA_ITEMS },
+  { key: 'master-data', label: 'Dữ liệu nền', icon: DatabaseOutlined, items: MASTER_DATA_ITEMS },
   ...NAV_GROUPS.slice(1).map(normalizeGroup),
 ];
 
@@ -201,6 +233,7 @@ function normalizeGroup(group) {
   return {
     key: group.key,
     label: group.label,
+    highlight: group.highlight,
     items: group.items.map((item) => ({ ...item, path: item.key, end: item.end })),
   };
 }
@@ -258,11 +291,11 @@ export function getVisibleSidebarGroups(userRole) {
       .map((item) => {
         let label = item.label;
         if (item.path === '/outbounds' || item.key === '/outbounds') {
-          label = ['ADMIN', 'MANAGER'].includes(userRole) ? 'Quản lý phiếu xuất'
-            : userRole === 'ACCOUNTANT' ? 'Xem phiếu xuất' : 'Phiếu xuất của tôi';
+          label = ['ADMIN', 'MANAGER'].includes(userRole) ? 'Xem phiếu xuất'
+            : userRole === 'ACCOUNTANT' ? 'Xem phiếu xuất' : 'Xem phiếu xuất của tôi';
         }
-        if ((item.path === '/inbounds' || item.key === '/inbounds') && userRole === 'ACCOUNTANT') {
-          label = 'Xem phiếu nhập';
+        if (item.path === '/inbounds' || item.key === '/inbounds') {
+          label = ['ADMIN', 'MANAGER', 'ACCOUNTANT'].includes(userRole) ? 'Xem phiếu nhập' : 'Xem phiếu nhập của tôi';
         }
         return { ...item, label };
       });

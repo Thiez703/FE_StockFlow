@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { CaretUpOutlined, CaretDownOutlined } from '@ant-design/icons';
 
 /**
@@ -9,15 +9,15 @@ import { CaretUpOutlined, CaretDownOutlined } from '@ant-design/icons';
 export function useColumnSort(defaultField = 'date', defaultOrder = 'desc') {
   const [sortState, setSortState] = useState({ field: defaultField, order: defaultOrder });
 
-  const toggleSort = (field) => {
+  const toggleSort = useCallback((field) => {
     setSortState((prev) => {
       if (prev.field !== field) return { field, order: 'asc' };
       if (prev.order === 'asc') return { field, order: 'desc' };
       return { field: null, order: null };
     });
-  };
+  }, []);
 
-  const sortableTitle = (label, field) => {
+  const sortableTitle = useCallback((label, field) => {
     const active = sortState.field === field;
     return (
       <span className="inline-flex cursor-pointer select-none items-center gap-2" onClick={() => toggleSort(field)}>
@@ -40,10 +40,10 @@ export function useColumnSort(defaultField = 'date', defaultOrder = 'desc') {
         </span>
       </span>
     );
-  };
+  }, [sortState.field, sortState.order, toggleSort]);
 
   // So sánh tổng quát (hoạt động cho cả số và chuỗi, kể cả ngày dạng 'YYYY-MM-DD').
-  const sortRows = (rows) => {
+  const sortRows = useCallback((rows) => {
     if (!sortState.field) return rows;
     const dir = sortState.order === 'asc' ? 1 : -1;
     return [...rows].sort((a, b) => {
@@ -53,7 +53,7 @@ export function useColumnSort(defaultField = 'date', defaultOrder = 'desc') {
       if (av > bv) return 1 * dir;
       return 0;
     });
-  };
+  }, [sortState.field, sortState.order]);
 
   return { sortState, toggleSort, sortableTitle, sortRows };
 }

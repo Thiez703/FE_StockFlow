@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Select, Form, Modal, Tooltip, App } from 'antd';
-import { PlusOutlined, EditOutlined, SearchOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Tooltip, App, Modal } from 'antd';
+import {
+  PlusOutlined,
+  SearchOutlined,
+  DeleteOutlined,
+  ExclamationCircleFilled,
+} from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import TableEmptyState from '@/components/ui/TableEmptyState';
@@ -14,17 +19,45 @@ import { getErrorMessage } from '@/utils/getErrorMessage';
 const LOCATIONS_KEY = ['storage-locations'];
 const WAREHOUSES_KEY = ['warehouses'];
 
+/**
+ * Calculate the next rowLabel + colIndex for a given warehouse.
+ *
+ * Storage grid layout: rows A, B, C, … with columns 1–6 each.
+ * e.g. A-1, A-2, …, A-6, B-1, B-2, …
+ */
+function getNextSlot(existingLocations, warehouseId) {
+  const wLocations = existingLocations.filter((l) => l.warehouseId === warehouseId);
+
+  if (wLocations.length === 0) return { rowLabel: 'A', colIndex: 1 };
+
+  // Find the maximum occupied slot
+  let maxRowOrd = 0; // ordinal of the row label  (A=0, B=1, …)
+  let maxColInRow = 0;
+
+  for (const loc of wLocations) {
+    const rowOrd = (loc.rowLabel ?? 'A').charCodeAt(0) - 65; // 'A' -> 0
+    if (rowOrd > maxRowOrd || (rowOrd === maxRowOrd && loc.colIndex > maxColInRow)) {
+      maxRowOrd = rowOrd;
+      maxColInRow = loc.colIndex;
+    }
+  }
+
+  // Next slot
+  if (maxColInRow < 6) {
+    return { rowLabel: String.fromCharCode(65 + maxRowOrd), colIndex: maxColInRow + 1 };
+  }
+  // Move to next row
+  return { rowLabel: String.fromCharCode(65 + maxRowOrd + 1), colIndex: 1 };
+}
+
 export default function LocationsTab() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const queryClient = useQueryClient();
 
   const [keyword, setKeyword] = useState('');
-  const [warehouseId, setWarehouseId] = useState(null);
-  const [zone, setZone] = useState(null);
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [form] = Form.useForm();
+  const [filterWarehouseId, setFilterWarehouseId] = useState(null);
+  const [addWarehouseId, setAddWarehouseId] = useState(null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: LOCATIONS_KEY,
@@ -36,25 +69,20 @@ export default function LocationsTab() {
     queryFn: warehouseApi.getAll,
   });
 
-  const { mutate: saveLocation, isPending: isSaving } = useMutation({
-    mutationFn: ({ id, values }) =>
-      id
-        ? storageLocationApi.update(id, { locationCode: values.locationCode, zoneCode: values.zoneCode })
-        : storageLocationApi.create(values),
-    onSuccess: (_data, { id }) => {
+  const { mutate: addLocation, isPending: isAdding } = useMutation({
+    mutationFn: (values) => storageLocationApi.create(values),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
-      message.success(id ? 'Đã cập nhật vị trí' : 'Đã thêm vị trí');
-      setOpen(false);
+      message.success('Đã thêm vị trí mới');
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
 
-  const { mutate: toggleLocationStatus } = useMutation({
-    mutationFn: ({ id, active }) =>
-      active ? storageLocationApi.deactivate(id) : storageLocationApi.activate(id),
-    onSuccess: (_data, { active }) => {
+  const { mutate: deleteLocation } = useMutation({
+    mutationFn: (id) => storageLocationApi.remove(id),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
-      message.success(active ? 'Đã vô hiệu hóa vị trí' : 'Đã kích hoạt lại vị trí');
+      message.success('Đã xóa vị trí');
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
@@ -65,47 +93,33 @@ export default function LocationsTab() {
     [warehouses],
   );
 
-  const zoneOptions = useMemo(() => {
-    const zones = [...new Set(rows.map((l) => l.zoneCode).filter(Boolean))].sort();
-    return zones.map((z) => ({ value: z, label: z }));
-  }, [rows]);
-
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return rows.filter((l) => {
-      const okKw = !kw || [l.locationCode, l.zoneCode].some((v) => String(v ?? '').toLowerCase().includes(kw));
-      const okWarehouse = !warehouseId || l.warehouseId === warehouseId;
-      const okZone = !zone || l.zoneCode === zone;
-      return okKw && okWarehouse && okZone;
+      const okKw = !kw || [l.locationCode, l.rowLabel].some((v) => String(v ?? '').toLowerCase().includes(kw));
+      const okWarehouse = !filterWarehouseId || l.warehouseId === filterWarehouseId;
+      return okKw && okWarehouse;
     });
-  }, [rows, keyword, warehouseId, zone]);
+  }, [rows, keyword, filterWarehouseId]);
 
-  useEffect(() => {
-    if (open && editing) {
-      form.setFieldsValue(editing);
-    } else if (open && !editing) {
-      const currentLoc = form.getFieldValue('locationCode');
-      if (!currentLoc) {
-        form.setFieldsValue({ warehouseId: warehouseId ?? warehouses[0]?.id });
-      }
-    } else if (!open) {
-      form.resetFields();
-    }
-  }, [open, editing, warehouseId, warehouses, form]);
-
-  const handleOk = async () => {
-    const v = await form.validateFields();
-    saveLocation({
-      id: editing?.id,
-      values: {
-        warehouseId: v.warehouseId,
-        locationCode: v.locationCode,
-        zoneCode: v.zoneCode ?? null,
-      },
-    });
+  const handleAdd = () => {
+    const wId = addWarehouseId ?? warehouses[0]?.id;
+    if (!wId) return;
+    const { rowLabel, colIndex } = getNextSlot(rows, wId);
+    addLocation({ warehouseId: wId, rowLabel, colIndex });
   };
 
-
+  const handleDelete = (location) => {
+    modal.confirm({
+      title: 'Xác nhận xóa vị trí',
+      icon: <ExclamationCircleFilled />,
+      content: `Bạn có chắc chắn muốn xóa vị trí "${location.locationCode}"?`,
+      okText: 'Xóa',
+      okType: 'danger',
+      cancelText: 'Huỷ',
+      onOk: () => deleteLocation(location.id),
+    });
+  };
 
   const columns = [
     {
@@ -115,16 +129,24 @@ export default function LocationsTab() {
       render: (c) => <DocCode>{c}</DocCode>,
     },
     {
+      title: 'Hàng',
+      dataIndex: 'rowLabel',
+      width: 100,
+      align: 'center',
+      render: (r) => <span className="font-semibold text-ink">{r}</span>,
+    },
+    {
+      title: 'Cột',
+      dataIndex: 'colIndex',
+      width: 100,
+      align: 'center',
+      render: (c) => <span className="text-ink">{c}</span>,
+    },
+    {
       title: 'Kho',
       dataIndex: 'warehouseId',
       width: 220,
       render: (id) => <span className="text-ink">{warehouseName[id] ?? '—'}</span>,
-    },
-    {
-      title: 'Khu',
-      dataIndex: 'zoneCode',
-      width: 140,
-      render: (z) => <span className="text-ink-sub">{z || '—'}</span>,
     },
     {
       title: 'Trạng thái',
@@ -137,123 +159,84 @@ export default function LocationsTab() {
       title: '',
       key: 'action',
       align: 'center',
-      width: 96,
-      render: (_, r) => {
-        const active = (r.status ?? 'ACTIVE') === 'ACTIVE';
-        return (
-          <div className="flex items-center justify-center">
-            <Tooltip title="Sửa">
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                disabled={!canManageMasterData}
-                onClick={() => {
-                  setEditing(r);
-                  setOpen(true);
-                }}
-              />
-            </Tooltip>
-            <Tooltip title={active ? 'Vô hiệu hóa' : 'Kích hoạt lại'}>
-              <Button
-                type="text"
-                danger={active}
-                icon={active ? <StopOutlined /> : <CheckCircleOutlined />}
-                disabled={!canManageMasterData}
-                onClick={() => toggleLocationStatus({ id: r.id, active })}
-              />
-            </Tooltip>
-          </div>
-        );
-      },
+      width: 64,
+      render: (_, r) => (
+        <Tooltip title="Xóa vị trí">
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            disabled={!canManageMasterData}
+            onClick={() => handleDelete(r)}
+          />
+        </Tooltip>
+      ),
     },
   ];
 
   return (
-    <>
-      <div className="flex flex-col gap-4">
-        {/* Top Filter Bar */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex flex-wrap items-center gap-4">
-            <Input
-              allowClear
-              prefix={<SearchOutlined className="text-slate-400" />}
-              placeholder="Tìm theo mã vị trí, khu..."
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              className="w-full sm:w-80"
-            />
-            <Select
-              allowClear
-              placeholder="Kho"
-              className="w-full sm:w-64"
-              options={warehouseOptions}
-              value={warehouseId}
-              onChange={setWarehouseId}
-            />
-            <Select allowClear placeholder="Khu" className="w-full sm:w-48" options={zoneOptions} value={zone} onChange={setZone} />
-          </div>
+    <div className="flex flex-col gap-4">
+      {/* Top Filter Bar */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div className="flex flex-wrap items-center gap-4">
+          <Input
+            allowClear
+            prefix={<SearchOutlined className="text-slate-400" />}
+            placeholder="Tìm theo mã vị trí..."
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            className="w-full sm:w-80"
+          />
+          <Select
+            allowClear
+            placeholder="Lọc theo kho"
+            className="w-full sm:w-64"
+            options={warehouseOptions}
+            value={filterWarehouseId}
+            onChange={setFilterWarehouseId}
+          />
         </div>
+      </div>
 
-        {/* Nội dung chính */}
-        <div className="min-w-0 flex-1">
-          <div className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-ink-sub">{data.length} vị trí</span>
-            </div>
-            {canManageMasterData && (
+      {/* Nội dung chính */}
+      <div className="min-w-0 flex-1">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-ink-sub">{data.length} vị trí</span>
+          </div>
+          {canManageMasterData && (
+            <div className="flex items-center gap-2">
+              <Select
+                placeholder="Chọn kho"
+                className="w-48"
+                options={warehouseOptions}
+                value={addWarehouseId ?? warehouses[0]?.id ?? undefined}
+                onChange={setAddWarehouseId}
+              />
               <Tooltip title={warehouses.length ? '' : 'Cần có ít nhất một kho trước'}>
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
+                  loading={isAdding}
                   disabled={!warehouses.length}
-                  onClick={() => {
-                    setEditing(null);
-                    form.resetFields();
-                    setOpen(true);
-                  }}
+                  onClick={handleAdd}
                 >
                   Thêm vị trí
                 </Button>
               </Tooltip>
-            )}
-          </div>
-
-          <FadeSection dataKey={data.map((l) => l.id).join(',')}>
-            <DataTable
-              columns={columns}
-              dataSource={data}
-              loading={isLoading}
-              locale={{ emptyText: <TableEmptyState message="Không tìm thấy vị trí phù hợp" /> }}
-            />
-          </FadeSection>
+            </div>
+          )}
         </div>
-      </div>
 
-      <Modal centered
-        open={open}
-        title={editing ? 'Sửa vị trí' : 'Thêm vị trí'}
-        okText={editing ? 'Lưu thay đổi' : 'Thêm mới'}
-        cancelText="Huỷ"
-        confirmLoading={isSaving}
-        onCancel={() => setOpen(false)}
-        onOk={handleOk}
-        destroyOnHidden
-        maskClosable={false}
-      >
-        <Form form={form} layout="vertical" requiredMark={false} className="mt-2">
-          <Form.Item name="warehouseId" label="Kho" rules={[{ required: true, message: 'Chọn kho' }]}>
-            <Select options={warehouseOptions} disabled={!!editing} placeholder="Chọn kho" />
-          </Form.Item>
-          <div className="grid grid-cols-2 gap-x-4">
-            <Form.Item name="locationCode" label="Mã vị trí" rules={[{ required: true, message: 'Nhập mã' }]}>
-              <Input placeholder="A-01-04" />
-            </Form.Item>
-            <Form.Item name="zoneCode" label="Khu">
-              <Input placeholder="Khu A" />
-            </Form.Item>
-          </div>
-        </Form>
-      </Modal>
-    </>
+        <FadeSection dataKey={data.map((l) => l.id).join(',')}>
+          <DataTable
+            columns={columns}
+            dataSource={data}
+            loading={isLoading}
+            locale={{ emptyText: <TableEmptyState message="Không tìm thấy vị trí phù hợp" /> }}
+          />
+        </FadeSection>
+      </div>
+    </div>
   );
 }

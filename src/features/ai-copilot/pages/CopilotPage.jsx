@@ -9,23 +9,15 @@ import {
   SendOutlined, 
   RobotOutlined, 
   UserOutlined, 
-  BulbOutlined,
-  LineChartOutlined,
-  SearchOutlined,
-  WarningOutlined,
   PlusOutlined,
-  MessageOutlined
+  MessageOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
+import { Modal, message } from 'antd';
 import { usePermissions } from '@/hooks/usePermissions';
 import PageHeader from '@/components/ui/PageHeader';
 import { chatApi } from '@/api/chat';
-
-const SUGGESTIONS = [
-  { id: 1, text: 'Phân tích các mặt hàng đọng vốn trên 3 tháng', icon: <SearchOutlined /> },
-  { id: 2, text: 'Báo cáo nhanh tổng giá trị tồn kho hiện tại', icon: <LineChartOutlined /> },
-  { id: 3, text: 'Dự báo nguy cơ thiếu hụt hàng tuần tới', icon: <WarningOutlined /> },
-];
-
+import { getErrorMessage } from '@/utils/getErrorMessage';
 export default function CopilotPage() {
   const { role } = usePermissions();
   const { user } = useSelector(state => state.auth);
@@ -33,7 +25,7 @@ export default function CopilotPage() {
   const welcomeMessage = {
     id: 'welcome',
     sender: 'ai',
-    text: `Xin chào ${user?.fullName}! Tôi là StockFlow AI Copilot. Tôi có thể giúp bạn phân tích dữ liệu kho, truy xuất báo cáo tài chính, và tìm kiếm thông tin chênh lệch một cách nhanh chóng. Bạn cần tôi giúp gì hôm nay?`,
+    text: `Xin chào ${user?.fullName}! Tôi là StockAI. Tôi có thể giúp bạn phân tích dữ liệu kho, truy xuất báo cáo tài chính, và tìm kiếm thông tin chênh lệch một cách nhanh chóng. Bạn cần tôi giúp gì hôm nay?`,
     time: new Date(),
   };
 
@@ -111,6 +103,34 @@ export default function CopilotPage() {
     loadConversationMessages(id);
   };
 
+  const handleDeleteConversation = (id, e) => {
+    e.stopPropagation();
+    Modal.confirm({
+      title: 'Xóa đoạn chat',
+      content: 'Bạn có chắc chắn muốn xóa đoạn chat này không? Dữ liệu không thể khôi phục.',
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await chatApi.deleteConversation(id);
+          message.success('Đã xóa đoạn chat');
+          const newConvs = await loadConversationsList();
+          if (id === conversationId) {
+            if (newConvs && newConvs.length > 0) {
+              setConversationId(newConvs[0].id);
+              loadConversationMessages(newConvs[0].id);
+            } else {
+              handleNewChat();
+            }
+          }
+        } catch (error) {
+          message.error(getErrorMessage(error, 'Không thể xóa đoạn chat.'));
+        }
+      }
+    });
+  };
+
   const handleSend = async (text = input) => {
     if (!text.trim()) return;
 
@@ -182,10 +202,10 @@ export default function CopilotPage() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md">
                 <RobotOutlined className="text-xl" />
               </div>
-              <span className="font-bold tracking-tight">StockFlow AI Copilot</span>
+              <span className="font-bold tracking-tight">StockAI</span>
             </div>
           } 
-          breadcrumb={[{ title: 'Hệ thống' }, { title: 'AI Copilot' }]}
+          breadcrumb={[{ title: 'Hệ thống' }, { title: 'StockAI' }]}
         />
       </div>
 
@@ -213,14 +233,18 @@ export default function CopilotPage() {
                 <button
                   key={conv.id}
                   onClick={() => handleSelectConversation(conv.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2 truncate ${
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2 truncate group ${
                     conversationId === conv.id 
                       ? 'bg-slate-100 text-slate-800 font-medium' 
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                   }`}
                 >
                   <MessageOutlined className={conversationId === conv.id ? 'text-indigo-500' : 'text-slate-400'} />
-                  <span className="truncate">{conv.title || 'Chat mới'}</span>
+                  <span className="truncate flex-1">{conv.title || 'Chat mới'}</span>
+                  <DeleteOutlined 
+                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity" 
+                    onClick={(e) => handleDeleteConversation(conv.id, e)}
+                  />
                 </button>
               ))
             )}
@@ -299,34 +323,13 @@ export default function CopilotPage() {
 
           {/* Input Area */}
           <div className="bg-white p-4 border-t border-slate-100">
-            {messages.length === 1 && !isTyping && messages[0].id === 'welcome' && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="flex flex-wrap gap-2 mb-4"
-              >
-                <div className="w-full flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                  <BulbOutlined /> Gợi ý câu hỏi
-                </div>
-                {SUGGESTIONS.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => handleSend(s.text)}
-                    className="px-3 py-1.5 rounded-full border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-medium transition-colors flex items-center gap-2"
-                  >
-                    {s.icon} {s.text}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-
             <div className="relative flex items-center">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Hỏi AI Copilot bất cứ điều gì về dữ liệu kho..."
+                placeholder="Hỏi StockAI bất cứ điều gì về dữ liệu kho..."
                 className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-[15px] placeholder:text-slate-400"
               />
               <button
@@ -342,7 +345,7 @@ export default function CopilotPage() {
               </button>
             </div>
             <div className="text-center mt-3 text-[11px] text-slate-400 font-medium">
-              AI Copilot có thể mắc sai lầm. Hãy luôn kiểm tra lại các số liệu tài chính quan trọng.
+              StockAI có thể mắc sai lầm. Hãy luôn kiểm tra lại các số liệu tài chính quan trọng.
             </div>
           </div>
         </div>

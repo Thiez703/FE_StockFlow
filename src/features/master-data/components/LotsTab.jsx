@@ -1,5 +1,6 @@
  
 import { useEffect, useMemo, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, DatePicker, App } from 'antd';
@@ -25,10 +26,10 @@ const STATUS_OPTIONS = [
   { value: 'INACTIVE', label: 'Ngừng' },
 ];
 
-function expiryInfo(expDate) {
+function expiryInfo(expDate, expirySoonDays) {
   const d = daysUntil(expDate);
   if (d < 0) return { tone: 'text-red-600', dot: 'bg-red-500', label: `Quá hạn ${Math.abs(d)} ngày` };
-  if (d <= 30) return { tone: 'text-amber-600', dot: 'bg-amber-500', label: `Còn ${d} ngày` };
+  if (d <= expirySoonDays) return { tone: 'text-amber-600', dot: 'bg-amber-500', label: `Còn ${d} ngày` };
   return { tone: 'text-slate-600', dot: 'bg-green-500', label: `Còn ${d} ngày` };
 }
 
@@ -45,6 +46,7 @@ export default function LotsTab() {
   const [adding, setAdding] = useState(false);
   const [form] = Form.useForm();
   const { sortableTitle, sortRows } = useColumnSort(null, null);
+  const expirySoonDays = useSelector((state) => state.settings.expirySoonDays);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: LOTS_KEY,
@@ -73,16 +75,65 @@ export default function LotsTab() {
     onError: (error) => message.error(getErrorMessage(error)),
   });
 
-  const data = useMemo(() => {
+  const flatData = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const filtered = rows.filter((l) => {
       const okKw = !kw || [l.lotCode, l.productName].some((v) => String(v ?? '').toLowerCase().includes(kw));
       const okStatus = !status || l.status === status;
-      const okNear = !nearOnly || daysUntil(l.expDate) <= 30;
+      const okNear = !nearOnly || daysUntil(l.expDate) <= expirySoonDays;
       return okKw && okStatus && okNear;
     });
-    return sortRows(filtered);
-  }, [rows, keyword, status, nearOnly, sortRows]);
+    
+    // Sort logic inside groups can just use sortRows, but we'll apply it per group below
+    return filtered;
+  }, [rows, keyword, status, nearOnly, expirySoonDays]);
+
+  const groupedData = useMemo(() => {
+    const map = new Map();
+    const productCodeMap = new Map(products.map((p) => [p.id, p.code]));
+
+    for (const lot of flatData) {
+      if (!map.has(lot.productId)) {
+        map.set(lot.productId, {
+          id: lot.productId,
+          productCode: productCodeMap.get(lot.productId) || '',
+          productName: lot.productName,
+          lots: [],
+          totalLots: 0,
+          activeLots: 0,
+          expiredLots: 0,
+          nearExpiredLots: 0,
+        });
+      }
+      const group = map.get(lot.productId);
+      group.lots.push(lot);
+      group.totalLots++;
+      const d = daysUntil(lot.expDate);
+      if (d < 0) group.expiredLots++;
+      else if (d <= expirySoonDays) group.nearExpiredLots++;
+      else group.activeLots++;
+    }
+
+    const groups = Array.from(map.values());
+    
+    // Sort lots inside each group (expired first, then sorted by default)
+    for (const group of groups) {
+      const sorted = sortRows(group.lots);
+      const activeLots = [];
+      const expiredLots = [];
+      for (const lot of sorted) {
+        if (daysUntil(lot.expDate) < 0) {
+          expiredLots.push(lot);
+        } else {
+          activeLots.push(lot);
+        }
+      }
+      group.lots = [...expiredLots, ...activeLots];
+    }
+    
+    // Sort groups by productName
+    return groups.sort((a, b) => a.productName.localeCompare(b.productName));
+  }, [flatData, products, sortRows, expirySoonDays]);
 
   useEffect(() => {
     if (editing) {
@@ -107,14 +158,44 @@ export default function LotsTab() {
     });
   };
 
-  const columns = [
-    { title: 'Mã lô', dataIndex: 'lotCode', width: 120, fixed: isMobile ? 'left' : undefined, render: (c) => <DocCode>{c}</DocCode> },
-    {
-      title: 'Sản phẩm',
-      dataIndex: 'productName',
-      width: isMobile ? 140 : undefined,
-      render: (name) => <span className="font-medium text-ink">{name}</span>,
+  const parentColumns = useMemo(() => [
+    { 
+      title: 'Sản phẩm', 
+      dataIndex: 'productName', 
+      render: (v, r) => (
+        <span className="font-semibold text-ink">
+          {r.productCode && <span className="text-slate-400 font-normal mr-2">[{r.productCode}]</span>}
+          {v}
+        </span>
+      ) 
     },
+    { 
+      title: 'Tổng số lô', 
+      dataIndex: 'totalLots', 
+      align: 'center', 
+      width: 120,
+      render: (v) => <span className="font-medium text-slate-600">{v} lô</span>
+    },
+    ...(!isMobile ? [
+      { 
+        title: 'Cận hạn', 
+        dataIndex: 'nearExpiredLots', 
+        align: 'center', 
+        width: 120, 
+        render: (v) => v > 0 ? <span className="text-amber-600 font-medium">{v} lô</span> : <span className="text-slate-300">—</span> 
+      },
+      { 
+        title: 'Quá hạn', 
+        dataIndex: 'expiredLots', 
+        align: 'center', 
+        width: 120, 
+        render: (v) => v > 0 ? <span className="text-red-600 font-medium">{v} lô</span> : <span className="text-slate-300">—</span> 
+      },
+    ] : []),
+  ], [isMobile]);
+
+  const childColumns = useMemo(() => [
+    { title: 'Mã lô', dataIndex: 'lotCode', width: 120, fixed: isMobile ? 'left' : undefined, render: (c) => <DocCode>{c}</DocCode> },
     ...(!isMobile ? [{
       title: 'NSX',
       dataIndex: 'mfgDate',
@@ -128,12 +209,17 @@ export default function LotsTab() {
       align: 'center',
       width: isMobile ? 130 : 170,
       render: (d) => {
-        const info = expiryInfo(d);
+        const info = expiryInfo(d, expirySoonDays);
         return (
-          <span className={`inline-flex items-center gap-1.5 mono font-medium ${info.tone}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${info.dot}`} />
-            {formatDate(d)}
-          </span>
+          <div className="flex flex-col items-center justify-center">
+            <span className={`inline-flex items-center gap-1.5 mono font-medium ${info.tone}`}>
+              <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${info.dot}`} />
+              {formatDate(d)}
+            </span>
+            <span className={`text-[11px] mt-0.5 leading-none opacity-80 ${info.tone}`}>
+              {info.label}
+            </span>
+          </div>
         );
       },
     },
@@ -160,7 +246,30 @@ export default function LotsTab() {
         </Tooltip>
       ),
     }] : []),
-  ];
+  ], [isMobile, canManageMasterData, sortableTitle, expirySoonDays]);
+
+  const expandedRowRender = useMemo(() => (record) => (
+    <div className="py-2 pr-2 sm:pr-6 md:pr-10">
+      <DataTable
+        sticky={false}
+        columns={childColumns}
+        dataSource={record.lots}
+        pagination={false}
+        rowKey="id"
+        size="small"
+        scroll={isMobile ? { x: 520 } : undefined}
+        onRow={isMobile && canManageMasterData ? (r) => ({ onClick: () => setEditing(r) }) : undefined}
+        rowClassName={(r) => (daysUntil(r.expDate) < 0 ? '!bg-[#fef2f2]' : '')}
+        showHeader={true}
+        className="m-0 border border-slate-200 rounded-lg overflow-hidden"
+      />
+    </div>
+  ), [childColumns, isMobile, canManageMasterData]);
+
+  const expandableConfig = useMemo(() => ({
+    expandedRowRender,
+    rowExpandable: (record) => record.lots.length > 0,
+  }), [expandedRowRender]);
 
   return (
     <>
@@ -196,7 +305,9 @@ export default function LotsTab() {
         <div className="min-w-0 flex-1">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-500 font-medium">{data.length} lô</span>
+              <span className="text-sm text-slate-500 font-medium">
+                {groupedData.length} sản phẩm · {flatData.length} lô
+              </span>
             </div>
             {canManageMasterData && !isMobile && (
               <Tooltip title={products.length ? '' : 'Cần có ít nhất một sản phẩm trước'}>
@@ -226,15 +337,14 @@ export default function LotsTab() {
             </Tooltip>
           )}
 
-          <FadeSection dataKey={`table-${data.map((l) => l.id).join(',')}`}>
+          <FadeSection dataKey={`table-${groupedData.map((g) => g.id).join(',')}`}>
             <DataTable
-              columns={columns}
-              dataSource={data}
+              columns={parentColumns}
+              dataSource={groupedData}
               loading={isLoading}
-              scroll={isMobile ? { x: 520 } : undefined}
-              onRow={isMobile && canManageMasterData ? (r) => ({ onClick: () => setEditing(r) }) : undefined}
-              rowClassName={(r) => (daysUntil(r.expDate) < 0 ? '!bg-[#fef2f2]' : '')}
-              locale={{ emptyText: <TableEmptyState message="Không tìm thấy lô hàng phù hợp" /> }}
+              rowKey="id"
+              expandable={expandableConfig}
+              locale={{ emptyText: <TableEmptyState message="Không tìm thấy dữ liệu phù hợp" /> }}
             />
           </FadeSection>
         </div>
@@ -258,9 +368,6 @@ export default function LotsTab() {
             </p>
           ) : (
             <>
-              <Form.Item name="lotCode" label="Mã lô" rules={[{ required: true, message: 'Nhập mã lô' }]}>
-                <Input placeholder="L2406-SG" />
-              </Form.Item>
               <Form.Item name="productId" label="Sản phẩm" rules={[{ required: true, message: 'Chọn sản phẩm' }]}>
                 <Select
                   showSearch
@@ -272,11 +379,58 @@ export default function LotsTab() {
             </>
           )}
           <div className="grid grid-cols-2 gap-x-4">
-            <Form.Item name="mfgDate" label="Ngày sản xuất">
-              <DatePicker className="w-full" format="DD/MM/YYYY" />
+            <Form.Item 
+              name="mfgDate" 
+              label="Ngày sản xuất"
+              dependencies={['expDate']}
+              rules={[
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value) return Promise.resolve();
+                    const expDate = getFieldValue('expDate');
+                    if (expDate && value.isAfter(expDate, 'day')) {
+                      return Promise.reject(new Error('Phải trước HSD'));
+                    }
+                    return Promise.resolve();
+                  },
+                }),
+              ]}
+            >
+              <DatePicker 
+                className="w-full" 
+                format="DD/MM/YYYY" 
+                disabledDate={(current) => {
+                  const expDate = form.getFieldValue('expDate');
+                  return expDate ? current && current.isAfter(expDate, 'day') : false;
+                }}
+              />
             </Form.Item>
-            <Form.Item name="expDate" label="Hạn sử dụng" rules={[{ required: true, message: 'Chọn HSD' }]}>
-              <DatePicker className="w-full" format="DD/MM/YYYY" />
+            <Form.Item 
+              name="expDate" 
+              label="Hạn sử dụng" 
+              dependencies={['mfgDate']}
+              rules={[
+                { required: true, message: 'Chọn HSD' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value) return Promise.resolve();
+                    const mfgDate = getFieldValue('mfgDate');
+                    if (mfgDate && value.isBefore(mfgDate, 'day')) {
+                      return Promise.reject(new Error('Phải sau NSX'));
+                    }
+                    return Promise.resolve();
+                  },
+                }),
+              ]}
+            >
+              <DatePicker 
+                className="w-full" 
+                format="DD/MM/YYYY" 
+                disabledDate={(current) => {
+                  const mfgDate = form.getFieldValue('mfgDate');
+                  return mfgDate ? current && current.isBefore(mfgDate, 'day') : false;
+                }}
+              />
             </Form.Item>
           </div>
         </Form>

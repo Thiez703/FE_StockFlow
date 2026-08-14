@@ -25,9 +25,20 @@ export function getChangePasswordError(error) {
     return data.errors.map((e) => e.message ?? e.defaultMessage).filter(Boolean).join(', ');
   }
 
-  if (msg) return msg;
+  // Nếu không map được các lỗi cụ thể, gọi hàm getErrorMessage dùng chung
+  // Cần import getErrorMessage từ utils
+  if (!error?.response) {
+    const baseMsg = error?.message;
+    if (baseMsg === 'Network Error') return 'Lỗi kết nối mạng, không thể kết nối tới máy chủ.';
+    if (baseMsg?.includes('timeout')) return 'Kết nối tới máy chủ bị quá hạn.';
+    return `Không kết nối được tới máy chủ. ${baseMsg ? `(Chi tiết: ${baseMsg})` : ''}`;
+  }
 
-  if (!error?.response) return 'Không kết nối được tới máy chủ.';
+  if (msg) {
+    // Nếu có msg, ta bọc nó lại thành tiếng Việt
+    return `Đổi mật khẩu thất bại (Chi tiết: ${msg})`;
+  }
 
-  return 'Có lỗi xảy ra, vui lòng thử lại.';
+  const baseErr = error?.message;
+  return `Đã xảy ra lỗi hệ thống, vui lòng thử lại sau. ${baseErr ? `(Chi tiết: ${baseErr})` : ''}`;
 }

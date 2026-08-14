@@ -39,6 +39,7 @@ export default function StocktakesPage() {
 
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
+  const [page, setPage] = useState(1);
   const [detailId, setDetailId] = useState(null);
   // Phiếu đang chờ nhập lý do từ chối (mở từ tờ biên bản, không phải từ bảng).
   const [rejecting, setRejecting] = useState(null);
@@ -60,6 +61,8 @@ export default function StocktakesPage() {
     return raw.map(toStocktakeRecord);
   }, [pageData]);
 
+  const PAGE_SIZE = 8;
+
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const filtered = rows.filter((r) => {
@@ -67,11 +70,15 @@ export default function StocktakesPage() {
       const okStatus = !status || r.status === status;
       return okKw && okStatus;
     });
+    setPage(1);
     return sortRows(filtered);
   }, [rows, keyword, status, sortRows]);
 
   const onDecided = (label) => {
     queryClient.invalidateQueries({ queryKey: STOCKTAKES_KEY });
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'storage-map'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory-snapshot'] });
     message.success(label);
   };
 
@@ -83,7 +90,11 @@ export default function StocktakesPage() {
 
   const { mutate: reject, isPending: isRejecting } = useMutation({
     mutationFn: ({ id, reason }) => stocktakeApi.reject(id, reason),
-    onSuccess: () => onDecided('Đã từ chối phiếu kiểm kê'),
+    onSuccess: () => {
+      onDecided('Đã từ chối phiếu kiểm kê');
+      setRejecting(null);
+      setRejectReason('');
+    },
     onError: (err) => message.error(getErrorMessage(err)),
   });
 
@@ -94,8 +105,6 @@ export default function StocktakesPage() {
       return;
     }
     reject({ id: rejecting.id, reason });
-    setRejecting(null);
-    setRejectReason('');
   };
 
   // Giữ id thay vì cả bản ghi để tờ biên bản đang mở tự cập nhật trạng thái
@@ -226,6 +235,12 @@ export default function StocktakesPage() {
           loading={isLoading || isApproving || isRejecting}
           rowClassName={(r) => (r.diff !== 0 ? '!bg-[#fffbeb]' : '')}
           locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu kiểm kê phù hợp" /> }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: data.length,
+            onChange: (p) => setPage(p),
+          }}
         />
       </FadeSection>
 

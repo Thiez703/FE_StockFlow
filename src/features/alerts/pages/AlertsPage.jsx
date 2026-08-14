@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Progress, Button, Spin } from 'antd';
 import { WarningFilled, StopOutlined, ClockCircleOutlined, FieldTimeOutlined, CalendarOutlined } from '@ant-design/icons';
@@ -15,7 +16,6 @@ import { daysUntil, formatDate } from '@/utils/date';
 import { formatNumber } from '@/utils/formatCurrency';
 
 const TIER = { OUT_OF_STOCK: 0, OVERDUE: 1, EXPIRING_SOON: 2, LOW_STOCK: 3, EXPIRING_LATER: 4 };
-const EXPIRY_SOON_DAYS = 14;
 const BIG_PAGE = { page: 0, size: 200 };
 
 const TIER_META = {
@@ -195,6 +195,7 @@ export default function AlertsPage() {
   const navigate = useNavigate();
   const { canViewInventory } = usePermissions();
   const isMobile = useIsMobile();
+  const expirySoonDays = useSelector((state) => state.settings.expirySoonDays);
 
   const { data: lowStockPage, isLoading: loadingLow, isError: errLow, error: errLowObj } = useQuery({
     queryKey: ['alerts', 'low-stock'],
@@ -249,29 +250,34 @@ export default function AlertsPage() {
       query: item.productCode,
     }));
 
-    const expiryAlerts = (sellRiskPage?.content ?? []).map((item) => {
-      const d = item.daysUntilExpiry ?? daysUntil(item.expDate);
-      const overdue = d < 0;
-      const soon = !overdue && d <= EXPIRY_SOON_DAYS;
-      const urgencyPercent = overdue ? 100 : Math.max(0, Math.min(100, Math.round((1 - d / 30) * 100)));
-      return {
-        id: `expiry-${item.lotId}`,
-        kind: 'expiry',
-        tier: overdue ? TIER.OVERDUE : soon ? TIER.EXPIRING_SOON : TIER.EXPIRING_LATER,
-        sortValue: d,
-        title: item.productName,
-        meta: `${item.lotCode} · ${formatNumber(item.currentStock)} ${item.unit ?? ''}`.trim(),
-        badge: overdue ? `Quá hạn ${Math.abs(d)}n` : `Còn ${d} ngày`,
-        expDate: item.expDate,
-        quantity: item.currentStock,
-        unit: item.unit ?? '',
-        urgencyPercent,
-        query: item.lotCode ?? item.productCode,
-      };
-    });
+    const expiryAlerts = (sellRiskPage?.content ?? [])
+      .map((item) => {
+        const d = item.daysUntilExpiry ?? daysUntil(item.expDate);
+        const overdue = d < 0;
+        const soon = !overdue && d <= expirySoonDays;
+        const urgencyPercent = overdue ? 100 : Math.max(0, Math.min(100, Math.round((1 - d / Math.max(1, expirySoonDays)) * 100)));
+        return {
+          id: `expiry-${item.lotId}`,
+          kind: 'expiry',
+          tier: overdue ? TIER.OVERDUE : soon ? TIER.EXPIRING_SOON : TIER.EXPIRING_LATER,
+          sortValue: d,
+          title: item.productName,
+          meta: `${item.lotCode} · ${formatNumber(item.currentStock)} ${item.unit ?? ''}`.trim(),
+          badge: overdue ? `Quá hạn ${Math.abs(d)}n` : `Còn ${d} ngày`,
+          expDate: item.expDate,
+          quantity: item.currentStock,
+          unit: item.unit ?? '',
+          urgencyPercent,
+          query: item.lotCode ?? item.productCode,
+          d,
+          overdue,
+          soon
+        };
+      })
+      .filter(alert => alert.overdue || alert.soon);
 
     return [...outOfStockItems, ...lowStockItems, ...expiryAlerts].sort((a, b) => a.tier - b.tier || a.sortValue - b.sortValue);
-  }, [lowStockPage, outOfStockPage, sellRiskPage]);
+  }, [lowStockPage, outOfStockPage, sellRiskPage, expirySoonDays]);
 
   const summary = useMemo(
     () => GROUPS.map((group) => ({ ...group, count: alerts.filter((a) => group.tiers.includes(a.tier)).length })),

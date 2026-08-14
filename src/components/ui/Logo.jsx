@@ -15,17 +15,11 @@ export default function Logo({ variant = 'light', showText = true, to = '/dashbo
 
   const content = (
     <span className="flex items-center gap-2.5">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#1E5AF0,#0A1E3F)] shadow-md shadow-royal/30">
-        <svg viewBox="0 0 48 48" className="h-5 w-5" fill="none" aria-hidden="true">
-          {/* Khối hàng trên (nắp thùng) */}
-          <path d="M14 17l10-5 10 5-10 5-10-5z" fill="#fff" />
-          {/* Thân khối trái/phải tạo cảm giác 3D */}
-          <path d="M14 17v13l10 5V22L14 17z" fill="#fff" opacity="0.6" />
-          <path d="M34 17v13l-10 5V22l10-5z" fill="#fff" opacity="0.85" />
-          {/* Vạch kệ kho */}
-          <rect x="9" y="37" width="30" height="2.4" rx="1.2" fill="#F59E0B" />
-        </svg>
-      </span>
+      <img 
+        src="/StockFlowLogo.png" 
+        alt="StockFlow Logo" 
+        className="h-10 w-auto object-contain rounded-xl"
+      />
       {showText && (
         <span className="flex flex-col leading-none">
           <span className={`text-[17px] font-bold tracking-tight ${titleColor}`}>

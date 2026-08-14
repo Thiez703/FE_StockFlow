@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence, useDragControls, useMotionValue, animate } from 'framer-motion';
 import { 
   RobotOutlined, 
   CloseOutlined, 
@@ -14,10 +14,80 @@ import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 
 export default function FloatingChatWidget() {
+  const dragControls = useDragControls();
+  const constraintsRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useSelector(state => state.auth);
   const location = useLocation();
   
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const wrapperRef = useRef(null);
+  const isDraggingRef = useRef(false);
+
+  const [isButtonIdle, setIsButtonIdle] = useState(false);
+  const buttonIdleTimerRef = useRef(null);
+
+  const snapToEdge = useCallback((idle) => {
+    if (!wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const windowWidth = window.innerWidth;
+    const centerX = rect.left + rect.width / 2;
+    
+    let targetXOffset = 0;
+    
+    if (idle) {
+      if (centerX < windowWidth / 2) {
+        targetXOffset = -28 - rect.left; // 28 is half of 56px button
+      } else {
+        targetXOffset = (windowWidth + 28) - rect.right;
+      }
+    } else {
+      if (rect.left < 0) {
+        targetXOffset = 16 - rect.left;
+      } else if (rect.right > windowWidth) {
+        targetXOffset = (windowWidth - 16) - rect.right;
+      }
+    }
+
+    if (targetXOffset !== 0) {
+      animate(x, x.get() + targetXOffset, { type: 'spring', stiffness: 300, damping: 30 });
+    }
+  }, [x]);
+
+  const startButtonIdleTimer = useCallback(() => {
+    if (buttonIdleTimerRef.current) {
+      clearTimeout(buttonIdleTimerRef.current);
+    }
+    buttonIdleTimerRef.current = setTimeout(() => {
+      setIsButtonIdle(true);
+      snapToEdge(true);
+    }, 5000);
+  }, [snapToEdge]);
+
+  const clearButtonIdleTimer = useCallback(() => {
+    if (buttonIdleTimerRef.current) {
+      clearTimeout(buttonIdleTimerRef.current);
+    }
+    setIsButtonIdle(prev => {
+      if (prev) snapToEdge(false);
+      return false;
+    });
+  }, [snapToEdge]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      startButtonIdleTimer();
+    } else {
+      clearButtonIdleTimer();
+    }
+    return () => {
+      if (buttonIdleTimerRef.current) {
+        clearTimeout(buttonIdleTimerRef.current);
+      }
+    };
+  }, [isOpen, startButtonIdleTimer, clearButtonIdleTimer]);
+
   const welcomeMessage = {
     id: 'welcome',
     sender: 'ai',
@@ -130,7 +200,31 @@ export default function FloatingChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <>
+    {/* Invisible full-viewport element used as drag boundary */}
+    <div ref={constraintsRef} className="fixed inset-0 z-[-1] pointer-events-none" />
+
+    <motion.div 
+      ref={wrapperRef}
+      style={{ x, y }}
+      className="fixed bottom-6 right-6 z-50 flex flex-col items-end"
+      drag
+      dragControls={dragControls}
+      dragListener={false}
+      dragMomentum={false}
+      dragConstraints={constraintsRef}
+      dragElastic={0}
+      onDragStart={() => {
+        isDraggingRef.current = true;
+        clearButtonIdleTimer();
+      }}
+      onDragEnd={() => {
+        setTimeout(() => {
+          isDraggingRef.current = false;
+        }, 150);
+        if (!isOpen) startButtonIdleTimer();
+      }}
+    >
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -141,7 +235,10 @@ export default function FloatingChatWidget() {
             className="absolute bottom-16 right-0 w-[360px] h-[500px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden origin-bottom-right"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex items-center justify-between shadow-sm">
+            <div 
+              onPointerDown={(e) => dragControls.start(e)}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4 flex items-center justify-between shadow-sm cursor-move touch-none"
+            >
               <div className="flex items-center gap-3 text-white">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
                   <RobotOutlined className="text-lg" />
@@ -222,7 +319,7 @@ export default function FloatingChatWidget() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Hỏi AI Copilot..."
+                  placeholder="Hỏi StockAI..."
                   className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm placeholder:text-slate-400"
                 />
                 <button
@@ -244,13 +341,28 @@ export default function FloatingChatWidget() {
 
       {/* Floating Button */}
       <motion.button
-        whileHover={{ scale: 1.05 }}
+        onPointerDown={(e) => dragControls.start(e)}
+        onMouseEnter={clearButtonIdleTimer}
+        onMouseLeave={() => {
+          if (!isOpen) startButtonIdleTimer();
+        }}
+        animate={{
+          opacity: isButtonIdle && !isOpen ? 0.6 : 1,
+        }}
+        whileHover={{ scale: 1.05, opacity: 1 }}
         whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-full shadow-[0_8px_16px_rgba(79,70,229,0.3)] flex items-center justify-center text-2xl hover:shadow-[0_12px_24px_rgba(79,70,229,0.4)] transition-shadow"
+        onClick={(e) => {
+          if (isDraggingRef.current) {
+            e.preventDefault();
+            return;
+          }
+          setIsOpen(!isOpen);
+        }}
+        className="w-14 h-14 bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-full shadow-[0_8px_16px_rgba(79,70,229,0.3)] flex items-center justify-center text-2xl hover:shadow-[0_12px_24px_rgba(79,70,229,0.4)] transition-shadow cursor-move touch-none"
       >
         <RobotOutlined />
       </motion.button>
-    </div>
+    </motion.div>
+    </>
   );
 }

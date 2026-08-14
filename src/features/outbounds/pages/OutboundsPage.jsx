@@ -55,6 +55,7 @@ export default function OutboundsPage() {
   const [issueType, setIssueType] = useState(null);
   const [status, setStatus] = useState(null);
   const [range, setRange] = useState([dayjs().subtract(1, 'month'), dayjs()]);
+  const [page, setPage] = useState(1);
   const [voidingId, setVoidingId] = useState(null);
   const [voidPrefix, setVoidPrefix] = useState('Sai thông tin');
   const [voidDetail, setVoidDetail] = useState('');
@@ -78,6 +79,8 @@ export default function OutboundsPage() {
     return raw.map(toOutboundRecord);
   }, [pageData]);
 
+  const PAGE_SIZE = 8;
+
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const from = range?.[0]?.startOf('day').valueOf();
@@ -92,6 +95,8 @@ export default function OutboundsPage() {
       const okDate = from == null || (at != null && at >= from && at <= to);
       return okKw && okType && okStatus && okDate;
     });
+    // Reset trang khi filter thay đổi làm giảm số lượng kết quả
+    setPage(1);
     return sortRows(filtered);
   }, [rows, keyword, issueType, status, range, sortRows]);
 
@@ -265,6 +270,12 @@ export default function OutboundsPage() {
           loading={isLoading || isVoiding}
           rowClassName={(r) => (r.status === 'VOIDED' ? 'opacity-50' : '')}
           locale={{ emptyText: <TableEmptyState message="Không tìm thấy phiếu xuất phù hợp" /> }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: data.length,
+            onChange: (p) => setPage(p),
+          }}
         />
       </FadeSection>
 

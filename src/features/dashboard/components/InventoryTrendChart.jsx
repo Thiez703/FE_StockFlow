@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card } from 'antd';
-import { TREND } from '@/mock/dashboard';
+const TREND = [];
 import { formatNumber } from '@/utils/formatCurrency';
 
 const MAX = TREND.length > 0 ? Math.max(...TREND.flatMap((d) => [d.inbound, d.outbound, d.stock])) : 1;

@@ -17,6 +17,8 @@ import { userRoutes } from '@/features/users/routes';
 import { logRoutes } from '@/features/logs/routes';
 import { masterDataRoutes } from '@/features/master-data/routes';
 import { aiCopilotRoutes } from '@/features/ai-copilot/routes';
+import { settingsRoutes } from '@/features/settings/routes';
+import { contactRoutes } from '@/features/contact/routes';
 
 export const router = createBrowserRouter([
   {
@@ -48,6 +50,8 @@ export const router = createBrowserRouter([
           ...userRoutes,
           ...logRoutes,
           ...aiCopilotRoutes,
+          ...settingsRoutes,
+          ...contactRoutes,
           { path: '*', element: <ComingSoon /> },
         ],
       },

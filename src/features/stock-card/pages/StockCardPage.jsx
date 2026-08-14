@@ -2,8 +2,8 @@ import { useId, useMemo, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Select, Tag, Tooltip, Input, DatePicker, Spin, Alert } from 'antd';
-import { SearchOutlined, AppstoreOutlined, InboxOutlined, SwapOutlined, WalletOutlined } from '@ant-design/icons';
+import { Select, Tag, Tooltip, Input, DatePicker, Spin, Alert, Modal, Descriptions } from 'antd';
+import { SearchOutlined, AppstoreOutlined, InboxOutlined, SwapOutlined, WalletOutlined, EyeOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
 import DocCode from '@/components/ui/DocCode';
@@ -12,13 +12,23 @@ import FadeSection from '@/components/ui/FadeSection';
 import { StaggerList, StaggerItem } from '@/components/ui/StaggerList';
 import StatCard from '@/features/dashboard/components/StatCard';
 import AccessDenied from '@/components/feedback/AccessDenied';
+import VoucherPreviewModal from '@/components/ui/VoucherPreviewModal';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { inventoryApi } from '@/api/inventory';
 import { productApi } from '@/api/products';
+import { inboundApi } from '@/api/inbounds';
+import { outboundApi } from '@/api/outbounds';
+import { stocktakeApi } from '@/api/stocktakes';
+import { abnormalStockApi } from '@/api/abnormalStocks';
+import { toInboundRecord } from '@/features/inbounds/utils/mapInbound';
+import { toOutboundRecord } from '@/features/outbounds/utils/mapOutbound';
+import { toStocktakeRecord } from '@/features/stocktakes/utils/mapStocktake';
+import { toAbnormalRecord } from '@/features/abnormal-stocks/utils/mapAbnormalStock';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatDate } from '@/utils/date';
 import { formatNumber } from '@/utils/formatCurrency';
+import { toVoucher } from '@/utils/voucher';
 
 import DateRangeSelectGroup from '@/components/ui/DateRangeSelectGroup';
 import dayjs from 'dayjs';
@@ -92,6 +102,32 @@ export default function StockCardPage() {
   const [dateRange, setDateRange] = useState([dayjs().subtract(1, 'month'), dayjs()]);
   const [keyword, setKeyword] = useState('');
   const [hoverIndex, setHoverIndex] = useState(null);
+  const [detailTx, setDetailTx] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
+
+  const { data: previewVoucher } = useQuery({
+    queryKey: ['doc-preview', previewDoc?.type, previewDoc?.id],
+    queryFn: async () => {
+      if (!previewDoc) return null;
+      const { type, id } = previewDoc;
+      let res;
+      if (type.startsWith('INBOUND')) {
+        res = await inboundApi.getById(id);
+        return toVoucher('inbound', toInboundRecord(res.data ?? res));
+      } else if (type.startsWith('OUTBOUND')) {
+        res = await outboundApi.getById(id);
+        return toVoucher('outbound', toOutboundRecord(res.data ?? res));
+      } else if (type === 'STOCKTAKE') {
+        res = await stocktakeApi.getById(id);
+        return toVoucher('stocktake', toStocktakeRecord(res.data ?? res));
+      } else if (type === 'ABNORMAL') {
+        res = await abnormalStockApi.getById(id);
+        return toVoucher('abnormal', toAbnormalRecord(res.data ?? res));
+      }
+      return null;
+    },
+    enabled: !!previewDoc,
+  });
 
   // Danh sách sản phẩm cho selector
   const { data: products = [] } = useQuery({
@@ -104,8 +140,7 @@ export default function StockCardPage() {
     [products],
   );
 
-  // Tự chọn sản phẩm đầu tiên nếu chưa có
-  const effectiveProductId = productId ?? products[0]?.id ?? null;
+  const effectiveProductId = productId;
   const selectedProduct = products.find((p) => p.id === effectiveProductId);
 
   // Lịch sử biến động
@@ -116,61 +151,108 @@ export default function StockCardPage() {
     error,
   } = useQuery({
     queryKey: ['inventory-transactions', effectiveProductId],
-    queryFn: () => inventoryApi.getTransactionsByProduct(effectiveProductId, BIG_PAGE),
-    enabled: !!effectiveProductId,
+    queryFn: () => effectiveProductId 
+      ? inventoryApi.getTransactionsByProduct(effectiveProductId, BIG_PAGE)
+      : inventoryApi.getTransactions(BIG_PAGE),
+    enabled: true,
   });
 
   // Map API → UI row shape
-  const mappedRows = useMemo(
-    () =>
-      (txPage?.content ?? []).map((tx) => {
-        const change = tx.quantityChange ?? 0;
-        return {
-          key: `tx-${tx.id}`,
-          id: tx.id,
-          date: tx.performedAt,
-          refType: tx.refType,
-          refId: tx.refId,
-          refCode: tx.refCode,
-          type: REF_TYPE_MAP[tx.refType]?.label ?? tx.refType,
-          typeColor: REF_TYPE_MAP[tx.refType]?.color ?? 'default',
-          inQty: change > 0 ? change : 0,
-          outQty: change < 0 ? Math.abs(change) : 0,
-          balance: tx.balanceAfter,
-          note: `${tx.lotCode ?? ''} · ${tx.locationCode ?? ''}`.trim().replace(/^·\s*/, '').replace(/\s*·$/, '') || tx.performedBy || '',
-          productName: tx.productName,
-        };
-      }),
-    [txPage?.content],
-  );
+  const mappedRows = useMemo(() => {
+    const rows = (txPage?.content ?? []).map((tx) => {
+      const change = tx.quantityChange ?? 0;
+      return {
+        key: `tx-${tx.id}`,
+        id: tx.id,
+        date: tx.performedAt,
+        refType: tx.refType,
+        refId: tx.refId,
+        refCode: tx.refCode,
+        type: REF_TYPE_MAP[tx.refType]?.label ?? tx.refType,
+        typeColor: REF_TYPE_MAP[tx.refType]?.color ?? 'default',
+        inQty: change > 0 ? change : 0,
+        outQty: change < 0 ? Math.abs(change) : 0,
+        balance: tx.balanceAfter,
+        note: `${tx.lotCode ?? ''} · ${tx.locationCode ?? ''}`.trim().replace(/^·\s*/, '').replace(/\s*·$/, '') || tx.performedBy || '',
+        productName: tx.productName,
+        raw: tx,
+      };
+    });
+    
+    // Đảm bảo mảng luôn được sắp xếp cũ -> mới (tăng dần theo thời gian) để logic tính đầu kỳ / cuối kỳ hoạt động đúng
+    return rows.sort((a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf());
+  }, [txPage?.content]);
 
-  // Tính số dư đầu kỳ từ dòng đầu tiên
+  // Tính số dư đầu kỳ (ngay trước thời điểm dateRange[0])
   const opening = useMemo(() => {
     if (mappedRows.length === 0) return 0;
+
+    if (dateRange?.[0]) {
+      const startString = dateRange[0].format('YYYY-MM-DD');
+      let lastBefore = null;
+      for (let i = 0; i < mappedRows.length; i++) {
+        const txDay = dayjs(mappedRows[i].date).format('YYYY-MM-DD');
+        if (txDay < startString) {
+          lastBefore = mappedRows[i];
+        } else {
+          break; // Vì mappedRows đã được sắp xếp cũ -> mới
+        }
+      }
+      if (lastBefore) return lastBefore.balance;
+    }
+
+    // Fallback: nếu không có giao dịch nào trước ngày lọc, tính số dư nguyên thủy
     const first = mappedRows[0];
     return first.balance - (first.inQty > 0 ? first.inQty : -first.outQty);
-  }, [mappedRows]);
+  }, [mappedRows, dateRange]);
 
   // Client-side filter
   const filteredRows = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     return mappedRows.filter((r) => {
       const okType = selectedTypes.length === 0 || selectedTypes.includes(r.refType);
+      
+      const txDay = dayjs(r.date).format('YYYY-MM-DD');
       const okDate =
         !dateRange ||
-        (r.date >= dateRange[0].format('YYYY-MM-DD') && r.date <= dateRange[1].format('YYYY-MM-DD'));
+        (txDay >= dateRange[0].format('YYYY-MM-DD') && txDay <= dateRange[1].format('YYYY-MM-DD'));
+        
       const okKw = !kw || [r.refCode, r.note].some((v) => v.toLowerCase().includes(kw));
       return okType && okDate && okKw;
     });
   }, [mappedRows, selectedTypes, dateRange, keyword]);
 
   // Dòng "Số dư đầu kỳ" + các dòng biến động đã lọc
-  const rows = useMemo(
-    () => [{ key: 'opening', opening: true, balance: opening }, ...filteredRows],
-    [opening, filteredRows],
-  );
+  const rows = useMemo(() => {
+    // Chỉ hiển thị dòng Số dư đầu kỳ khi đang xem một sản phẩm cụ thể
+    if (effectiveProductId) {
+      return [{ key: 'opening', opening: true, balance: opening }, ...filteredRows];
+    }
+    // Nếu xem "Tất cả sản phẩm", chỉ hiện danh sách biến động (nhật ký chung)
+    return filteredRows;
+  }, [opening, filteredRows, effectiveProductId]);
 
-  const closing = mappedRows[mappedRows.length - 1]?.balance ?? opening;
+  // Tính số dư cuối kỳ (ngay tại hoặc trước thời điểm dateRange[1])
+  const closing = useMemo(() => {
+    if (mappedRows.length === 0) return 0;
+    
+    if (dateRange?.[1]) {
+      const endString = dateRange[1].format('YYYY-MM-DD');
+      let lastInPeriod = null;
+      for (let i = 0; i < mappedRows.length; i++) {
+        const txDay = dayjs(mappedRows[i].date).format('YYYY-MM-DD');
+        if (txDay <= endString) {
+          lastInPeriod = mappedRows[i];
+        } else {
+          break;
+        }
+      }
+      if (lastInPeriod) return lastInPeriod.balance;
+      return opening;
+    }
+    
+    return mappedRows[mappedRows.length - 1].balance;
+  }, [mappedRows, dateRange, opening]);
 
   // Toạ độ cho biểu đồ
   const { chartPoints, balanceMin, balanceMax, zeroY } = useMemo(() => {
@@ -227,12 +309,12 @@ export default function StockCardPage() {
           !isMobile && (
             <Select
               className="w-72"
-              options={productOptions}
+              options={[{ value: null, label: 'Tất cả sản phẩm' }, ...productOptions]}
               value={effectiveProductId}
               onChange={(v) => setProductId(v)}
               showSearch
               optionFilterProp="label"
-              placeholder="Chọn sản phẩm"
+              placeholder="Tất cả sản phẩm"
             />
           )
         }
@@ -241,12 +323,12 @@ export default function StockCardPage() {
       {isMobile && (
         <Select
           className="w-full mb-3"
-          options={productOptions}
+          options={[{ value: null, label: 'Tất cả sản phẩm' }, ...productOptions]}
           value={effectiveProductId}
           onChange={(v) => setProductId(v)}
           showSearch
           optionFilterProp="label"
-          placeholder="Chọn sản phẩm"
+          placeholder="Tất cả sản phẩm"
           size="large"
         />
       )}
@@ -257,8 +339,6 @@ export default function StockCardPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-20"><Spin size="large" /></div>
-      ) : !effectiveProductId ? (
-        <TableEmptyState message="Chọn sản phẩm để xem thẻ kho" />
       ) : (
         <>
           <div className={`mb-4 grid gap-3 ${isMobile ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4 gap-4'}`}>
@@ -266,9 +346,9 @@ export default function StockCardPage() {
               <StatCard
                 title="Sản phẩm"
                 value={
-                  <Tooltip title={selectedProduct?.name}>
+                  <Tooltip title={selectedProduct?.name || 'Tất cả sản phẩm'}>
                     <span className="line-clamp-2 block text-base font-bold leading-snug text-ink">
-                      {selectedProduct?.name ?? ''}
+                      {selectedProduct?.name || 'Tất cả sản phẩm'}
                     </span>
                   </Tooltip>
                 }
@@ -277,16 +357,20 @@ export default function StockCardPage() {
                 compact
               />
             )}
-            <StatCard title="Đầu kỳ" value={formatNumber(opening)} icon={<InboxOutlined />} tone="blue" compact />
+            {effectiveProductId && (
+              <StatCard title="Đầu kỳ" value={formatNumber(opening)} icon={<InboxOutlined />} tone="blue" compact />
+            )}
             <StatCard title="Biến động" value={formatNumber(filteredRows.length)} suffix="dòng" icon={<SwapOutlined />} tone="blue" compact />
-            <StatCard
-              title="Cuối kỳ"
-              value={formatNumber(closing)}
-              icon={<WalletOutlined />}
-              tone={closing < 0 ? 'red' : 'green'}
-              cardTone={closing < 0 ? 'red' : undefined}
-              compact
-            />
+            {effectiveProductId && (
+              <StatCard
+                title="Cuối kỳ"
+                value={formatNumber(closing)}
+                icon={<WalletOutlined />}
+                tone={closing < 0 ? 'red' : 'green'}
+                cardTone={closing < 0 ? 'red' : undefined}
+                compact
+              />
+            )}
           </div>
 
           <FilterBar>
@@ -338,7 +422,8 @@ export default function StockCardPage() {
 
           <FadeSection dataKey={rows.map((r) => r.key).join(',')}>
             {/* Biểu đồ số dư */}
-            <div className="mb-4 rounded-2xl border border-hair bg-surface p-5">
+            {effectiveProductId && (
+              <div className="mb-4 rounded-2xl border border-hair bg-surface p-5">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="m-0 text-sm font-semibold text-ink">Số dư tồn kho theo thời gian</h3>
                 <span className="rounded-full bg-tint px-3 py-1 text-xs font-semibold text-royal">
@@ -436,7 +521,8 @@ export default function StockCardPage() {
                 <span>{formatDate(filteredRows[0]?.date ?? '')}</span>
                 <span>{formatDate(chartPoints[chartPoints.length - 1]?.date ?? '')}</span>
               </div>
-            </div>
+              </div>
+            )}
 
             {/* Dòng thời gian biến động */}
             <div className="rounded-2xl border border-hair bg-surface p-5">
@@ -467,12 +553,25 @@ export default function StockCardPage() {
                               <span className="mono text-xs text-ink-sub">{formatDate(r.date)}</span>
                               <Tag bordered={false} color={r.typeColor} className="!m-0">{r.type}</Tag>
                               {REF_TYPE_PATH[r.refType] && r.refId ? (
-                                <Link to={`${REF_TYPE_PATH[r.refType]}/${r.refId}`} className="no-underline">
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewDoc({ type: r.refType, id: r.refId })}
+                                  className="cursor-pointer border-none bg-transparent p-0 transition-opacity hover:opacity-80"
+                                  title="Xem chi tiết phiếu"
+                                >
                                   <DocCode>{r.refCode}</DocCode>
-                                </Link>
+                                </button>
                               ) : (
                                 <DocCode>{r.refCode}</DocCode>
                               )}
+                              <button
+                                type="button"
+                                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-slate-400 transition-colors hover:bg-tint hover:text-royal"
+                                onClick={() => setDetailTx(r)}
+                                title="Xem chi tiết"
+                              >
+                                <EyeOutlined />
+                              </button>
                             </div>
                             <div className="mt-1 text-sm text-ink-sub">{r.note}</div>
                           </div>
@@ -494,6 +593,66 @@ export default function StockCardPage() {
           </FadeSection>
         </>
       )}
+      {/* Modal chi tiết biến động */}
+      <Modal
+        title="Chi tiết biến động thẻ kho"
+        open={!!detailTx}
+        onCancel={() => setDetailTx(null)}
+        footer={null}
+        width={600}
+      >
+        {detailTx && (
+          <Descriptions column={1} bordered size="small" className="mt-4">
+            <Descriptions.Item label="Sản phẩm">
+              <span className="font-semibold">{detailTx.raw.productCode}</span> - {detailTx.raw.productName}
+            </Descriptions.Item>
+            <Descriptions.Item label="Thời gian">
+              {dayjs(detailTx.raw.performedAt).format('DD/MM/YYYY HH:mm:ss')}
+            </Descriptions.Item>
+            <Descriptions.Item label="Loại biến động">
+              <Tag bordered={false} color={detailTx.typeColor}>{detailTx.type}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Mã chứng từ">
+              {REF_TYPE_PATH[detailTx.refType] && detailTx.refId ? (
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc({ type: detailTx.refType, id: detailTx.refId })}
+                  className="cursor-pointer border-none bg-transparent p-0 text-royal hover:underline"
+                >
+                  {detailTx.refCode}
+                </button>
+              ) : (
+                detailTx.refCode
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="Số lượng thay đổi">
+              {detailTx.inQty > 0 ? (
+                <span className="text-ok font-semibold">+{formatNumber(detailTx.inQty)}</span>
+              ) : detailTx.outQty > 0 ? (
+                <span className="text-danger font-semibold">-{formatNumber(detailTx.outQty)}</span>
+              ) : '0'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Số dư sau biến động">
+              <span className="font-bold text-navy-700">{formatNumber(detailTx.balance)}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label="Số lô">
+              {detailTx.raw.lotCode || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Vị trí">
+              {detailTx.raw.locationCode || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Người thực hiện">
+              {detailTx.raw.performedBy || '-'}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
+      </Modal>
+
+      <VoucherPreviewModal
+        open={!!previewDoc}
+        voucher={previewVoucher}
+        onClose={() => setPreviewDoc(null)}
+      />
     </>
   );
 }

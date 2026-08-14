@@ -2,7 +2,7 @@ import { Card, Button, Select, InputNumber, Empty } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useFormContext, useFieldArray, Controller, useWatch } from 'react-hook-form';
 import { formatCurrency } from '@/utils/formatCurrency';
-import { PRODUCT_OPTIONS } from '@/mock/products';
+const PRODUCT_OPTIONS = [];
 
 const DEFAULT_ITEM = { productId: undefined, quantity: 1, unitPrice: 0 };
 

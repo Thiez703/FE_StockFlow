@@ -11,6 +11,8 @@ import { DEFAULT_WAREHOUSE } from '@/constants/voucher';
 export function toVoucher(kind, record) {
   if (!record) return null;
 
+  const items = record.items ?? [];
+
   const base = {
     kind,
     id: record.id,
@@ -20,8 +22,7 @@ export function toVoucher(kind, record) {
     createdBy: record.createdBy,
     warehouse: record.warehouse ?? DEFAULT_WAREHOUSE,
     note: record.note,
-    items: record.items ?? [],
-    total: 0,
+    items,
     rejectReason: record.rejectReason,
     voidReason: record.voidReason,
   };
@@ -37,10 +38,9 @@ export function toVoucher(kind, record) {
     return { ...base, partnerName: record.createdBy, subType: record.reasonSummary };
   }
 
-  const items = record.items ?? [];
   return {
     ...base,
-    subType: record.type, // loại xuất: Sỉ / Trả NCC / Hủy / Nội bộ
+    subType: record.type,
     partnerName: kind === 'inbound' ? record.supplierName : record.partnerName,
     total:
       record.total ??

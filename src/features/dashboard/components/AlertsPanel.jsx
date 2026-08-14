@@ -2,9 +2,10 @@ import { Card, Progress, Button, Spin } from 'antd';
 import { AlertOutlined, RightOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { alertApi } from '@/api/alerts';
 
-const PREVIEW_PARAMS = { page: 0, size: 3 };
+const FETCH_PARAMS = { page: 0, size: 200 };
 
 /**
  * Panel "Cảnh báo" trên Dashboard: gộp Tồn dưới định mức + Hàng cận hạn (rút gọn).
@@ -12,18 +13,19 @@ const PREVIEW_PARAMS = { page: 0, size: 3 };
  */
 export default function AlertsPanel() {
   const navigate = useNavigate();
+  const expirySoonDays = useSelector((state) => state.settings.expirySoonDays);
 
   const { data: lowPage, isLoading: loadingLow } = useQuery({
     queryKey: ['alerts', 'low-stock', 'preview'],
-    queryFn: () => alertApi.getLowStock(PREVIEW_PARAMS),
+    queryFn: () => alertApi.getLowStock(FETCH_PARAMS),
   });
-  const { data: outPage } = useQuery({
+  const { data: outPage, isLoading: loadingOut } = useQuery({
     queryKey: ['alerts', 'out-of-stock', 'preview'],
-    queryFn: () => alertApi.getOutOfStock(PREVIEW_PARAMS),
+    queryFn: () => alertApi.getOutOfStock(FETCH_PARAMS),
   });
   const { data: riskPage, isLoading: loadingRisk } = useQuery({
     queryKey: ['alerts', 'sell-through-risk', 'preview'],
-    queryFn: () => alertApi.getSellThroughRisk(PREVIEW_PARAMS),
+    queryFn: () => alertApi.getSellThroughRisk(FETCH_PARAMS),
   });
 
   const lowItems = lowPage?.content ?? [];
@@ -31,10 +33,14 @@ export default function AlertsPanel() {
   const stockItems = [...outItems, ...lowItems].slice(0, 3);
   const stockTotal = (lowPage?.totalElements ?? 0) + (outPage?.totalElements ?? 0);
 
-  const riskItems = riskPage?.content ?? [];
-  const riskTotal = riskPage?.totalElements ?? 0;
+  const riskItemsAll = riskPage?.content ?? [];
+  const validRiskItems = riskItemsAll.filter(item => (item.daysUntilExpiry ?? 0) <= expirySoonDays);
+  validRiskItems.sort((a, b) => (a.daysUntilExpiry ?? 0) - (b.daysUntilExpiry ?? 0));
+  
+  const riskItems = validRiskItems.slice(0, 3);
+  const riskTotal = validRiskItems.length;
 
-  const isLoading = loadingLow || loadingRisk;
+  const isLoading = loadingLow || loadingOut || loadingRisk;
 
   return (
     <Card className="h-full border-hair" styles={{ body: { padding: 22 } }}>
@@ -111,7 +117,7 @@ export default function AlertsPanel() {
                       className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
                         overdue
                           ? 'bg-[#fee2e2] text-[#b91c1c]'
-                          : d <= 14
+                          : d <= expirySoonDays
                             ? 'bg-[#fef3c7] text-[#b45309]'
                             : 'bg-tint text-royal'
                       }`}

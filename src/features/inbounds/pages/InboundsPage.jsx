@@ -1,6 +1,6 @@
  
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Input, Select, DatePicker, Modal, Tag, Tooltip, App } from 'antd';
 import {
   PlusOutlined,
@@ -55,8 +55,8 @@ export default function InboundsPage() {
     const params = { warehouseId: DEFAULT_WAREHOUSE_ID, page, size: PAGE_SIZE, sort: 'createdAt,desc' };
     if (status) params.status = status;
     if (range) {
-      if (range[0]) params.fromDate = range[0].format('YYYY-MM-DD');
-      if (range[1]) params.toDate = range[1].format('YYYY-MM-DD');
+      if (range[0]) params.from = range[0].format('YYYY-MM-DD');
+      if (range[1]) params.to = range[1].format('YYYY-MM-DD');
     }
     return params;
   }, [page, status, range]);
@@ -64,7 +64,7 @@ export default function InboundsPage() {
   const { data: pageData, isLoading, error, isError } = useQuery({
     queryKey: [...INBOUNDS_KEY, queryParams],
     queryFn: () => inboundApi.getAll(queryParams),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const rawRows = useMemo(() => {
@@ -138,8 +138,8 @@ export default function InboundsPage() {
       render: (n) => <span className="font-medium text-ink">{n}</span>,
     },
     {
-      title: sortableTitle('Tổng tiền', 'totalValue'),
-      dataIndex: 'totalValue',
+      title: sortableTitle('Tổng tiền', 'total'),
+      dataIndex: 'total',
       align: 'right',
       render: (v) => <span className="mono font-semibold text-blue-700">{formatCurrency(v)}</span>,
     },

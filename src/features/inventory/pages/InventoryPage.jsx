@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Input, Select, Spin, Alert, Button, Tag } from 'antd';
-import { SearchOutlined, DatabaseOutlined, HistoryOutlined, BoxPlotOutlined, EnvironmentOutlined, BarcodeOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Input, Select, Spin, Alert, Button, Tag, Radio } from 'antd';
+import { SearchOutlined, DatabaseOutlined, HistoryOutlined, BoxPlotOutlined, EnvironmentOutlined, BarcodeOutlined, ClockCircleOutlined, AppstoreOutlined, BarsOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import FilterBar from '@/components/ui/FilterBar';
 import TableEmptyState from '@/components/ui/TableEmptyState';
@@ -30,6 +30,7 @@ export default function InventoryPage() {
   const [locationId, setLocationId] = useState(null);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState(null);
+  const [viewMode, setViewMode] = useState('detailed'); // 'detailed' | 'grouped'
 
   // Danh sách sản phẩm & vị trí cho bộ lọc
   const { data: products = [] } = useQuery({
@@ -54,9 +55,9 @@ export default function InventoryPage() {
   const queryParams = useMemo(() => {
     const p = { page, size: PAGE_SIZE };
     if (productId) p.productId = productId;
-    if (locationId) p.locationId = locationId;
+    if (locationId && viewMode === 'detailed') p.locationId = locationId;
     return p;
-  }, [page, productId, locationId]);
+  }, [page, productId, locationId, viewMode]);
 
   const {
     data: inventoryPage,
@@ -64,25 +65,31 @@ export default function InventoryPage() {
     isError,
     error,
   } = useQuery({
-    queryKey: ['inventory', queryParams],
-    queryFn: () => inventoryApi.getAll(queryParams),
-    keepPreviousData: true,
+    queryKey: ['inventory', viewMode, queryParams],
+    queryFn: () => viewMode === 'grouped' ? inventoryApi.getByProduct(queryParams) : inventoryApi.getAll(queryParams),
+    placeholderData: keepPreviousData,
   });
 
-  const totalElements = inventoryPage?.totalElements ?? 0;
-  const totalPages = inventoryPage?.totalPages ?? 0;
+  const isArrayResponse = Array.isArray(inventoryPage);
+  const totalElements = isArrayResponse ? inventoryPage.length : (inventoryPage?.totalElements ?? 0);
+  const totalPages = isArrayResponse ? 1 : (inventoryPage?.totalPages ?? 0);
 
   // Client-side keyword filter (API không hỗ trợ keyword search)
   const data = useMemo(() => {
-    const allItems = inventoryPage?.content ?? [];
+    const allItems = isArrayResponse ? inventoryPage : (inventoryPage?.content ?? []);
+    const processedItems = allItems.map(i => ({ 
+      ...i, 
+      id: i.id ?? i.productId,
+      quantity: i.quantity ?? i.totalQuantity ?? i.totalQty ?? 0
+    }));
     const kw = keyword.trim().toLowerCase();
-    if (!kw) return allItems;
-    return allItems.filter((i) =>
+    if (!kw) return processedItems;
+    return processedItems.filter((i) =>
       [i.productName, i.productCode, i.lotCode, i.locationCode].some(
-        (v) => v && v.toLowerCase().includes(kw),
+        (v) => String(v ?? '').toLowerCase().includes(kw),
       ),
     );
-  }, [inventoryPage?.content, keyword]);
+  }, [inventoryPage, keyword, isArrayResponse]);
 
   const totalQty = data.reduce((s, i) => s + (i.quantity ?? 0), 0);
 
@@ -119,6 +126,20 @@ export default function InventoryPage() {
       </div>
 
       <FilterBar>
+        <Radio.Group
+          value={viewMode}
+          onChange={(e) => {
+            setViewMode(e.target.value);
+            setPage(0);
+            setSelectedId(null);
+          }}
+          optionType="button"
+          buttonStyle="solid"
+          className="shrink-0 hidden sm:inline-flex"
+        >
+          <Radio.Button value="detailed"><BarsOutlined /> Tồn lô</Radio.Button>
+          <Radio.Button value="grouped"><AppstoreOutlined /> Tồn sản phẩm</Radio.Button>
+        </Radio.Group>
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}
@@ -146,6 +167,7 @@ export default function InventoryPage() {
           options={locationOptions}
           value={locationId}
           onChange={handleLocationChange}
+          disabled={viewMode === 'grouped'}
         />
       </FilterBar>
 
@@ -206,14 +228,23 @@ export default function InventoryPage() {
                           </div>
                           
                           <div className="relative z-10 mt-3 flex items-center gap-4 text-xs font-medium">
-                            <div className="flex items-center gap-1.5 text-slate-500 bg-white/60 px-2 py-0.5 rounded-md border border-slate-100 backdrop-blur-sm shadow-sm">
-                              <BarcodeOutlined className={active ? 'text-blue-500' : 'text-slate-400'} />
-                              <span className="mono">{item.lotCode}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-slate-500 bg-white/60 px-2 py-0.5 rounded-md border border-slate-100 backdrop-blur-sm shadow-sm">
-                              <EnvironmentOutlined className={active ? 'text-emerald-500' : 'text-slate-400'} />
-                              <span className="mono">{item.locationCode}</span>
-                            </div>
+                            {viewMode === 'detailed' ? (
+                              <>
+                                <div className="flex items-center gap-1.5 text-slate-500 bg-white/60 px-2 py-0.5 rounded-md border border-slate-100 backdrop-blur-sm shadow-sm">
+                                  <BarcodeOutlined className={active ? 'text-blue-500' : 'text-slate-400'} />
+                                  <span className="mono">{item.lotCode}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-slate-500 bg-white/60 px-2 py-0.5 rounded-md border border-slate-100 backdrop-blur-sm shadow-sm">
+                                  <EnvironmentOutlined className={active ? 'text-emerald-500' : 'text-slate-400'} />
+                                  <span className="mono">{item.locationCode}</span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-slate-500 bg-white/60 px-2 py-0.5 rounded-md border border-slate-100 backdrop-blur-sm shadow-sm">
+                                <BoxPlotOutlined className={active ? 'text-purple-500' : 'text-slate-400'} />
+                                <span>Tồn tổng hợp</span>
+                              </div>
+                            )}
                           </div>
                         </StaggerItem>
                       );
@@ -287,25 +318,34 @@ export default function InventoryPage() {
                       </div>
 
                       {/* Info Cards */}
-                      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center text-lg"><EnvironmentOutlined /></div>
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Vị trí lưu trữ</div>
-                        </div>
-                        <div className="mono text-lg font-bold text-slate-800">{selected.locationCode}</div>
-                        <div className="mt-1 text-[13px] text-slate-500 font-medium">Kho: {selected.warehouseCode}</div>
-                      </div>
+                      {viewMode === 'detailed' ? (
+                        <>
+                          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center text-lg"><EnvironmentOutlined /></div>
+                              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Vị trí lưu trữ</div>
+                            </div>
+                            <div className="mono text-lg font-bold text-slate-800">{selected.locationCode}</div>
+                            <div className="mt-1 text-[13px] text-slate-500 font-medium">Kho: {selected.warehouseCode}</div>
+                          </div>
 
-                      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center text-lg"><BarcodeOutlined /></div>
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Lô hàng</div>
+                          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center text-lg"><BarcodeOutlined /></div>
+                              <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Lô hàng</div>
+                            </div>
+                            <div className="mono text-lg font-bold text-slate-800">{selected.lotCode}</div>
+                            <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                              ID Hệ thống: {selected.lotId}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="col-span-1 md:col-span-2 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col items-center justify-center text-center text-slate-500 min-h-[120px]">
+                          <BoxPlotOutlined className="text-3xl text-slate-300 mb-2" />
+                          <span className="text-sm">Đang xem ở chế độ Tồn sản phẩm. Chọn "Tồn lô" để xem tồn chi tiết theo lô và vị trí.</span>
                         </div>
-                        <div className="mono text-lg font-bold text-slate-800">{selected.lotCode}</div>
-                        <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                          ID Hệ thống: {selected.lotId}
-                        </div>
-                      </div>
+                      )}
 
                       <div className="col-span-1 md:col-span-2 mt-2 flex items-center justify-center gap-2 text-xs font-medium text-slate-400">
                         <ClockCircleOutlined />

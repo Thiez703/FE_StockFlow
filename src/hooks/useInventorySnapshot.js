@@ -31,7 +31,7 @@ export function useInventorySnapshot(warehouseId = DEFAULT_WAREHOUSE_ID, { enabl
 
   // `key` = cặp lô + vị trí, đủ để định danh một dòng nhập liệu.
   const cells = raw
-    .filter((c) => c.lotId != null && c.locationId != null)
+    .filter((c) => c.lotId != null && c.locationId != null && c.quantity > 0)
     .map((c) => ({ ...c, key: `${c.lotId}-${c.locationId}` }));
 
   return { ...query, cells };

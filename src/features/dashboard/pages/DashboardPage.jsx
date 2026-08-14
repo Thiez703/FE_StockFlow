@@ -2,17 +2,18 @@ import { Popover, Spin, Alert, Button } from 'antd';
 import { WarningOutlined, FileSyncOutlined, AppstoreOutlined, ExportOutlined, PlusOutlined, ImportOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
-import QuickActionsBar from '@/features/dashboard/components/QuickActionsBar';
 import AlertsPanel from '@/features/dashboard/components/AlertsPanel';
 import RecentActivities from '@/features/dashboard/components/RecentActivities';
 import StatCard from '@/features/dashboard/components/StatCard';
 import { formatNumber } from '@/utils/formatCurrency';
 import { dashboardApi } from '@/api/dashboard';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import AccountantDashboard from '@/features/dashboard/pages/AccountantDashboard';
+import StaffDashboard from '@/features/dashboard/pages/StaffDashboard';
 
 // Style theo trạng thái ô (enum trả về từ BE). Giữ nguyên bảng màu đã có sẵn
 // của khối sơ đồ (emerald/rose/amber) khi còn 4 state; EXPIRED là state mới,
@@ -48,6 +49,8 @@ const STATUS_THEME = {
 
 function DashboardWarehouseMap() {
   const navigate = useNavigate();
+  const expirySoonDays = useSelector((state) => state.settings.expirySoonDays);
+
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['dashboard', 'storage-map', DEFAULT_WAREHOUSE_ID],
     queryFn: () => dashboardApi.getStorageMap(DEFAULT_WAREHOUSE_ID),
@@ -117,7 +120,7 @@ function DashboardWarehouseMap() {
           <Button 
             className="flex-1 border-emerald-500 text-emerald-600 hover:text-emerald-500 hover:border-emerald-400" 
             icon={<ImportOutlined />} 
-            onClick={() => navigate('/inbounds/create', { 
+            onClick={() => navigate('/inbounds/create/old', { 
               state: { prefill: [{ productId: cell.productId, lotCode: cell.lotCode, lotId: cell.lotId, locationId: cell.locationId }] } 
             })}
           >
@@ -132,7 +135,7 @@ function DashboardWarehouseMap() {
           type="primary" 
           block 
           icon={<PlusOutlined />} 
-          onClick={() => navigate('/inbounds/create', { 
+          onClick={() => navigate('/inbounds/create/new', { 
             state: { prefill: [{ locationId: cell.locationId }] } 
           })}
         >
@@ -220,7 +223,22 @@ function DashboardWarehouseMap() {
     );
   }
 
-  const rows = data?.rows ?? [];
+  const rows = (data?.rows ?? []).map((row) => ({
+    ...row,
+    cells: row.cells.map((cell) => {
+      let status = cell.status;
+      if (cell.daysToExpiry != null) {
+        if (cell.daysToExpiry < 0) {
+          status = 'EXPIRED';
+        } else if (cell.daysToExpiry <= expirySoonDays && status !== 'EXPIRED') {
+          status = 'NEAR_EXPIRY';
+        } else if (status === 'NEAR_EXPIRY' && cell.daysToExpiry > expirySoonDays) {
+          status = 'NORMAL';
+        }
+      }
+      return { ...cell, status };
+    }),
+  }));
 
   return (
     <div className="p-3 md:p-6 bg-slate-50 border border-slate-200 rounded-xl shadow-inner flex-1 w-full">
@@ -296,6 +314,10 @@ export default function DashboardPage() {
 
   console.log('[DashboardPage] Current role:', role);
 
+  if (role === 'STAFF' || role === 'ROLE_STAFF') {
+    return <StaffDashboard />;
+  }
+
   return (
     <>
       <PageHeader
@@ -304,22 +326,7 @@ export default function DashboardPage() {
         breadcrumb={[{ title: 'Tổng quan' }, { title: 'Bảng điều khiển' }]}
       />
 
-      <div className="mb-4">
-        <QuickActionsBar />
-      </div>
-
-      <div className="flex flex-col gap-6">
-        {/* Sơ đồ vị trí lưu trữ — ADMIN/MANAGER/ACCOUNTANT only, STAFF nhận 403 nên ẩn hẳn khối */}
-        {canViewStorageMap && (
-          <div className="hidden w-full lg:block">
-            <h3 className="mb-3 text-base font-semibold text-ink flex items-center gap-2">
-              <AppstoreOutlined className="text-blue-600" /> Bản đồ lưu trữ & Tình trạng lô
-            </h3>
-            <DashboardWarehouseMap />
-          </div>
-        )}
-
-        {/* Cột thông tin phụ (chuyển xuống dưới) */}
+      <div className="mt-4 flex flex-col gap-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="flex flex-col gap-4">
             <StatCard
@@ -339,6 +346,16 @@ export default function DashboardPage() {
             <RecentActivities />
           </div>
         </div>
+
+        {/* Sơ đồ vị trí lưu trữ — ADMIN/MANAGER/ACCOUNTANT only, STAFF nhận 403 nên ẩn hẳn khối */}
+        {canViewStorageMap && (
+          <div className="hidden w-full lg:block">
+            <h3 className="mb-3 text-base font-semibold text-ink flex items-center gap-2">
+              <AppstoreOutlined className="text-blue-600" /> Bản đồ lưu trữ & Tình trạng lô
+            </h3>
+            <DashboardWarehouseMap />
+          </div>
+        )}
       </div>
     </>
   );

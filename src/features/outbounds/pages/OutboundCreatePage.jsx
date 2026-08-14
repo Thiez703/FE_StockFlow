@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, App, Popconfirm } from 'antd';
-import { ArrowLeftOutlined, CheckOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -34,9 +34,47 @@ const SUBTITLES = {
   DISPOSAL: 'Xuất hủy hàng hỏng / hết hạn — bắt buộc chọn lý do',
 };
 
-let rowSeq = 1;
+const THEMES = {
+  RETAIL: {
+    bg: 'bg-amber-50',
+    textIcon: 'text-amber-600',
+    border: 'border-t-amber-500',
+    badgeBg: 'bg-amber-50 text-amber-700 ring-amber-200',
+    dotPing: 'bg-amber-400',
+    dot: 'bg-amber-500',
+    btnAction: '!bg-amber-500 hover:!bg-amber-400 !border-none text-white shadow-amber-500/20',
+    btnPopConfirm: '!bg-amber-600 hover:!bg-amber-500 text-white',
+    titleColor: 'text-amber-700',
+    label: 'Đang lập phiếu xuất bán'
+  },
+  RETURN_SUPPLIER: {
+    bg: 'bg-violet-50',
+    textIcon: 'text-violet-600',
+    border: 'border-t-violet-500',
+    badgeBg: 'bg-violet-50 text-violet-700 ring-violet-200',
+    dotPing: 'bg-violet-400',
+    dot: 'bg-violet-500',
+    btnAction: '!bg-violet-500 hover:!bg-violet-400 !border-none text-white shadow-violet-500/20',
+    btnPopConfirm: '!bg-violet-600 hover:!bg-violet-500 text-white',
+    titleColor: 'text-violet-700',
+    label: 'Đang lập phiếu trả ncc'
+  },
+  DISPOSAL: {
+    bg: 'bg-slate-100',
+    textIcon: 'text-slate-600',
+    border: 'border-t-slate-500',
+    badgeBg: 'bg-slate-100 text-slate-700 ring-slate-300',
+    dotPing: 'bg-slate-400',
+    dot: 'bg-slate-500',
+    btnAction: '!bg-slate-700 hover:!bg-slate-600 !border-none text-white shadow-slate-500/20',
+    btnPopConfirm: '!bg-slate-700 hover:!bg-slate-600 text-white',
+    titleColor: 'text-slate-700',
+    label: 'Đang lập phiếu xuất hủy'
+  }
+};
+
 const newRow = () => ({
-  key: `r${rowSeq++}`,
+  key: Math.random().toString(36).slice(2, 9),
   cellKey: undefined,
   quantity: 1,
   unitPrice: 0,
@@ -117,6 +155,7 @@ function OutboundCreateForm({ issueType }) {
 
   const location = useLocation();
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState({});
   const [rows, setRows] = useState(() => {
     const prefill = location.state?.prefill;
     if (prefill && Array.isArray(prefill)) {
@@ -161,8 +200,10 @@ function OutboundCreateForm({ issueType }) {
     mutationFn: (payload) => outboundApi.create(payload),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['outbounds', DEFAULT_WAREHOUSE_ID] });
-      // Tồn đã bị trừ ngay khi ghi sổ.
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'storage-map'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-snapshot'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
       setCreated(toOutboundRecord(res));
       message.success('Đã ghi sổ phiếu xuất kho');
       window.scrollTo({ top: 0 });
@@ -171,18 +212,22 @@ function OutboundCreateForm({ issueType }) {
   });
 
   const submit = () => {
+    const errs = {};
     if (issueType === 'RETAIL' && !form.customerId) {
-      message.error('Phiếu xuất bán bắt buộc chọn khách hàng.');
-      return;
+      errs.customerId = 'Vui lòng chọn khách hàng';
     }
     if (issueType === 'RETURN_SUPPLIER' && !form.supplierId) {
-      message.error('Phiếu trả NCC bắt buộc chọn nhà cung cấp.');
-      return;
+      errs.supplierId = 'Vui lòng chọn NCC';
     }
     if (issueType === 'DISPOSAL' && !form.disposalReason) {
-      message.error('Phiếu xuất huỷ bắt buộc chọn lý do.');
+      errs.disposalReason = 'Vui lòng chọn lý do';
+    }
+    if (Object.keys(errs).length) {
+      setFormErrors(errs);
+      message.error('Vui lòng kiểm tra lại các trường bắt buộc.');
       return;
     }
+    setFormErrors({});
 
     const filled = rows.filter((r) => r.cellKey);
     if (!filled.length) {
@@ -222,8 +267,7 @@ function OutboundCreateForm({ issueType }) {
           locationId: cell.locationId,
           quantity: r.quantity,
           overrideReason: r.overrideReason.trim() || null,
-          // Backend chặn đơn giá bằng 0, để trống thì bỏ hẳn field.
-          unitPrice: r.unitPrice > 0 ? r.unitPrice : null,
+          unitPrice: r.unitPrice || 0,
         };
       }),
     });
@@ -297,63 +341,81 @@ function OutboundCreateForm({ issueType }) {
         />
       )}
 
-      <div className={isMobile ? 'flex flex-col gap-4' : 'grid grid-cols-1 gap-4 xl:grid-cols-3'}>
-        <div className={`flex flex-col gap-4 ${isMobile ? '' : 'xl:col-span-2'}`}>
-          <OutboundGeneralInfo
-            issueType={issueType}
-            value={form}
-            onChange={setForm}
-            customerOptions={customerOptions}
-            supplierOptions={supplierOptions}
-            loadingPartners={loadingCustomers || loadingSuppliers}
-            createdBy={fullName}
-          />
-          <OutboundLineItemsTable
-            rows={rows}
-            cells={cells}
-            cellByKey={cellByKey}
-            fefoLotIdByProduct={fefoLotIdByProduct}
-            riskLotIds={riskLotIds}
-            isLoading={isLoading}
-            onPatchRow={patchRow}
-            onAddRow={() => setRows((p) => [...p, newRow()])}
-            onRemoveRow={removeRow}
-          />
-        </div>
+      <div className="flex flex-col gap-5 pb-10">
+        {/* Hàng trên: Thông tin chung + Tóm tắt */}
+        <div className={isMobile ? 'flex flex-col gap-4' : 'flex gap-5'}>
+          <div className={isMobile ? '' : 'flex-[7] min-w-0'}>
+            <OutboundGeneralInfo
+              issueType={issueType}
+              value={form}
+              onChange={(v) => { setForm(v); setFormErrors({}); }}
+              errors={formErrors}
+              customerOptions={customerOptions}
+              supplierOptions={supplierOptions}
+              loadingPartners={loadingCustomers || loadingSuppliers}
+              createdBy={fullName}
+              theme={THEMES[issueType]}
+            />
+          </div>
 
-        <div className={isMobile ? '' : 'xl:col-span-1'}>
-          <div className={`flex flex-col gap-4 ${isMobile ? '' : 'xl:sticky xl:top-24'}`}>
-            {!isMobile && <OrderSummary rows={rows} />}
-            <Card className="border-hair" styles={{ body: { padding: isMobile ? 16 : 22 } }}>
-              <Popconfirm
-                title="Hoàn tất xuất kho?"
-                description="Phiếu được ghi sổ ngay và trừ tồn, sai chỉ có thể huỷ chứ không sửa."
-                onConfirm={submit}
-                okText="Xác nhận"
-                cancelText="Hủy"
-                disabled={!cells.length}
-              >
-                <Button
-                  type="primary"
-                  size="large"
-                  icon={<CheckOutlined />}
-                  loading={isSaving}
-                  disabled={!cells.length}
-                  block
-                  className={isMobile ? 'min-h-[48px] text-base' : ''}
-                >
-                  Hoàn tất xuất kho
-                </Button>
-              </Popconfirm>
-              {!isMobile && (
-                <p className="mt-4 mb-0 text-center text-xs text-slate-400">
-                  Phiếu xuất ghi sổ ngay, không qua bước duyệt. Xác nhận xong sẽ hiện tờ phiếu để xem
-                  lại và in.
-                </p>
-              )}
-            </Card>
+          <div className={isMobile ? '' : 'flex-[3] min-w-0'}>
+            <OrderSummary rows={rows} theme={THEMES[issueType]} />
           </div>
         </div>
+
+        {/* Bảng hàng hoá — full width */}
+        <OutboundLineItemsTable
+          rows={rows}
+          cells={cells}
+          cellByKey={cellByKey}
+          fefoLotIdByProduct={fefoLotIdByProduct}
+          riskLotIds={riskLotIds}
+          isLoading={isLoading}
+          onPatchRow={patchRow}
+          onAddRow={() => setRows((p) => [...p, newRow()])}
+          onRemoveRow={removeRow}
+        />
+      </div>
+
+      {/* Action bar — sticky bottom */}
+      <div className={`sticky bottom-0 z-10 border-t border-slate-200 bg-white/95 backdrop-blur-sm shadow-[0_-4px_12px_rgba(0,0,0,0.05)] py-4 flex items-center justify-end gap-3 ${isMobile ? 'px-2' : 'px-1'}`}>
+        {!isMobile && (
+          <div className="flex-1 flex items-center gap-3 ml-2">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold ring-1 uppercase tracking-wide ${THEMES[issueType]?.badgeBg || ''}`}>
+              <span className="relative flex h-2 w-2 mr-1">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${THEMES[issueType]?.dotPing || ''}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${THEMES[issueType]?.dot || ''}`}></span>
+              </span>
+              {THEMES[issueType]?.label}
+            </span>
+            <div className="text-[13px] text-slate-500/80">
+              Phiếu xuất ghi sổ ngay, không qua bước duyệt.
+            </div>
+          </div>
+        )}
+        <Button size="large" onClick={() => navigate('/outbounds')}>
+          Hủy
+        </Button>
+        <Popconfirm
+          title={<span className={`font-bold uppercase ${THEMES[issueType]?.titleColor || ''}`}>XÁC NHẬN LẬP PHIẾU XUẤT?</span>}
+          description="Phiếu được ghi sổ ngay và trừ tồn, sai chỉ có thể huỷ chứ không sửa."
+          onConfirm={submit}
+          okText="Xác nhận"
+          cancelText="Hủy"
+          disabled={!cells.length}
+          okButtonProps={{ className: THEMES[issueType]?.btnPopConfirm || '' }}
+        >
+          <Button
+            type="primary"
+            size="large"
+            icon={<CheckOutlined />}
+            loading={isSaving}
+            disabled={!cells.length}
+            className={`min-w-[180px] font-bold rounded-xl shadow-lg ${THEMES[issueType]?.btnAction || ''}`}
+          >
+            Hoàn tất xuất kho
+          </Button>
+        </Popconfirm>
       </div>
     </>
   );

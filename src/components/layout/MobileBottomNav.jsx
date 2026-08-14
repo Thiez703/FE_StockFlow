@@ -1,6 +1,8 @@
 import { createElement, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Badge, Drawer } from 'antd';
+import { motion } from 'framer-motion';
+import WarehouseScene from '@/components/illustrations/WarehouseScene';
 import {
   HomeOutlined,
   PlusCircleOutlined,
@@ -167,9 +169,24 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-hair bg-surface md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 overflow-hidden border-t border-[#12356B] bg-[linear-gradient(150deg,#0A1E3F_0%,#12356B_55%,#1E5AF0_120%)] md:hidden">
+        {/* Background animations */}
+        <motion.div
+          className="pointer-events-none absolute -top-10 -right-10 h-32 w-32 rounded-full bg-white/10 z-0"
+          animate={{ x: [0, 10, 0], y: [0, 5, 0], scale: [1, 1.05, 1] }}
+          transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/5 z-0"
+          animate={{ x: [0, -10, 0], y: [0, -5, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <WarehouseScene
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[150%] w-full opacity-40 mask-[linear-gradient(to_bottom,transparent,black_30%)] z-0"
+        />
+
         {/* Safe area padding for devices with home indicator */}
-        <div className="flex items-stretch justify-around pb-[env(safe-area-inset-bottom)]">
+        <div className="relative z-10 flex items-stretch justify-around pb-[env(safe-area-inset-bottom)]">
           {bottomTabs.map((tab) => {
             const active = isTabActive(tab.key);
             return (
@@ -179,12 +196,12 @@ export default function MobileBottomNav() {
                 onClick={() => handleTabClick(tab.key)}
                 className={`flex min-h-[56px] min-w-[44px] flex-1 flex-col items-center justify-center gap-0.5 border-0 bg-transparent px-1 pt-1.5 pb-1 transition-colors ${
                   active
-                    ? 'text-royal'
-                    : 'text-ink-sub active:text-royal'
+                    ? 'text-white font-semibold'
+                    : 'text-[#8fa8d8] active:text-white'
                 }`}
               >
                 {tab.key === 'create' ? (
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-royal text-white shadow-md">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-blue-600 shadow-md">
                     {createElement(tab.icon, { className: 'text-[18px]' })}
                   </span>
                 ) : (
@@ -325,8 +342,8 @@ export default function MobileBottomNav() {
         <div className="flex flex-col gap-1">
           {/* User info */}
           <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 mb-2">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-royal to-navy-900 text-white text-base font-bold">
-              {user?.fullName?.charAt(0) || '?'}
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#E4E6EB] text-[#B0B3B8] text-[24px]">
+              <UserOutlined />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[15px] font-bold text-ink">

@@ -11,5 +11,9 @@ export const chatApi = {
   
   getMessages: (conversationId) => {
     return axiosClient.get(`/chat/conversations/${conversationId}/messages`);
+  },
+
+  deleteConversation: (id) => {
+    return axiosClient.delete(`/chat/conversations/${id}`);
   }
 };

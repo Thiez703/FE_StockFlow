@@ -1,8 +1,7 @@
-/**
- * Tiện ích ngày tháng cho demo. "Hôm nay" được CỐ ĐỊNH để số liệu cận hạn ổn định,
- * không đổi theo thời gian thực (bản demo tĩnh).
- */
-export const TODAY = new Date('2026-07-18T00:00:00');
+/** Luôn trả ngày hiện tại — không cache để tránh stale khi user mở app qua đêm. */
+export function today() {
+  return new Date();
+}
 
 // Chuẩn hoá 'yyyy-mm-dd' | Date | dayjs (DatePicker của AntD trả về dayjs) -> Date.
 export function toDate(value) {
@@ -46,8 +45,11 @@ export function formatDateTime(value) {
   return `${formatDate(d)} ${hh}:${mi}`;
 }
 
-// Số ngày còn lại tới `value` so với TODAY (âm nếu đã quá hạn).
+// Số ngày còn lại tới `value` so với ngày hiện tại (âm nếu đã quá hạn).
 export function daysUntil(value) {
-  const d = value instanceof Date ? value : new Date(value);
-  return Math.round((d - TODAY) / 86400000);
+  const d = value instanceof Date ? new Date(value) : new Date(value);
+  d.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((d - today) / 86400000);
 }

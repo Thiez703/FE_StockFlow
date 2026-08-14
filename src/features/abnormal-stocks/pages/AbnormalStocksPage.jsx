@@ -41,6 +41,7 @@ export default function AbnormalStocksPage() {
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState(null);
   const [reasonType, setReasonType] = useState(null);
+  const [page, setPage] = useState(1);
   const [detailId, setDetailId] = useState(null);
   const [rejecting, setRejecting] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -61,6 +62,8 @@ export default function AbnormalStocksPage() {
     return raw.map(toAbnormalRecord);
   }, [pageData]);
 
+  const PAGE_SIZE = 8;
+
   const data = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
     const filtered = rows.filter((r) => {
@@ -72,11 +75,15 @@ export default function AbnormalStocksPage() {
       const okReason = !reasonType || r.items.some((it) => it.reasonType === reasonType);
       return okKw && okStatus && okReason;
     });
+    setPage(1);
     return sortRows(filtered);
   }, [rows, keyword, status, reasonType, sortRows]);
 
   const onDecided = (label) => {
     queryClient.invalidateQueries({ queryKey: ABNORMAL_KEY });
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'storage-map'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory-snapshot'] });
     message.success(label);
   };
 
@@ -260,6 +267,12 @@ export default function AbnormalStocksPage() {
           dataSource={data}
           loading={isLoading || isApproving || isRejecting}
           locale={{ emptyText: <TableEmptyState message="Không tìm thấy biên bản phù hợp" /> }}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: data.length,
+            onChange: (p) => setPage(p),
+          }}
         />
       </FadeSection>
 

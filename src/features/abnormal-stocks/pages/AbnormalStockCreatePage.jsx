@@ -10,17 +10,17 @@ import AccessDenied from '@/components/feedback/AccessDenied';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useInventorySnapshot } from '@/hooks/useInventorySnapshot';
 import { toAbnormalRecord } from '@/features/abnormal-stocks/utils/mapAbnormalStock';
-import { REASON_OPTIONS } from '@/features/abnormal-stocks/constants/reasonTypes';
+import AbnormalLineItemsTable from '@/features/abnormal-stocks/components/AbnormalLineItemsTable';
 import { abnormalStockApi } from '@/api/abnormalStocks';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatNumber } from '@/utils/formatCurrency';
-import { formatDate, TODAY } from '@/utils/date';
+import { formatDate, today } from '@/utils/date';
 import { toVoucher } from '@/utils/voucher';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
-let rowSeq = 1;
 const newRow = () => ({
-  key: `r${rowSeq++}`,
+  key: Math.random().toString(36).slice(2, 9),
   cellKey: undefined,
   quantity: 1,
   reasonType: undefined,
@@ -28,6 +28,7 @@ const newRow = () => ({
 });
 
 export default function AbnormalStockCreatePage() {
+  const isMobile = useIsMobile();
   const { message } = App.useApp();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,26 +48,22 @@ export default function AbnormalStockCreatePage() {
 
   const cellByKey = useMemo(() => new Map(cells.map((c) => [c.key, c])), [cells]);
 
-  const cellOptions = useMemo(
-    () =>
-      cells.map((c) => ({
-        value: c.key,
-        label: `${c.locationCode} · ${c.lotCode} — ${c.productName} (tồn ${formatNumber(c.quantity)})`,
-      })),
-    [cells],
-  );
-
   const patchRow = (key, patch) => setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const removeRow = (key) => setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.key !== key) : prev));
-
-  const totalQty = rows.reduce((sum, r) => sum + (r.cellKey ? r.quantity || 0 : 0), 0);
 
   const { mutate: save, isPending: isSaving } = useMutation({
     mutationFn: (payload) => abnormalStockApi.create(payload),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['abnormal-stocks', DEFAULT_WAREHOUSE_ID] });
+      if (res.status === 'APPROVED') {
+        queryClient.invalidateQueries({ queryKey: ['dashboard', 'storage-map'] });
+        queryClient.invalidateQueries({ queryKey: ['inventory'] });
+        queryClient.invalidateQueries({ queryKey: ['inventory-snapshot'] });
+        message.success('Đã lưu và tự động duyệt biên bản hàng bất thường');
+      } else {
+        message.success('Đã lưu biên bản hàng bất thường, chờ duyệt');
+      }
       setCreated(toAbnormalRecord(res));
-      message.success('Đã lưu biên bản hàng bất thường, chờ duyệt');
       window.scrollTo({ top: 0 });
     },
     onError: (err) => message.error(getErrorMessage(err)),
@@ -177,13 +174,13 @@ export default function AbnormalStockCreatePage() {
       <div className="flex flex-col gap-4">
         <Card
           title="Thông tin chung"
-          className="border-hair"
+          className="border-hair border-t-4 border-t-rose-500"
           styles={{ header: { borderBottom: '1px solid #f1f5f9' } }}
         >
           <Form layout="vertical" component={false}>
             <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-3">
               <Form.Item label="Ngày lập">
-                <Input value={formatDate(TODAY)} readOnly variant="filled" className="mono" />
+                <Input value={formatDate(today())} readOnly variant="filled" className="mono" />
               </Form.Item>
               {/* Người lập lấy từ token ở backend, không sửa được tại đây. */}
               <Form.Item label="Người phát hiện / lập biên bản" className="!mb-0">
@@ -193,135 +190,43 @@ export default function AbnormalStockCreatePage() {
           </Form>
         </Card>
 
-        <Card
-          title="Chi tiết hàng bất thường"
-          className="border-hair"
-          styles={{ header: { borderBottom: '1px solid #f1f5f9' }, body: { padding: 0 } }}
-          extra={
-            <Button
-              type="primary"
-              ghost
-              icon={<PlusOutlined />}
-              disabled={!cells.length}
-              onClick={() => setRows((p) => [...p, newRow()])}
-            >
-              Thêm dòng
-            </Button>
-          }
-        >
-          <div className="hidden grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
-            <span className="col-span-4">Vị trí · Lô · Sản phẩm</span>
-            <span className="col-span-2 text-right">Số lượng</span>
-            <span className="col-span-2">Loại bất thường</span>
-            <span className="col-span-3">Diễn giải</span>
-            <span className="col-span-1" />
-          </div>
+        <AbnormalLineItemsTable
+          rows={rows}
+          cells={cells}
+          cellByKey={cellByKey}
+          isLoading={isLoading}
+          onPatchRow={patchRow}
+          onAddRow={() => setRows((p) => [...p, newRow()])}
+          onRemoveRow={removeRow}
+        />
 
-          {isLoading ? (
-            <div className="flex justify-center py-12">
-              <Spin tip="Đang tải tồn kho hiện tại..." />
+        {/* Action bar — sticky bottom */}
+        <div className={`sticky bottom-0 z-10 border-t border-slate-200 bg-white/95 backdrop-blur-sm shadow-[0_-4px_12px_rgba(0,0,0,0.05)] py-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3 ${isMobile ? 'px-2' : 'px-1'}`}>
+          <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-3 ml-2">
+            {!isMobile && (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold bg-rose-50 text-rose-700 ring-1 ring-rose-200 uppercase tracking-wide">
+                <span className="relative flex h-2 w-2 mr-1">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                </span>
+                Đang lập bất thường
+              </span>
+            )}
+            <div className="text-center text-xs text-slate-400 sm:text-left">
+              Tồn kho chỉ bị trừ sau khi biên bản được duyệt.
             </div>
-          ) : !cells.length ? (
-            <div className="py-10">
-              <Empty description="Kho chưa có lô hàng nào để ghi nhận bất thường" />
-            </div>
-          ) : (
-            rows.map((r) => {
-              const cell = r.cellKey ? cellByKey.get(r.cellKey) : null;
-              return (
-                <div
-                  key={r.key}
-                  className="grid grid-cols-12 items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
-                >
-                  <div className="col-span-12 md:col-span-4">
-                    <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">
-                      Vị trí · Lô · Sản phẩm
-                    </span>
-                    <Select
-                      showSearch
-                      optionFilterProp="label"
-                      placeholder="Chọn vị trí đang chứa lô hàng"
-                      options={cellOptions}
-                      value={r.cellKey}
-                      // Đổi vị trí thì kẹp lại số lượng cho khỏi vượt tồn ở ô mới.
-                      onChange={(v) => {
-                        const next = cellByKey.get(v);
-                        patchRow(r.key, {
-                          cellKey: v,
-                          quantity: Math.min(r.quantity || 1, next?.quantity ?? 1),
-                        });
-                      }}
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="col-span-6 md:col-span-2">
-                    <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Số lượng</span>
-                    <InputNumber
-                      min={1}
-                      max={cell?.quantity ?? undefined}
-                      value={r.quantity}
-                      onChange={(v) => patchRow(r.key, { quantity: v ?? 1 })}
-                      className="w-full"
-                      disabled={!cell}
-                    />
-                    {cell && (
-                      <div className="mt-1 text-right text-xs text-ink-sub">
-                        Tồn: {formatNumber(cell.quantity)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="col-span-6 md:col-span-2">
-                    <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Loại bất thường</span>
-                    <Select
-                      placeholder="Chọn loại"
-                      options={REASON_OPTIONS}
-                      value={r.reasonType}
-                      onChange={(v) => patchRow(r.key, { reasonType: v })}
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="col-span-10 md:col-span-3">
-                    <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Diễn giải</span>
-                    <Input
-                      placeholder="VD: Thùng bị móp khi bốc dỡ"
-                      value={r.note}
-                      onChange={(e) => patchRow(r.key, { note: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-2 flex justify-end md:col-span-1">
-                    <Popconfirm
-                      title="Xóa dòng này?"
-                      description="Xác nhận xóa dòng khỏi biên bản?"
-                      onConfirm={() => removeRow(r.key)}
-                      okText="Xóa"
-                      cancelText="Hủy"
-                      okButtonProps={{ danger: true }}
-                    >
-                      <Button type="text" danger size="small" icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                  </div>
-                </div>
-              );
-            })
-          )}
-
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-            <span className="text-sm text-ink-sub">Tổng số lượng bất thường</span>
-            <span className="mono font-semibold text-[#b91c1c]">{formatNumber(totalQty)}</span>
           </div>
-        </Card>
-
-        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <span className="text-center text-xs text-slate-400 sm:mr-auto sm:text-left">
-            Tồn kho chỉ bị trừ sau khi biên bản được duyệt.
-          </span>
+          <Button size="large" onClick={() => navigate('/abnormal-stocks')} className="order-2 sm:order-none">
+            Hủy
+          </Button>
           <Popconfirm
-            title="Lưu biên bản?"
+            title={<span className="font-bold text-rose-700 uppercase">LƯU BIÊN BẢN HÀNG BẤT THƯỜNG?</span>}
             description="Biên bản sẽ được gửi đi chờ duyệt."
             onConfirm={submit}
             okText="Xác nhận"
             cancelText="Hủy"
             disabled={!cells.length}
+            okButtonProps={{ className: '!bg-rose-600 hover:!bg-rose-500' }}
           >
             <Button
               type="primary"
@@ -329,6 +234,7 @@ export default function AbnormalStockCreatePage() {
               icon={<CheckOutlined />}
               loading={isSaving}
               disabled={!cells.length}
+              className="min-w-[180px] font-bold rounded-xl shadow-rose-500/20 shadow-lg !bg-rose-600 hover:!bg-rose-500 !border-none order-1 sm:order-none"
             >
               Lưu biên bản
             </Button>

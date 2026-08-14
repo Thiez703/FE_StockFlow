@@ -10,6 +10,7 @@ import {
   UnlockOutlined,
   KeyOutlined,
   SafetyCertificateOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import PageHeader from '@/components/ui/PageHeader';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -184,9 +185,10 @@ export default function UsersPage() {
       dataIndex: 'fullName',
       render: (name, r) => (
         <div className="flex items-center gap-3">
-          <Avatar style={{ background: 'linear-gradient(135deg,#1E5AF0,#0A1E3F)' }}>
-            {initials(name)}
-          </Avatar>
+          <Avatar 
+            style={{ backgroundColor: '#E4E6EB', color: '#B0B3B8' }} 
+            icon={<UserOutlined />} 
+          />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium text-ink">{name}</span>

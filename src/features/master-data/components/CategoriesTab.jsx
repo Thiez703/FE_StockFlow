@@ -4,13 +4,13 @@ import { Button, Form, Input, Modal, Select, Tooltip, App, Segmented } from 'ant
 import {
   PlusOutlined,
   EditOutlined,
+  DeleteOutlined,
   FolderOpenOutlined,
   TagOutlined,
   SearchOutlined,
   ShrinkOutlined,
   ArrowsAltOutlined,
-  StopOutlined,
-  CheckCircleOutlined,
+  ExclamationCircleFilled,
   AppstoreOutlined,
   UnorderedListOutlined
 } from '@ant-design/icons';
@@ -18,16 +18,10 @@ import { usePermissions } from '@/hooks/usePermissions';
 import DataTable from '@/components/ui/DataTable';
 import TableEmptyState from '@/components/ui/TableEmptyState';
 import FadeSection from '@/components/ui/FadeSection';
-import StatusPill from '@/components/ui/StatusPill';
 import { categoryApi } from '@/api/categories';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 
 const CATEGORIES_KEY = ['categories'];
-
-const STATUS_OPTIONS = [
-  { value: 'ACTIVE', label: 'Hoạt động' },
-  { value: 'INACTIVE', label: 'Ngừng' },
-];
 
 const stripEmptyChildren = (nodes = []) =>
   nodes.map((n) => ({
@@ -44,30 +38,28 @@ const getParentKeys = (nodes) =>
 const countNodes = (nodes) =>
   nodes.reduce((acc, n) => acc + 1 + (n.children ? countNodes(n.children) : 0), 0);
 
-const filterTree = (nodes, kw, status) =>
+const filterTree = (nodes, kw) =>
   nodes.reduce((acc, n) => {
     const selfMatchKw = !kw || (n.name ?? '').toLowerCase().includes(kw);
-    const selfMatchStatus = !status || n.status === status;
-    if (selfMatchKw && selfMatchStatus) {
+    if (selfMatchKw) {
       acc.push(n);
       return acc;
     }
-    const childMatches = n.children ? filterTree(n.children, kw, status) : [];
+    const childMatches = n.children ? filterTree(n.children, kw) : [];
     if (childMatches.length > 0) acc.push({ ...n, children: childMatches });
     return acc;
   }, []);
 
-const CategoryCardNode = ({ node, level = 0, onEdit, onAddChild, onToggleStatus, canManageMasterData }) => {
+
+
+const CategoryCardNode = ({ node, level = 0, onEdit, onAddChild, onDelete, canManageMasterData }) => {
   const isRoot = level === 0;
-  const active = node.status === 'ACTIVE';
 
   return (
     <div className="flex flex-col gap-4">
       {/* The Card for this node */}
       <div
-        className={`group relative rounded-2xl border bg-white transition-all duration-300 hover:shadow-md ${
-          active ? 'border-slate-200 hover:border-blue-400' : 'border-slate-200 bg-slate-50 opacity-80'
-        } ${isRoot ? 'p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4' : 'p-4 flex flex-col'}`}
+        className={`group relative rounded-2xl border bg-white transition-all duration-300 hover:shadow-md border-slate-200 hover:border-blue-400 ${isRoot ? 'p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4' : 'p-4 flex flex-col'}`}
       >
         <div className="absolute top-3 right-3 z-10 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex gap-1 bg-white/90 p-1 rounded-xl backdrop-blur-md shadow-sm border border-slate-100">
           <Tooltip title="Sửa" placement="top">
@@ -76,8 +68,8 @@ const CategoryCardNode = ({ node, level = 0, onEdit, onAddChild, onToggleStatus,
           <Tooltip title="Thêm danh mục con" placement="top">
             <Button type="text" size="small" icon={<PlusOutlined className="text-blue-600" />} disabled={!canManageMasterData} onClick={() => onAddChild(node.id)} />
           </Tooltip>
-          <Tooltip title={active ? 'Ngừng sử dụng' : 'Kích hoạt lại'} placement="top">
-            <Button type="text" size="small" danger={active} icon={active ? <StopOutlined /> : <CheckCircleOutlined className="text-green-500" />} disabled={!canManageMasterData} onClick={() => onToggleStatus(node)} />
+          <Tooltip title="Xóa danh mục" placement="top">
+            <Button type="text" size="small" danger icon={<DeleteOutlined />} disabled={!canManageMasterData} onClick={() => onDelete(node)} />
           </Tooltip>
         </div>
 
@@ -98,19 +90,9 @@ const CategoryCardNode = ({ node, level = 0, onEdit, onAddChild, onToggleStatus,
             </div>
             {isRoot ? (
               <div className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-wider">Danh mục gốc</div>
-            ) : (
-              <div className="mt-3 flex justify-between items-center">
-                <StatusPill status={node.status} />
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
-
-        {isRoot && (
-           <div className="flex items-center gap-3">
-              <StatusPill status={node.status} />
-           </div>
-        )}
       </div>
 
       {/* Children */}
@@ -123,7 +105,7 @@ const CategoryCardNode = ({ node, level = 0, onEdit, onAddChild, onToggleStatus,
               level={level + 1}
               onEdit={onEdit}
               onAddChild={onAddChild}
-              onToggleStatus={onToggleStatus}
+              onDelete={onDelete}
               canManageMasterData={canManageMasterData}
             />
           ))}
@@ -134,12 +116,11 @@ const CategoryCardNode = ({ node, level = 0, onEdit, onAddChild, onToggleStatus,
 };
 
 export default function CategoriesTab() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const queryClient = useQueryClient();
 
   const [keyword, setKeyword] = useState('');
-  const [status, setStatus] = useState(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [quickParentId, setQuickParentId] = useState(null);
@@ -153,6 +134,8 @@ export default function CategoriesTab() {
     select: stripEmptyChildren,
   });
 
+
+
   const { mutate: saveCategory, isPending: isSaving } = useMutation({
     mutationFn: ({ id, values }) =>
       id ? categoryApi.update(id, values) : categoryApi.create(values),
@@ -164,22 +147,21 @@ export default function CategoriesTab() {
     onError: (error) => message.error(getErrorMessage(error)),
   });
 
-  const { mutate: toggleStatus } = useMutation({
-    mutationFn: ({ id, active }) =>
-      active ? categoryApi.deactivate(id) : categoryApi.activate(id),
-    onSuccess: (_data, { active }) => {
+  const { mutate: deleteCategory } = useMutation({
+    mutationFn: (id) => categoryApi.remove(id),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CATEGORIES_KEY });
-      message.success(active ? 'Đã ngừng sử dụng danh mục' : 'Đã kích hoạt lại danh mục');
+      message.success('Đã xóa danh mục');
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
 
   const data = useMemo(
-    () => filterTree(tree, keyword.trim().toLowerCase(), status),
-    [tree, keyword, status],
+    () => filterTree(tree, keyword.trim().toLowerCase()),
+    [tree, keyword],
   );
 
-  const hasActiveFilters = Boolean(keyword || status);
+  const hasActiveFilters = Boolean(keyword);
   const allParentKeys = useMemo(() => getParentKeys(tree), [tree]);
   const visibleExpandedKeys = hasActiveFilters
     ? getParentKeys(data)
@@ -188,7 +170,7 @@ export default function CategoriesTab() {
   const toggleExpandAll = () => setExpandedKeys(allExpanded ? [] : allParentKeys);
 
   useEffect(() => {
-    if (open) form.setFieldsValue(editing ?? { parentId: quickParentId, status: 'ACTIVE' });
+    if (open) form.setFieldsValue(editing ?? { parentId: quickParentId });
   }, [open, editing, quickParentId, form]);
 
   const parentOptions = [
@@ -203,8 +185,19 @@ export default function CategoriesTab() {
       values: {
         name: values.name,
         parentId: values.parentId ?? null,
-        status: values.status,
       },
+    });
+  };
+
+  const handleDelete = (category) => {
+    modal.confirm({
+      title: 'Xác nhận xóa danh mục',
+      icon: <ExclamationCircleFilled />,
+      content: `Bạn có chắc chắn muốn xóa danh mục "${category.name}"?`,
+      okText: 'Xóa',
+      okType: 'danger',
+      cancelText: 'Huỷ',
+      onOk: () => deleteCategory(category.id),
     });
   };
 
@@ -251,19 +244,11 @@ export default function CategoriesTab() {
       },
     },
     {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      align: 'center',
-      width: 140,
-      render: (s) => <StatusPill status={s} />,
-    },
-    {
       title: '',
       key: 'action',
       align: 'center',
       width: 96,
       render: (_, r) => {
-        const active = r.status === 'ACTIVE';
         return (
           <div className="flex items-center justify-center">
             <Tooltip title="Sửa">
@@ -277,13 +262,13 @@ export default function CategoriesTab() {
                 }}
               />
             </Tooltip>
-            <Tooltip title={active ? 'Ngừng sử dụng' : 'Kích hoạt lại'}>
+            <Tooltip title="Xóa danh mục">
               <Button
                 type="text"
-                danger={active}
-                icon={active ? <StopOutlined /> : <CheckCircleOutlined />}
+                danger
+                icon={<DeleteOutlined />}
                 disabled={!canManageMasterData}
-                onClick={() => toggleStatus({ id: r.id, active })}
+                onClick={() => handleDelete(r)}
               />
             </Tooltip>
           </div>
@@ -305,14 +290,6 @@ export default function CategoriesTab() {
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               className="w-full sm:w-80"
-            />
-            <Select
-              allowClear
-              placeholder="Trạng thái"
-              className="w-full sm:w-48"
-              options={STATUS_OPTIONS}
-              value={status}
-              onChange={setStatus}
             />
           </div>
         </div>
@@ -382,7 +359,7 @@ export default function CategoriesTab() {
                       setOpen(true);
                     }}
                     onAddChild={openAdd}
-                    onToggleStatus={(c) => toggleStatus({ id: c.id, active: c.status === 'ACTIVE' })}
+                    onDelete={handleDelete}
                     canManageMasterData={canManageMasterData}
                   />
                 ))}
@@ -409,9 +386,6 @@ export default function CategoriesTab() {
           </Form.Item>
           <Form.Item name="name" label="Tên danh mục" rules={[{ required: true, message: 'Nhập tên danh mục' }]}>
             <Input placeholder="VD: Bia lon" />
-          </Form.Item>
-          <Form.Item name="status" label="Trạng thái">
-            <Select options={STATUS_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpOutlined, DatabaseOutlined, AppstoreOutlined, ContainerOutlined } from '@ant-design/icons';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
-import { KPIS, TREND } from '@/mock/dashboard';
-import { INVENTORY } from '@/mock/inventory';
-import { LOTS } from '@/mock/lots';
+const KPIS = [];
+const TREND = [];
+const INVENTORY = [];
+const LOTS = [];
 
 /**
  * KPI "hero" nổi bật: Tổng giá trị tồn kho — thẻ nền navy gradient, số lớn,

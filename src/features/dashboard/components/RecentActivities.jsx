@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { formatCurrency } from '@/utils/formatCurrency';
-import { RECENT_ACTIVITIES } from '@/mock/dashboard';
+const RECENT_ACTIVITIES = [];
 
 // Icon + màu + đích điều hướng theo loại hoạt động.
 const KIND = {

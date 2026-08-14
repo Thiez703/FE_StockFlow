@@ -14,6 +14,9 @@ export const inventoryApi = {
   // Tồn kho hiện tại: productId?, lotId?, locationId?, phân trang.
   getAll: (params) => axiosClient.get('/inventory', { params }),
 
+  // Tồn kho gộp chung theo sản phẩm: phân trang
+  getByProduct: (params) => axiosClient.get('/inventory/by-product', { params }),
+
   // Lịch sử biến động: productId?, lotId?, locationId?, from?, to?, refType?, phân trang.
   getTransactions: (params) =>
     axiosClient.get('/inventory-transactions', { params }),

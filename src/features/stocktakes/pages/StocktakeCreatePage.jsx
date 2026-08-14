@@ -29,7 +29,7 @@ import { stocktakeApi } from '@/api/stocktakes';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatNumber } from '@/utils/formatCurrency';
-import { formatDate, TODAY } from '@/utils/date';
+import { formatDate, today } from '@/utils/date';
 import { toVoucher } from '@/utils/voucher';
 
 function DiffCell({ value }) {
@@ -133,17 +133,29 @@ export default function StocktakeCreatePage() {
     mutationFn: (payload) => stocktakeApi.create(payload),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['stocktakes', DEFAULT_WAREHOUSE_ID] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'storage-map'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
       setCreated(toStocktakeRecord(res));
       clearDraft();
-      message.success('Đã lưu biên bản kiểm kê, chờ duyệt');
+      if (res.status === 'APPROVED') {
+        message.success('Đã lưu và tự động duyệt biên bản kiểm kê');
+      } else {
+        message.success('Đã lưu biên bản kiểm kê, chờ duyệt');
+      }
       window.scrollTo({ top: 0 });
     },
     onError: (err) => message.error(getErrorMessage(err)),
   });
 
+  const countedCount = rows.filter((c) => counts[c.key] !== undefined).length;
+
   const submit = () => {
     if (!rows.length) {
       message.error('Cần kiểm kê ít nhất 1 vị trí.');
+      return;
+    }
+    if (countedCount === 0) {
+      message.error('Chưa có vị trí nào được đếm. Vui lòng nhập số đếm thực tế.');
       return;
     }
     save({
@@ -226,14 +238,14 @@ export default function StocktakeCreatePage() {
       <div className="flex flex-col gap-4">
         <Card
           title="Thông tin chung"
-          className="border-hair"
+          className="border-hair border-t-4 border-t-indigo-500"
           styles={{ header: { borderBottom: '1px solid #f1f5f9' } }}
         >
           <Form layout="vertical" component={false}>
             <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2">
 
               <Form.Item label="Ngày kiểm kê">
-                <Input value={formatDate(TODAY)} readOnly variant="filled" className="mono" />
+                <Input value={formatDate(today())} readOnly variant="filled" className="mono" />
               </Form.Item>
               {/* Người kiểm lấy từ token ở backend, không sửa được tại đây. */}
               <Form.Item label="Người kiểm">
@@ -433,30 +445,53 @@ export default function StocktakeCreatePage() {
 
           <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
             <span className="text-sm text-ink-sub">
-              Tổng chênh lệch — {rows.length} vị trí được kiểm
+              Tổng chênh lệch — {countedCount}/{rows.length} vị trí đã đếm
               {excluded.length > 0 && `, ${excluded.length} vị trí đã bỏ`}
             </span>
             <DiffCell value={totalDiff} />
           </div>
         </Card>
 
-        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <span className="text-center text-xs text-slate-400 sm:mr-auto sm:text-left">
-            {excluded.length > 0 && (
-              <Button type="link" size="small" className="!px-0" onClick={() => setExcluded([])}>
-                Khôi phục {excluded.length} vị trí đã bỏ
-              </Button>
+        {/* Action bar — sticky bottom */}
+        <div className={`sticky bottom-0 z-10 border-t border-slate-200 bg-white/95 backdrop-blur-sm shadow-[0_-4px_12px_rgba(0,0,0,0.05)] py-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3 ${isMobile ? 'px-2' : 'px-1'}`}>
+          <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-3 ml-2">
+            {!isMobile && (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 uppercase tracking-wide w-fit">
+                <span className="relative flex h-2 w-2 mr-1">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                </span>
+                Đang lập kiểm kê
+              </span>
             )}
-          </span>
+            <div className="text-center text-xs text-slate-400 sm:text-left">
+              {excluded.length > 0 && (
+                <Button type="link" size="small" className="!px-0" onClick={() => setExcluded([])}>
+                  Khôi phục {excluded.length} vị trí đã bỏ
+                </Button>
+              )}
+            </div>
+          </div>
+          <Button size="large" onClick={() => navigate('/stocktakes')} className="order-2 sm:order-none">
+            Hủy
+          </Button>
           <Popconfirm
-            title="Lưu biên bản kiểm kê?"
+            title={<span className="font-bold text-indigo-700 uppercase">LƯU BIÊN BẢN KIỂM KÊ?</span>}
             description="Biên bản sẽ được gửi đi chờ duyệt."
             onConfirm={submit}
             okText="Xác nhận"
             cancelText="Hủy"
             disabled={!rows.length}
+            okButtonProps={{ className: '!bg-indigo-600 hover:!bg-indigo-500' }}
           >
-            <Button type="primary" size="large" icon={<CheckOutlined />} loading={isSaving} disabled={!rows.length}>
+            <Button 
+              type="primary" 
+              size="large" 
+              icon={<CheckOutlined />} 
+              loading={isSaving} 
+              disabled={!rows.length}
+              className="min-w-[180px] font-bold rounded-xl shadow-indigo-500/20 shadow-lg !bg-indigo-600 hover:!bg-indigo-500 !border-none order-1 sm:order-none"
+            >
               Lưu biên bản kiểm kê
             </Button>
           </Popconfirm>
