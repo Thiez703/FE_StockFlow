@@ -1,13 +1,11 @@
 import {
   AppstoreOutlined,
   ApartmentOutlined,
-  EnvironmentOutlined,
   TagsOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import ProductsTab from '@/features/master-data/components/ProductsTab';
 import CategoriesTab from '@/features/master-data/components/CategoriesTab';
-import LocationsTab from '@/features/master-data/components/LocationsTab';
 import LotsTab from '@/features/master-data/components/LotsTab';
 import PartnersTab from '@/features/master-data/components/PartnersTab';
 
@@ -57,14 +55,6 @@ const RAW_GROUPS = [
     key: 'warehouse',
     label: 'Kho bãi',
     items: [
-      {
-        slug: 'locations',
-        label: 'Vị trí lưu trữ',
-        icon: EnvironmentOutlined,
-        desc: 'Kho, khu vực và kệ lưu trữ',
-        component: LocationsTab,
-        roles: MASTER_DATA_ROLES,
-      },
       {
         slug: 'lots',
         label: 'Lô hàng',

@@ -8,7 +8,6 @@ import {
   DeleteOutlined,
   SafetyCertificateOutlined,
   AuditOutlined,
-  WarningOutlined,
   BarChartOutlined,
   FileSearchOutlined,
   ProfileOutlined,
@@ -123,11 +122,11 @@ export const NAV_GROUPS = [
         roles: ['ADMIN', 'STAFF', 'ACCOUNTANT', 'MANAGER'],
       },
       {
-        key: '/abnormal-stocks',
-        label: 'Hàng bất thường',
-        icon: WarningOutlined,
-        desc: 'Hư hỏng, mất, hết hạn',
-        roles: ['ADMIN', 'STAFF', 'ACCOUNTANT', 'MANAGER'],
+        key: '/transfers',
+        label: 'Điều chuyển',
+        icon: SwapOutlined,
+        desc: 'Chuyển hàng giữa các vị trí',
+        roles: ['ADMIN', 'STAFF', 'MANAGER'],
       },
     ],
   },
@@ -254,7 +253,7 @@ export const MOBILE_ALLOWED_PATHS = [
   '/inbounds',
   '/outbounds',
   '/stocktakes',
-  '/abnormal-stocks',
+  '/transfers',
 ];
 
 /**

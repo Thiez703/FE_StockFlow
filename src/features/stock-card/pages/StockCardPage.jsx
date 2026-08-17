@@ -20,11 +20,9 @@ import { productApi } from '@/api/products';
 import { inboundApi } from '@/api/inbounds';
 import { outboundApi } from '@/api/outbounds';
 import { stocktakeApi } from '@/api/stocktakes';
-import { abnormalStockApi } from '@/api/abnormalStocks';
 import { toInboundRecord } from '@/features/inbounds/utils/mapInbound';
 import { toOutboundRecord } from '@/features/outbounds/utils/mapOutbound';
 import { toStocktakeRecord } from '@/features/stocktakes/utils/mapStocktake';
-import { toAbnormalRecord } from '@/features/abnormal-stocks/utils/mapAbnormalStock';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatDate } from '@/utils/date';
 import { formatNumber } from '@/utils/formatCurrency';
@@ -40,7 +38,8 @@ const REF_TYPE_MAP = {
   OUTBOUND: { label: 'Xuất', color: 'gold' },
   OUTBOUND_VOID: { label: 'Huỷ xuất', color: 'red' },
   STOCKTAKE: { label: 'Kiểm kê', color: 'purple' },
-  ABNORMAL: { label: 'Bất thường', color: 'red' },
+  TRANSFER: { label: 'Điều chuyển', color: 'cyan' },
+  TRANSFER_VOID: { label: 'Huỷ điều chuyển', color: 'red' },
 };
 
 // refType → đường dẫn chi tiết phiếu gốc
@@ -50,7 +49,8 @@ const REF_TYPE_PATH = {
   OUTBOUND: '/outbounds',
   OUTBOUND_VOID: '/outbounds',
   STOCKTAKE: '/stocktakes',
-  ABNORMAL: '/abnormal-stocks',
+  TRANSFER: '/transfers',
+  TRANSFER_VOID: '/transfers',
 };
 
 const TYPE_HEX = {
@@ -59,7 +59,8 @@ const TYPE_HEX = {
   OUTBOUND: '#f59e0b',
   OUTBOUND_VOID: '#dc2626',
   STOCKTAKE: '#7c3aed',
-  ABNORMAL: '#dc2626',
+  TRANSFER: '#0891b2',
+  TRANSFER_VOID: '#dc2626',
 };
 const OPENING_HEX = '#12356b';
 
@@ -70,6 +71,7 @@ const TYPE_CHIP_ACTIVE_CLASS = {
   gold: 'border-amber/40 bg-amber/10 text-amber',
   purple: 'border-purple-300 bg-purple-100 text-purple-700',
   red: 'border-danger/40 bg-danger/10 text-danger',
+  cyan: 'border-cyan-300 bg-cyan-100 text-cyan-700',
 };
 
 const CHART_PAD_X = 4;
@@ -120,9 +122,6 @@ export default function StockCardPage() {
       } else if (type === 'STOCKTAKE') {
         res = await stocktakeApi.getById(id);
         return toVoucher('stocktake', toStocktakeRecord(res.data ?? res));
-      } else if (type === 'ABNORMAL') {
-        res = await abnormalStockApi.getById(id);
-        return toVoucher('abnormal', toAbnormalRecord(res.data ?? res));
       }
       return null;
     },

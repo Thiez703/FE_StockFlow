@@ -3,7 +3,6 @@ import {
   ImportOutlined,
   ExportOutlined,
   AuditOutlined,
-  WarningOutlined,
   FileSyncOutlined,
   RightOutlined,
 } from '@ant-design/icons';
@@ -18,7 +17,7 @@ const KIND = {
   inbound: { icon: <ImportOutlined />, tone: 'bg-tint text-royal', to: '/inbounds' },
   outbound: { icon: <ExportOutlined />, tone: 'bg-[#dcfce7] text-[#15803d]', to: '/outbounds' },
   stocktake: { icon: <AuditOutlined />, tone: 'bg-[#fef3c7] text-[#b45309]', to: '/stocktakes' },
-  abnormal: { icon: <WarningOutlined />, tone: 'bg-[#fee2e2] text-[#b91c1c]', to: '/abnormal-stocks' },
+  transfer: { icon: <FileSyncOutlined />, tone: 'bg-[#e0e7ff] text-[#4338ca]', to: '/transfers' },
 };
 
 // Dự phòng khi gặp loại hoạt động chưa được khai báo trong KIND — không bao giờ

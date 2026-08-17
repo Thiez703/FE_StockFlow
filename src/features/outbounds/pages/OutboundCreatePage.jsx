@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Button, Card, App, Popconfirm } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined, FileTextOutlined } from '@ant-design/icons';
@@ -18,6 +18,7 @@ import { ISSUE_TYPES } from '@/features/outbounds/constants/issueTypes';
 import { outboundApi } from '@/api/outbounds';
 import { customerApi, supplierApi } from '@/api/partners';
 import { alertApi } from '@/api/alerts';
+import { lotApi } from '@/api/lots';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { toVoucher } from '@/utils/voucher';
@@ -60,15 +61,15 @@ const THEMES = {
     label: 'Đang lập phiếu trả ncc'
   },
   DISPOSAL: {
-    bg: 'bg-slate-100',
-    textIcon: 'text-slate-600',
-    border: 'border-t-slate-500',
-    badgeBg: 'bg-slate-100 text-slate-700 ring-slate-300',
-    dotPing: 'bg-slate-400',
-    dot: 'bg-slate-500',
-    btnAction: '!bg-slate-700 hover:!bg-slate-600 !border-none text-white shadow-slate-500/20',
-    btnPopConfirm: '!bg-slate-700 hover:!bg-slate-600 text-white',
-    titleColor: 'text-slate-700',
+    bg: 'bg-red-50',
+    textIcon: 'text-red-600',
+    border: 'border-t-red-500',
+    badgeBg: 'bg-red-50 text-red-700 ring-red-200',
+    dotPing: 'bg-red-400',
+    dot: 'bg-red-500',
+    btnAction: '!bg-red-600 hover:!bg-red-500 !border-none text-white shadow-red-500/20',
+    btnPopConfirm: '!bg-red-700 hover:!bg-red-600 text-white',
+    titleColor: 'text-red-700',
     label: 'Đang lập phiếu xuất hủy'
   }
 };
@@ -182,6 +183,26 @@ function OutboundCreateForm({ issueType }) {
     }
     return new Map([...best].map(([productId, c]) => [productId, c.lotId]));
   }, [cells]);
+
+  // Fetch latest inbound prices for lots used in rows
+  const [inboundPriceMap, setInboundPriceMap] = useState(new Map());
+  const fetchedLotIds = useRef(new Set());
+
+  useEffect(() => {
+    const lotIds = rows
+      .map((r) => r.cellKey && cellByKey.get(r.cellKey)?.lotId)
+      .filter((id) => id && !fetchedLotIds.current.has(id));
+
+    if (lotIds.length === 0) return;
+
+    lotIds.forEach((lotId) => {
+      fetchedLotIds.current.add(lotId);
+      lotApi.getLatestInboundPrice(lotId).then((res) => {
+        const price = res?.latestInboundPrice ?? 0;
+        setInboundPriceMap((prev) => new Map(prev).set(lotId, price));
+      }).catch(() => {});
+    });
+  }, [rows, cellByKey]);
 
   const activeOptions = (list) =>
     list
@@ -370,6 +391,7 @@ function OutboundCreateForm({ issueType }) {
           cellByKey={cellByKey}
           fefoLotIdByProduct={fefoLotIdByProduct}
           riskLotIds={riskLotIds}
+          inboundPriceMap={inboundPriceMap}
           isLoading={isLoading}
           onPatchRow={patchRow}
           onAddRow={() => setRows((p) => [...p, newRow()])}

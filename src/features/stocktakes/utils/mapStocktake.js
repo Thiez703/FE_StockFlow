@@ -32,12 +32,13 @@ export function toStocktakeRecord(res) {
       locationId: d.locationId,
       lot: d.lotCode,
       location: d.locationCode,
-      // StocktakeDetailResponse không trả đơn vị tính; cột ĐVT của biên bản in
-      // để trống thay vì bịa dữ liệu.
       unit: '',
       systemQty: d.systemQty,
       actualQty: d.actualQty,
       countedQty: d.actualQty,
+      damagedQty: d.damagedQty ?? 0,
+      remainingQty: d.remainingQty ?? (d.actualQty - (d.damagedQty ?? 0)),
+      note: d.note ?? '',
     })),
   };
 }

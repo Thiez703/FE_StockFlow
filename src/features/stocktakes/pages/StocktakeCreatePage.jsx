@@ -39,9 +39,9 @@ function DiffCell({ value }) {
 
 const DRAFT_STORAGE_KEY = 'stockflow.stocktake.draft';
 
-function saveDraft(counts, excluded, note) {
+function saveDraft(counts, excluded, note, damagedCounts, notes) {
   try {
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ counts, excluded, note, savedAt: Date.now() }));
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ counts, excluded, note, damagedCounts, notes, savedAt: Date.now() }));
   } catch { /* quota exceeded — không chặn UX */ }
 }
 
@@ -92,6 +92,8 @@ export default function StocktakeCreatePage() {
     }
     return draft?.counts || {};
   });
+  const [damagedCounts, setDamagedCounts] = useState(() => draft?.damagedCounts || {});
+  const [notes, setNotes] = useState(() => draft?.notes || {});
   const [excluded, setExcluded] = useState(() => draft?.excluded || []);
   const [created, setCreated] = useState(null);
 
@@ -102,9 +104,9 @@ export default function StocktakeCreatePage() {
   // Auto-save draft khi counts/excluded/note thay đổi
   useEffect(() => {
     if (Object.keys(counts).length > 0 || excluded.length > 0) {
-      saveDraft(counts, excluded, note);
+      saveDraft(counts, excluded, note, damagedCounts, notes);
     }
-  }, [counts, excluded, note]);
+  }, [counts, excluded, note, damagedCounts, notes]);
 
   const countOf = (cell) => counts[cell.key] ?? cell.quantity ?? 0;
 
@@ -165,6 +167,8 @@ export default function StocktakeCreatePage() {
         lotId: c.lotId,
         locationId: c.locationId,
         actualQty: countOf(c),
+        damagedQty: damagedCounts[c.key] ?? 0,
+        note: notes[c.key]?.trim() || null,
       })),
     });
   };
@@ -172,6 +176,8 @@ export default function StocktakeCreatePage() {
   const startNew = () => {
     setNote('');
     setCounts({});
+    setDamagedCounts({});
+    setNotes({});
     setExcluded([]);
     setCreated(null);
     clearDraft();
@@ -286,13 +292,16 @@ export default function StocktakeCreatePage() {
             </div>
           }
         >
-          <div className="hidden grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
-            <span className="col-span-4">Sản phẩm</span>
-            <span className="col-span-2">Lô</span>
-            <span className="col-span-1">Vị trí</span>
-            <span className="col-span-2 text-right">Tồn hệ thống</span>
-            <span className="col-span-2 text-right">Đếm thực tế</span>
-            <span className="col-span-1 text-right">Lệch</span>
+          <div className="hidden grid-cols-[3fr_1.5fr_1fr_1fr_1fr_1fr_1fr_2fr_auto] gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
+            <span>Sản phẩm</span>
+            <span>Lô</span>
+            <span>Vị trí</span>
+            <span className="text-right">Tồn HT</span>
+            <span className="text-right">Thực tế</span>
+            <span className="text-right">Hư hỏng</span>
+            <span className="text-right">Lệch</span>
+            <span>Ghi chú</span>
+            <span className="w-8"></span>
           </div>
 
           {isLoading ? (
@@ -357,7 +366,6 @@ export default function StocktakeCreatePage() {
                           value={counted}
                           onChange={(v) => {
                             setCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }));
-                            // Auto-advance: chuyển sang dòng tiếp theo sau khi đổi giá trị
                             if (idx < visibleRows.length - 1) {
                               setTimeout(() => {
                                 setActiveRowIdx(idx + 1);
@@ -372,6 +380,30 @@ export default function StocktakeCreatePage() {
                       <div className="shrink-0 text-center">
                         <div className="text-[10px] font-semibold text-slate-400 uppercase">Lệch</div>
                         <div className="text-lg"><DiffCell value={diff} /></div>
+                      </div>
+                    </div>
+
+                    {/* Damaged qty + note */}
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="w-24 shrink-0">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Hư hỏng</div>
+                        <InputNumber
+                          min={0}
+                          max={counted}
+                          value={damagedCounts[c.key] ?? 0}
+                          onChange={(v) => setDamagedCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }))}
+                          className="w-full"
+                          size="small"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Ghi chú</div>
+                        <Input
+                          size="small"
+                          placeholder="Ghi chú..."
+                          value={notes[c.key] ?? ''}
+                          onChange={(e) => setNotes((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                        />
                       </div>
                     </div>
 
@@ -396,28 +428,29 @@ export default function StocktakeCreatePage() {
             /* ─── DESKTOP: original grid layout ─── */
             visibleRows.map((c) => {
               const counted = countOf(c);
+              const damaged = damagedCounts[c.key] ?? 0;
               return (
                 <div
                   key={c.key}
-                  className="grid grid-cols-12 items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
+                  className="grid grid-cols-[3fr_1.5fr_1fr_1fr_1fr_1fr_1fr_2fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
                 >
-                  <div className="col-span-12 md:col-span-4">
+                  <div>
                     <div className="font-medium text-ink">{c.productName}</div>
                     <div className="text-xs text-ink-sub">
                       {c.productCode}
                       {c.unit ? ` · ${c.unit}` : ''}
                     </div>
                   </div>
-                  <div className="col-span-6 md:col-span-2">
+                  <div>
                     <DocCode muted>{c.lotCode}</DocCode>
                   </div>
-                  <div className="col-span-6 md:col-span-1">
+                  <div>
                     <span className="mono text-ink-sub">{c.locationCode}</span>
                   </div>
-                  <div className="col-span-6 md:col-span-2 md:text-right">
+                  <div className="text-right">
                     <span className="mono text-ink-sub">{formatNumber(c.quantity)}</span>
                   </div>
-                  <div className="col-span-6 md:col-span-2">
+                  <div>
                     <InputNumber
                       min={0}
                       value={counted}
@@ -425,8 +458,27 @@ export default function StocktakeCreatePage() {
                       className="w-full"
                     />
                   </div>
-                  <div className="col-span-12 flex items-center justify-end gap-1 md:col-span-1">
+                  <div>
+                    <InputNumber
+                      min={0}
+                      max={counted}
+                      value={damaged}
+                      onChange={(v) => setDamagedCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }))}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="text-right">
                     <DiffCell value={counted - (c.quantity ?? 0)} />
+                  </div>
+                  <div>
+                    <Input
+                      size="small"
+                      placeholder="Ghi chú..."
+                      value={notes[c.key] ?? ''}
+                      onChange={(e) => setNotes((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex items-center justify-end">
                     <Popconfirm
                       title="Bỏ dòng này?"
                       description="Vị trí này sẽ không nằm trong biên bản kiểm kê."

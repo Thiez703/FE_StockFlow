@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Select, Tooltip, App, Modal } from 'antd';
+import { Button, Input, InputNumber, Select, Tooltip, App, Modal } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -22,28 +22,33 @@ const WAREHOUSES_KEY = ['warehouses'];
 /**
  * Calculate the next rowLabel + colIndex for a given warehouse.
  *
- * Storage grid layout: rows A, B, C, … with columns 1–6 each.
- * e.g. A-1, A-2, …, A-6, B-1, B-2, …
+ * Storage grid layout: rows A, B, C, … with dynamic columns per row.
+ * Finds the max column count across existing rows and uses that as the row width.
+ * e.g. A-1, A-2, …, A-N, B-1, B-2, …
  */
 function getNextSlot(existingLocations, warehouseId) {
   const wLocations = existingLocations.filter((l) => l.warehouseId === warehouseId);
 
   if (wLocations.length === 0) return { rowLabel: 'A', colIndex: 1 };
 
-  // Find the maximum occupied slot
-  let maxRowOrd = 0; // ordinal of the row label  (A=0, B=1, …)
+  // Find max columns per row and the last occupied slot
+  let maxRowOrd = 0;
   let maxColInRow = 0;
+  let maxColsPerRow = 0;
 
   for (const loc of wLocations) {
-    const rowOrd = (loc.rowLabel ?? 'A').charCodeAt(0) - 65; // 'A' -> 0
+    const rowOrd = (loc.rowLabel ?? 'A').charCodeAt(0) - 65;
+    if (loc.colIndex > maxColsPerRow) maxColsPerRow = loc.colIndex;
     if (rowOrd > maxRowOrd || (rowOrd === maxRowOrd && loc.colIndex > maxColInRow)) {
       maxRowOrd = rowOrd;
       maxColInRow = loc.colIndex;
     }
   }
 
+  const colLimit = maxColsPerRow || 6;
+
   // Next slot
-  if (maxColInRow < 6) {
+  if (maxColInRow < colLimit) {
     return { rowLabel: String.fromCharCode(65 + maxRowOrd), colIndex: maxColInRow + 1 };
   }
   // Move to next row
@@ -74,6 +79,15 @@ export default function LocationsTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
       message.success('Đã thêm vị trí mới');
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const { mutate: updateLocation } = useMutation({
+    mutationFn: ({ id, ...body }) => storageLocationApi.update(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
+      message.success('Đã cập nhật vị trí');
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
@@ -147,6 +161,27 @@ export default function LocationsTab() {
       dataIndex: 'warehouseId',
       width: 220,
       render: (id) => <span className="text-ink">{warehouseName[id] ?? '—'}</span>,
+    },
+    {
+      title: 'Sức chứa (Thùng)',
+      dataIndex: 'capacity',
+      width: 160,
+      align: 'center',
+      render: (val, record) => (
+        <InputNumber
+          min={1}
+          placeholder="Không giới hạn"
+          value={val}
+          disabled={!canManageMasterData}
+          className="w-full"
+          onChange={(v) => updateLocation({
+            id: record.id,
+            rowLabel: record.rowLabel,
+            colIndex: record.colIndex,
+            capacity: v || null,
+          })}
+        />
+      ),
     },
     {
       title: 'Trạng thái',

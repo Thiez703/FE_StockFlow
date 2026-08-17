@@ -18,7 +18,6 @@ import {
   LockOutlined,
   LogoutOutlined,
   BellOutlined,
-  WarningOutlined,
   DatabaseOutlined,
 } from '@ant-design/icons';
 import { useSelector } from 'react-redux';
@@ -84,12 +83,6 @@ const VOUCHER_LIST_ITEMS = [
     icon: AuditOutlined,
     color: 'text-purple-600',
   },
-  {
-    key: '/abnormal-stocks',
-    label: 'Hàng bất thường',
-    icon: WarningOutlined,
-    color: 'text-red-600',
-  },
 ];
 
 export default function MobileBottomNav() {
@@ -138,7 +131,7 @@ export default function MobileBottomNav() {
         pathname.startsWith('/outbounds') ||
         pathname.startsWith('/inbounds') ||
         pathname.startsWith('/stocktakes') ||
-        pathname.startsWith('/abnormal-stocks')
+        pathname.startsWith('/transfers')
       );
     }
     if (key === 'master-data') {

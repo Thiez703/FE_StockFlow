@@ -8,7 +8,7 @@ import { dashboardRoutes } from '@/features/dashboard/routes';
 import { inboundRoutes } from '@/features/inbounds/routes';
 import { outboundRoutes } from '@/features/outbounds/routes';
 import { stocktakeRoutes } from '@/features/stocktakes/routes';
-import { abnormalStockRoutes } from '@/features/abnormal-stocks/routes';
+import { transferRoutes } from '@/features/transfers/routes';
 import { inventoryRoutes } from '@/features/inventory/routes';
 import { stockCardRoutes } from '@/features/stock-card/routes';
 import { alertRoutes } from '@/features/alerts/routes';
@@ -42,7 +42,7 @@ export const router = createBrowserRouter([
           ...inboundRoutes,
           ...outboundRoutes,
           ...stocktakeRoutes,
-          ...abnormalStockRoutes,
+          ...transferRoutes,
           ...inventoryRoutes,
           ...stockCardRoutes,
           ...alertRoutes,

@@ -25,7 +25,6 @@ const FORM_NOTE = 'Ban hành theo Thông tư số 200/2014/TT-BTC ngày 22/12/20
  * `layout` quyết định bảng giữa phiếu:
  *   money    – nhập/xuất kho: số lượng, đơn giá, thành tiền, cộng tiền bằng chữ.
  *   count    – kiểm kê: theo sổ sách / thực tế / thừa / thiếu, không có tiền.
- *   incident – hàng bất thường: số lượng, tình trạng, nguyên nhân.
  */
 export const VOUCHER_KINDS = {
   inbound: {
@@ -72,22 +71,6 @@ export const VOUCHER_KINDS = {
     quantityLabel: 'Số lượng',
     signers: ['Người lập biên bản', 'Thủ kho', 'Kế toán trưởng', 'Trưởng ban kiểm kê'],
     listPath: '/stocktakes',
-  },
-  abnormal: {
-    title: 'BIÊN BẢN GHI NHẬN HÀNG BẤT THƯỜNG',
-    cardTitle: 'BB HÀNG BẤT THƯỜNG',
-    // Không thuộc bộ mẫu Thông tư 200 nên ghi số hiệu và xuất xứ nội bộ.
-    formNo: 'Mẫu số 07 - VT',
-    formNote: 'Biểu mẫu nội bộ, ban hành theo quy chế quản lý kho của công ty',
-    layout: 'incident',
-    partnerLabel: 'Người phát hiện / lập biên bản',
-    partnerFallback: 'Bộ phận kho',
-    subTypeLabel: 'Loại',
-    warehouseLabel: 'Phát hiện tại kho',
-    reasonLabel: 'Loại bất thường',
-    quantityLabel: 'Số lượng',
-    signers: ['Người lập biên bản', 'Thủ kho', 'Kế toán trưởng', 'Trưởng bộ phận'],
-    listPath: '/abnormal-stocks',
   },
 };
 

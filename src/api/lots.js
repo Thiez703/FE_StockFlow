@@ -10,4 +10,5 @@ export const lotApi = {
   create: (data) => axiosClient.post('/lots', data),
   update: (id, data) => axiosClient.put(`/lots/${id}`, data),
   remove: (id) => axiosClient.delete(`/lots/${id}`),
+  getLatestInboundPrice: (lotId) => axiosClient.get(`/lots/${lotId}/latest-inbound-price`),
 };

@@ -22,28 +22,46 @@ export default function StocktakeItemsDetail({ items, note }) {
           {note}
         </p>
       )}
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-ink-sub">
-            <th className="px-3 py-2 font-semibold">Sản phẩm</th>
-            <th className="px-3 py-2 font-semibold">Lô</th>
-            <th className="px-3 py-2 text-right font-semibold">Tồn hệ thống</th>
-            <th className="px-3 py-2 text-right font-semibold">Đếm thực tế</th>
-            <th className="px-3 py-2 text-right font-semibold">Chênh lệch</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => (
-            <tr key={i} className="border-t border-slate-200/70">
-              <td className="px-3 py-2 text-ink">{it.productName}</td>
-              <td className="px-3 py-2"><DocCode muted>{it.lot}</DocCode></td>
-              <td className="px-3 py-2 text-right mono">{it.systemQty}</td>
-              <td className="px-3 py-2 text-right mono">{it.countedQty}</td>
-              <td className="px-3 py-2 text-right"><DiffValue value={it.countedQty - it.systemQty} /></td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wide text-ink-sub">
+              <th className="px-3 py-2 font-semibold">Sản phẩm</th>
+              <th className="px-3 py-2 font-semibold">Lô</th>
+              <th className="px-3 py-2 text-right font-semibold">Tồn hệ thống</th>
+              <th className="px-3 py-2 text-right font-semibold">Đếm thực tế</th>
+              <th className="px-3 py-2 text-right font-semibold">Chênh lệch</th>
+              <th className="px-3 py-2 text-right font-semibold">Hư hỏng</th>
+              <th className="px-3 py-2 text-right font-semibold">Còn tốt</th>
+              <th className="px-3 py-2 font-semibold">Ghi chú</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={i} className="border-t border-slate-200/70">
+                <td className="px-3 py-2 text-ink">{it.productName}</td>
+                <td className="px-3 py-2"><DocCode muted>{it.lot}</DocCode></td>
+                <td className="px-3 py-2 text-right mono">{it.systemQty}</td>
+                <td className="px-3 py-2 text-right mono">{it.countedQty}</td>
+                <td className="px-3 py-2 text-right"><DiffValue value={it.countedQty - it.systemQty} /></td>
+                <td className="px-3 py-2 text-right mono">
+                  {it.damagedQty > 0 ? (
+                    <span className="text-[#b91c1c] font-semibold">{it.damagedQty}</span>
+                  ) : (
+                    <span className="text-ink-sub">0</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right mono">
+                  <span className={it.remainingQty < it.countedQty ? 'text-[#b45309] font-semibold' : ''}>
+                    {it.remainingQty}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-ink-sub max-w-[200px] truncate">{it.note || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

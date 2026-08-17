@@ -7,7 +7,7 @@ import axiosClient from './axiosClient';
 //     productName, lotId, lotCode, locationId, locationCode,
 //     quantityChange, balanceAfter, performedBy, performedAt }
 //
-// refType enum: INBOUND, INBOUND_VOID, OUTBOUND, OUTBOUND_VOID, STOCKTAKE, ABNORMAL
+// refType enum: INBOUND, INBOUND_VOID, OUTBOUND, OUTBOUND_VOID, STOCKTAKE, TRANSFER, TRANSFER_VOID
 //
 // Cả 3 endpoint trả Page<T> (page, size, sort).
 export const inventoryApi = {

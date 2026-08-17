@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { Card, Button, Select, InputNumber, Input, Empty, Spin, Popconfirm, Tag, Tooltip, Drawer, Modal, Segmented } from 'antd';
-import { PlusOutlined, DeleteOutlined, CheckCircleFilled, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, CheckCircleFilled, UnorderedListOutlined, AppstoreOutlined, WarningOutlined } from '@ant-design/icons';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import MobileQuantityInput from '@/components/ui/MobileQuantityInput';
 import StorageMapSelector from '@/components/ui/StorageMapSelector';
+import ProductCheckboxList from '@/components/ui/ProductCheckboxList';
 
 /**
  * Bảng dòng hàng của phiếu xuất.
@@ -22,44 +23,8 @@ import StorageMapSelector from '@/components/ui/StorageMapSelector';
  * Dạng thẻ (card) chọn lô trên mobile — thay cho Select dropdown.
  * Mỗi lô là 1 card lớn, dễ bấm, hiển thị: mã lô, HSD, tồn, badge FEFO.
  */
-function ProductSelectionList({ productOptions, currentProductId, onSelect, onClose }) {
-  const [search, setSearch] = useState('');
-  const filtered = productOptions.filter(p => p.label.toLowerCase().includes(search.toLowerCase()));
-  
-  return (
-    <div className="flex flex-col gap-3 h-full">
-      <Input.Search 
-        placeholder="Tìm kiếm sản phẩm..." 
-        value={search} 
-        onChange={e => setSearch(e.target.value)} 
-        allowClear
-      />
-      <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto pr-1">
-        {filtered.length === 0 && <div className="text-center py-4 text-slate-400">Không tìm thấy sản phẩm.</div>}
-        {filtered.map(p => {
-          const isSelected = p.value === currentProductId;
-          return (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => { onSelect(p.value); onClose(); }}
-              className={`flex flex-col rounded-xl border-2 p-3 text-left transition-colors ${
-                isSelected ? 'border-royal bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className="font-bold text-slate-800">{p.label}</span>
-                {isSelected && <span className="text-royal font-bold">✓</span>}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
-function LotSelectionCards({ cells, productId, fefoLotIdByProduct, riskLotIds, currentCellKey, onSelect, onClose }) {
+function LotSelectionCards({ cells, productId, fefoLotIdByProduct, riskLotIds, currentValue, onSelect, onClose }) {
   const lotCells = cells.filter((c) => c.productId === productId);
 
   return (
@@ -67,7 +32,7 @@ function LotSelectionCards({ cells, productId, fefoLotIdByProduct, riskLotIds, c
       {lotCells.map((c) => {
         const isFefo = fefoLotIdByProduct.get(c.productId) === c.lotId;
         const isRisk = riskLotIds?.has(c.lotId);
-        const selected = c.key === currentCellKey;
+        const selected = c.key === currentValue;
         return (
           <button
             key={c.key}
@@ -113,6 +78,7 @@ export default function OutboundLineItemsTable({
   cellByKey,
   fefoLotIdByProduct,
   riskLotIds,
+  inboundPriceMap = new Map(),
   isLoading,
   onPatchRow,
   onAddRow,
@@ -123,7 +89,7 @@ export default function OutboundLineItemsTable({
   // Modal/Drawer state cho lot selection (dùng chung cho mobile & desktop)
   const [lotModal, setLotModal] = useState({ open: false, rowKey: null, productId: null });
   const [productModal, setProductModal] = useState({ open: false, rowKey: null });
-  const [lotViewMode, setLotViewMode] = useState('list'); // 'list' | 'map'
+  const [lotViewMode, setLotViewMode] = useState('map'); // 'list' | 'map'
   const toggleManualLot = (rowKey, show) => {
     setManualLotSelection((prev) => ({ ...prev, [rowKey]: show }));
   };
@@ -200,12 +166,14 @@ export default function OutboundLineItemsTable({
     const fefoLotId = cell ? fefoLotIdByProduct.get(cell.productId) : null;
     const isOverride = !!cell && fefoLotId != null && cell.lotId !== fefoLotId;
     const overrideErr = isOverride && !r.overrideReason.trim();
-    return { cell, fefoLotId, isOverride, overrideErr };
+    const latestInboundPrice = cell ? (inboundPriceMap.get(cell.lotId) ?? null) : null;
+    const priceBelowInbound = latestInboundPrice != null && latestInboundPrice > 0 && r.unitPrice < latestInboundPrice;
+    return { cell, fefoLotId, isOverride, overrideErr, latestInboundPrice, priceBelowInbound };
   };
 
   // ─── MOBILE: card-based layout ───
   const renderMobileRow = (r) => {
-    const { cell, isOverride, overrideErr } = renderRowData(r);
+    const { cell, isOverride, overrideErr, latestInboundPrice, priceBelowInbound } = renderRowData(r);
 
     return (
       <div key={r.key} className="rounded-xl border border-hair bg-white p-3">
@@ -296,6 +264,16 @@ export default function OutboundLineItemsTable({
           </div>
         )}
 
+        {/* Price below inbound warning */}
+        {priceBelowInbound && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+            <WarningOutlined className="text-rose-500 mt-0.5" />
+            <span className="text-xs text-rose-700">
+              Đơn giá xuất ({formatCurrency(r.unitPrice)}) thấp hơn giá nhập gần nhất ({formatCurrency(latestInboundPrice)}). Backend sẽ từ chối phiếu này.
+            </span>
+          </div>
+        )}
+
         {/* FEFO override reason */}
         {isOverride && (
           <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -351,7 +329,7 @@ export default function OutboundLineItemsTable({
 
   // ─── DESKTOP: giữ nguyên grid-based layout ───
   const renderDesktopRow = (r) => {
-    const { cell, isOverride, overrideErr } = renderRowData(r);
+    const { cell, isOverride, overrideErr, latestInboundPrice, priceBelowInbound } = renderRowData(r);
     const isManual = manualLotSelection[r.key];
     const lotOptionsForProduct = cell ? cellOptions.filter((o) => o.productId === cell.productId) : cellOptions;
 
@@ -421,7 +399,14 @@ export default function OutboundLineItemsTable({
 
           <div className="col-span-6 md:col-span-2">
             <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Đơn giá</span>
-            <InputNumber min={0} step={1000} value={r.unitPrice} onChange={(v) => onPatchRow(r.key, { unitPrice: v ?? 0 })} className="w-full" disabled={!cell} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} parser={(v) => v?.replace(/\./g, '')} />
+            <InputNumber min={0} step={1000} value={r.unitPrice} onChange={(v) => onPatchRow(r.key, { unitPrice: v ?? 0 })} className="w-full" disabled={!cell} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} parser={(v) => v?.replace(/\./g, '')} status={priceBelowInbound ? 'error' : ''} />
+            {priceBelowInbound && (
+              <Tooltip title={`Giá nhập gần nhất: ${formatCurrency(latestInboundPrice)}`}>
+                <p className="m-0 mt-1 text-[11px] text-rose-500 flex items-center gap-1">
+                  <WarningOutlined /> Thấp hơn giá nhập
+                </p>
+              </Tooltip>
+            )}
           </div>
 
           <div className="col-span-8 self-center md:col-span-3 md:text-right">
@@ -529,14 +514,18 @@ export default function OutboundLineItemsTable({
                 productId={lotModal.productId}
                 fefoLotIdByProduct={fefoLotIdByProduct}
                 riskLotIds={riskLotIds}
-                currentCellKey={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
+                currentValue={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
                 onSelect={(cellKey) => handleSelectLot(lotModal.rowKey, cellKey)}
                 onClose={() => setLotModal({ open: false, rowKey: null, productId: null })}
               />
             ) : (
               <StorageMapSelector
                 productIdFilter={lotModal.productId}
-                currentCellKey={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
+                currentValue={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
+                pickedLocations={rows.filter(r => r.key !== lotModal.rowKey && r.cellKey).map((r, i) => {
+                  const c = cellByKey.get(r.cellKey);
+                  return { locationId: c?.locationId, cellKey: r.cellKey, rowIndex: rows.indexOf(r), productName: c?.productName };
+                })}
                 onSelect={(cellKey) => {
                   handleSelectLot(lotModal.rowKey, cellKey);
                   setLotModal({ open: false, rowKey: null, productId: null });
@@ -574,14 +563,14 @@ export default function OutboundLineItemsTable({
                   productId={lotModal.productId}
                   fefoLotIdByProduct={fefoLotIdByProduct}
                   riskLotIds={riskLotIds}
-                  currentCellKey={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
+                  currentValue={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
                   onSelect={(cellKey) => handleSelectLot(lotModal.rowKey, cellKey)}
                   onClose={() => setLotModal({ open: false, rowKey: null, productId: null })}
                 />
               ) : (
                 <StorageMapSelector
                   productIdFilter={lotModal.productId}
-                  currentCellKey={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
+                  currentValue={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
                   onSelect={(cellKey) => {
                     handleSelectLot(lotModal.rowKey, cellKey);
                     setLotModal({ open: false, rowKey: null, productId: null });
@@ -594,44 +583,43 @@ export default function OutboundLineItemsTable({
       )}
 
       {/* Modal/Drawer chọn sản phẩm */}
-      {productModal.open && (
-        isMobile ? (
+      {productModal.open && (() => {
+        const closeModal = () => setProductModal({ open: false, rowKey: null });
+        const content = (
+          <ProductCheckboxList
+            productOptions={productOptions}
+            selectedProductIds={new Set()}
+            onAdd={(pids) => handleSelectProduct(productModal.rowKey, pids[0])}
+            onClose={closeModal}
+            singleMode
+          />
+        );
+
+        return isMobile ? (
           <Drawer
-            open={productModal.open}
-            onClose={() => setProductModal({ open: false, rowKey: null })}
+            open
+            onClose={closeModal}
             placement="bottom"
-            height="80vh"
+            height="85vh"
             title={<span className="text-base font-bold text-ink">Chọn sản phẩm</span>}
             styles={{ body: { padding: '16px' } }}
             className="rounded-t-2xl"
           >
-            <ProductSelectionList
-              productOptions={productOptions}
-              currentProductId={rows.find((r) => r.key === productModal.rowKey)?.cellKey ? cellByKey.get(rows.find((r) => r.key === productModal.rowKey)?.cellKey)?.productId : null}
-              onSelect={(pid) => handleSelectProduct(productModal.rowKey, pid)}
-              onClose={() => setProductModal({ open: false, rowKey: null })}
-            />
+            {content}
           </Drawer>
         ) : (
           <Modal
-            open={productModal.open}
-            onCancel={() => setProductModal({ open: false, rowKey: null })}
+            open
+            onCancel={closeModal}
             title={<span className="text-lg font-bold text-slate-800">Chọn sản phẩm</span>}
             footer={null}
-            width={500}
+            width={560}
             centered
           >
-            <div className="mt-4">
-              <ProductSelectionList
-                productOptions={productOptions}
-                currentProductId={rows.find((r) => r.key === productModal.rowKey)?.cellKey ? cellByKey.get(rows.find((r) => r.key === productModal.rowKey)?.cellKey)?.productId : null}
-                onSelect={(pid) => handleSelectProduct(productModal.rowKey, pid)}
-                onClose={() => setProductModal({ open: false, rowKey: null })}
-              />
-            </div>
+            <div className="mt-4">{content}</div>
           </Modal>
-        )
-      )}
+        );
+      })()}
     </>
   );
 }

@@ -23,13 +23,7 @@ export function usePermissions() {
     // Backend chỉ cho ADMIN / ACCOUNTANT huỷ, MANAGER và STAFF đều không được.
     canVoidInbound:      can('ACCOUNTANT'),
     canVoidOutbound:     can('ACCOUNTANT'),
-    // ⚠️ LỆCH VỚI BACKEND: StocktakeController và AbnormalStockController đang
-    // để @PreAuthorize hasAnyRole('MANAGER','ACCOUNTANT','STAFF') ở POST và ở
-    // GET /stocktakes/inventory-snapshot, tức KHÔNG cho ADMIN lập phiếu.
-    // FE cố ý giữ ADMIN toàn quyền theo quyết định của team, nên ADMIN vẫn thấy
-    // nút "Lập phiếu" và sẽ nhận 403 cho tới khi backend bỏ giới hạn đó.
     canCreateStocktake:  can('MANAGER', 'ACCOUNTANT', 'STAFF'),
-    canCreateAbnormal:   can('MANAGER', 'ACCOUNTANT', 'STAFF'),
     canApproveDocs:      can('MANAGER', 'ACCOUNTANT'),
     canManageMasterData: can('MANAGER'),
     canManageUsers:      can(),

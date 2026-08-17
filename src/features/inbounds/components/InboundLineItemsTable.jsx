@@ -1,12 +1,14 @@
 import { useState, useMemo } from 'react';
 import dayjs from 'dayjs';
-import { Card, Button, Select, InputNumber, Empty, Popconfirm, Drawer, Modal, Tag, Input, DatePicker } from 'antd';
+import { Card, Button, Select, InputNumber, Empty, Popconfirm, Drawer, Modal, DatePicker } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useFormContext, useFieldArray, Controller, useWatch } from 'react-hook-form';
 import { formatCurrency } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import MobileQuantityInput from '@/components/ui/MobileQuantityInput';
+import StorageMapSelector from '@/components/ui/StorageMapSelector';
+import ProductCheckboxList from '@/components/ui/ProductCheckboxList';
 
 const DEFAULT_ITEM = {
   productId: undefined,
@@ -20,193 +22,6 @@ const DEFAULT_ITEM = {
   unitPrice: 0,
 };
 
-function LocationSelectionGrid({ locationOptions, currentLocationId, currentProductId, currentLotId, isNewMode, inventoryCells = [], onSelect, onClose }) {
-  // Map: locationId → Set<productId>
-  const locationProductMap = useMemo(() => {
-    const map = new Map();
-    inventoryCells.forEach(c => {
-      if (!map.has(c.locationId)) map.set(c.locationId, new Set());
-      map.get(c.locationId).add(c.productId);
-    });
-    return map;
-  }, [inventoryCells]);
-
-  // Map: locationId → Set<lotId>
-  const locationLotMap = useMemo(() => {
-    const map = new Map();
-    inventoryCells.forEach(c => {
-      if (!map.has(c.locationId)) map.set(c.locationId, new Set());
-      map.get(c.locationId).add(c.lotId);
-    });
-    return map;
-  }, [inventoryCells]);
-
-  // Map: locationId → first matching cell (for existing mode: to get lot info)
-  const locationCellMap = useMemo(() => {
-    const map = new Map();
-    inventoryCells.forEach(c => {
-      if (!map.has(c.locationId)) map.set(c.locationId, []);
-      map.get(c.locationId).push(c);
-    });
-    return map;
-  }, [inventoryCells]);
-
-  const grouped = {};
-  locationOptions.forEach(loc => {
-    const zone = loc.zoneCode || 'Khác';
-    if (!grouped[zone]) grouped[zone] = [];
-    grouped[zone].push(loc);
-  });
-
-  const sortedKeys = Object.keys(grouped).sort();
-
-  const legendGreen = isNewMode ? 'Trống (nên chọn)' : 'Cùng SP (chọn được)';
-
-  return (
-    <div className="flex flex-col gap-5 p-1 max-h-[60vh] overflow-y-auto pr-2">
-      {/* Chú thích */}
-      {currentProductId && (
-        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border-2 border-emerald-400 bg-emerald-50" /> {legendGreen}</span>
-          {!isNewMode && <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border-2 border-amber-300 bg-amber-50" /> Trống (không chọn được)</span>}
-          <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded border-2 border-slate-200 bg-slate-100" /> {isNewMode ? 'Có hàng (không chọn được)' : 'Khác SP (không chọn được)'}</span>
-        </div>
-      )}
-
-      {sortedKeys.map(zone => (
-        <div key={zone} className="flex flex-col gap-2.5">
-          <div className="text-sm font-bold text-slate-500 border-b-2 border-slate-100 pb-1.5 uppercase tracking-wider">Dãy {zone}</div>
-          <div className="grid grid-cols-6 gap-2">
-            {grouped[zone].map(loc => {
-              const isSelected = loc.value === currentLocationId;
-              const productsHere = locationProductMap.get(loc.value);
-              const lotsHere = locationLotMap.get(loc.value);
-              const cellsHere = locationCellMap.get(loc.value) ?? [];
-              const isEmpty = !productsHere || productsHere.size === 0;
-              const hasSameProduct = currentProductId && productsHere?.has(currentProductId);
-
-              // Nhập mới: chỉ được chọn ô trống
-              // Nhập cũ: chỉ được chọn ô có cùng SP, ô trống không được chọn
-              const disabled = isNewMode
-                ? (!isEmpty && !!currentProductId)
-                : (isEmpty || (currentProductId && !productsHere?.has(currentProductId)));
-
-              let isGreen = isNewMode
-                ? (isEmpty && !!currentProductId)
-                : !!hasSameProduct;
-
-              // Existing mode: find lot info for cells at this location matching selected product
-              const matchingCells = !isNewMode && currentProductId
-                ? cellsHere.filter(c => c.productId === currentProductId)
-                : [];
-              let lotLabel = matchingCells.length > 0
-                ? [...new Set(matchingCells.map(c => c.lotCode))].join(', ')
-                : '';
-
-              let btnClass = '';
-              let statusLabel = '';
-
-              if (isNewMode) {
-                if (isEmpty) {
-                  isGreen = true;
-                  lotLabel = 'Trống';
-                } else {
-                  lotLabel = 'Có hàng (không chọn được)';
-                }
-              } else {
-                if (matchingCells.length > 0) {
-                  isGreen = true;
-                  lotLabel = matchingCells[0].lotCode;
-                } else if (!isEmpty) {
-                  lotLabel = 'Khác sản phẩm';
-                } else {
-                  lotLabel = 'Trống';
-                }
-              }
-
-              if (isSelected) {
-                btnClass = 'border-royal bg-blue-50 text-royal scale-105 shadow-sm ring-2 ring-royal/20';
-                statusLabel = 'Đã chọn';
-              } else if (disabled) {
-                btnClass = 'border-slate-200 bg-slate-100 text-slate-400 opacity-60 cursor-not-allowed';
-                statusLabel = lotLabel || '';
-              } else if (isGreen) {
-                btnClass = 'border-emerald-400 bg-emerald-50 text-emerald-700 hover:border-emerald-500 hover:bg-emerald-100';
-                statusLabel = lotLabel || '';
-              } else {
-                btnClass = 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50';
-                statusLabel = '';
-              }
-
-              // Existing mode: on select, pass the first matching cell's lot data
-              const handleSelect = () => {
-                if (disabled) return;
-                if (!isNewMode && matchingCells.length > 0) {
-                  const cell = matchingCells[0];
-                  onSelect(loc.value, { lotId: cell.lotId, lotCode: cell.lotCode, mfgDate: cell.mfgDate, expDate: cell.expDate });
-                } else {
-                  onSelect(loc.value, null);
-                }
-                onClose();
-              };
-
-              return (
-                <button
-                  key={loc.value}
-                  type="button"
-                  disabled={disabled}
-                  onClick={handleSelect}
-                  className={`flex flex-col ${!isNewMode && lotLabel ? 'h-16' : 'h-14'} items-center justify-center rounded-xl border-2 transition-all ${btnClass}`}
-                >
-                  <span className="font-bold text-[13px]">{loc.label}</span>
-                  {statusLabel && <span className={`text-[9px] mt-0.5 font-bold uppercase leading-tight text-center ${isSelected ? 'text-royal' : disabled ? (isEmpty && !isNewMode ? 'text-amber-400' : 'text-slate-400') : 'text-emerald-600'}`}>{statusLabel}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ProductSelectionList({ productOptions, currentProductId, onSelect, onClose }) {
-  const [search, setSearch] = useState('');
-  const filtered = productOptions.filter(p => p.label.toLowerCase().includes(search.toLowerCase()));
-
-  return (
-    <div className="flex flex-col gap-3 h-full">
-      <Input.Search
-        placeholder="Tìm kiếm sản phẩm..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        allowClear
-      />
-      <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto pr-1">
-        {filtered.length === 0 && <div className="text-center py-4 text-slate-400">Không tìm thấy sản phẩm.</div>}
-        {filtered.map(p => {
-          const isSelected = p.value === currentProductId;
-          return (
-            <button
-              key={p.value}
-              type="button"
-              onClick={() => { onSelect(p.value); onClose(); }}
-              className={`flex flex-col rounded-xl border-2 p-3 text-left transition-colors ${
-                isSelected ? 'border-royal bg-blue-50/50' : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-center justify-between w-full">
-                <span className="font-bold text-slate-800">{p.label}</span>
-                {isSelected && <span className="text-royal font-bold">✓</span>}
-              </div>
-              {p.unit && <span className="text-xs text-slate-500 mt-1">ĐVT: {p.unit}</span>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 function InboundLotSelectionCards({ lots, currentLotId, onSelect, onClose }) {
   if (!lots || lots.length === 0) {
@@ -282,9 +97,9 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
       </div>
 
       {/* Columns */}
-      <div className={`grid flex-1 items-start gap-3 py-3 pr-4 ${isNewMode ? 'grid-cols-15' : 'grid-cols-12'}`}>
+      <div className="grid flex-1 items-start gap-3 py-3 pr-4 grid-cols-15">
         {/* Sản phẩm */}
-        <div className={`col-span-12 md:${isNewMode ? 'col-span-3' : 'col-span-4'}`}>
+        <div className="col-span-12 md:col-span-3">
           <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Sản phẩm</span>
           <Controller
             name={`${name}.${index}.productId`}
@@ -306,7 +121,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
 
         {/* Vị trí kho */}
         <div className="col-span-12 md:col-span-2">
-          <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Vị trí{!isNewMode ? ' & Lô' : ''}</span>
+          <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Vị trí</span>
           <Controller
             name={`${name}.${index}.locationId`}
             control={control}
@@ -319,15 +134,26 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
                   onClick={() => onOpenLocationModal(index, productId, lotId)}
                   className={`w-full text-left flex justify-between min-h-[36px] items-center px-3 ${!field.value ? 'text-slate-400' : 'text-slate-700'} ${rowErr?.locationId ? 'border-rose-500' : ''}`}
                 >
-                  <span className="truncate">
-                    <span className="font-semibold">{locDisplay}</span>
-                    {!isNewMode && lotCode && <span className="text-xs text-slate-400 ml-1">({lotCode})</span>}
-                  </span>
+                  <span className="truncate font-semibold">{locDisplay}</span>
                 </Button>
               );
             }}
           />
         </div>
+
+        {/* Lô hàng (restock mode) */}
+        {!isNewMode && (
+          <div className="col-span-12 md:col-span-2">
+            <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Lô hàng</span>
+            <Button
+              type="dashed"
+              onClick={() => onOpenLotModal(index, productId)}
+              className={`w-full text-left flex justify-between min-h-[36px] items-center px-3 ${!lotCode ? 'text-slate-400' : 'text-slate-700'} ${rowErr?.lotCode ? 'border-rose-500' : ''}`}
+            >
+              <span className="truncate">{lotCode || 'Chọn lô...'}</span>
+            </Button>
+          </div>
+        )}
 
         {/* NSX & HSD (chỉ khi tạo lô mới) */}
         {isNewMode && (
@@ -580,29 +406,37 @@ function MobileItemRow({ name, index, control, errors, setValue, onRemove, remov
           </div>
         </>
       ) : (
-        <div className="mb-3">
-          <span className="mb-1.5 block text-xs font-semibold text-slate-400">Vị trí & Lô</span>
-          <Controller
-            name={`${name}.${index}.locationId`}
-            control={control}
-            render={({ field }) => {
-              const loc = locationOptions.find(l => l.value === field.value);
-              const locDisplay = loc?.label || 'Chọn vị trí...';
-              return (
-                <Button
-                  type="dashed"
-                  onClick={() => onOpenLocationModal(index, productId, lotId)}
-                  className={`w-full text-left flex justify-between min-h-[44px] items-center px-3 ${!field.value ? 'text-slate-400' : 'text-slate-700'} ${rowErr?.locationId ? 'border-rose-500' : ''}`}
-                >
-                  <span className="truncate">
-                    <span className="font-semibold">{locDisplay}</span>
-                    {lotCode && <span className="text-xs text-slate-400 ml-1">({lotCode})</span>}
-                  </span>
-                </Button>
-              );
-            }}
-          />
-        </div>
+        <>
+          <div className="mb-3">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-400">Vị trí</span>
+            <Controller
+              name={`${name}.${index}.locationId`}
+              control={control}
+              render={({ field }) => {
+                const loc = locationOptions.find(l => l.value === field.value);
+                return (
+                  <Button
+                    type="dashed"
+                    onClick={() => onOpenLocationModal(index, productId, lotId)}
+                    className={`w-full text-left flex justify-between min-h-[44px] items-center px-3 ${!field.value ? 'text-slate-400' : 'text-slate-700'} ${rowErr?.locationId ? 'border-rose-500' : ''}`}
+                  >
+                    <span className="truncate font-semibold">{loc?.label || 'Chọn vị trí...'}</span>
+                  </Button>
+                );
+              }}
+            />
+          </div>
+          <div className="mb-3">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-400">Lô hàng</span>
+            <Button
+              type="dashed"
+              onClick={() => onOpenLotModal(index, productId)}
+              className={`w-full text-left flex justify-between min-h-[44px] items-center px-3 ${!lotCode ? 'text-slate-400' : 'text-slate-700'} ${rowErr?.lotCode ? 'border-rose-500' : ''}`}
+            >
+              <span className="truncate">{lotCode || 'Chọn lô...'}</span>
+            </Button>
+          </div>
+        </>
       )}
 
       {/* Số lượng */}
@@ -654,6 +488,7 @@ function MobileItemRow({ name, index, control, errors, setValue, onRemove, remov
  * và cột Vị trí kho. Lô hàng lọc theo product_id đã chọn, cho phép nhập mã lô mới.
  * Props: productOptions, lotsByProduct (Map<productId, lot[]>), locationOptions
  */
+
 export default function InboundLineItemsTable({
   name = 'items',
   emptyItem = DEFAULT_ITEM,
@@ -675,7 +510,6 @@ export default function InboundLineItemsTable({
   } = useFormContext();
   const { fields, append, remove } = useFieldArray({ control, name });
   const arrErr = errors?.[name]?.message || errors?.[name]?.root?.message;
-  const [addCount, setAddCount] = useState(1);
 
   const items = useWatch({ control, name });
   const totalAmount = (items ?? []).reduce(
@@ -683,9 +517,24 @@ export default function InboundLineItemsTable({
     0,
   );
 
-  const handleAdd = () => {
-    const count = Number(addCount) || 1;
-    append(Array.from({ length: count }, () => ({ ...emptyItem })));
+  const existingProductIds = useMemo(
+    () => new Set((items ?? []).map((it) => it?.productId).filter(Boolean)),
+    [items],
+  );
+
+  const handleAddProducts = (productIds) => {
+    // Remove empty rows (no product) before adding
+    const emptyIndices = [];
+    fields.forEach((f, i) => {
+      if (!items?.[i]?.productId) emptyIndices.push(i);
+    });
+    for (let i = emptyIndices.length - 1; i >= 0; i--) {
+      if (fields.length - emptyIndices.length + productIds.length > 0) {
+        remove(emptyIndices[i]);
+      }
+    }
+    const newRows = productIds.map((pid) => ({ ...emptyItem, productId: pid }));
+    append(newRows);
   };
 
   const RowComponent = isMobile ? MobileItemRow : ItemRow;
@@ -705,25 +554,24 @@ export default function InboundLineItemsTable({
         className="rounded-2xl shadow-sm ring-1 ring-slate-200/60 bg-white overflow-hidden"
         styles={{ header: { borderBottom: '1px solid #e2e8f0', padding: '16px 20px' }, body: { padding: isMobile ? 12 : 0 } }}
         extra={
-          <div className="flex items-center gap-2">
-            {!isMobile && <InputNumber min={1} value={addCount} onChange={(v) => setAddCount(v ?? 1)} className="w-16" />}
-            <Button type="primary" size={isMobile ? 'large' : 'middle'} ghost icon={<PlusOutlined />} onClick={handleAdd} className={isMobile ? 'min-h-[44px]' : ''}>
-              Thêm dòng
-            </Button>
-          </div>
+          <Button type="primary" size={isMobile ? 'large' : 'middle'} icon={<PlusOutlined />} onClick={() => setProductModal({ open: true, index: null })} className={isMobile ? 'min-h-[44px]' : ''}>
+            Chọn sản phẩm
+          </Button>
         }
       >
+
         {/* Desktop header */}
         {!isMobile && (
           <div className="hidden items-center border-b border-slate-100 bg-slate-50/80 md:flex">
             <div className="w-11 shrink-0 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400">
               #
             </div>
-            <div className={`grid flex-1 gap-3 py-3 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 ${isNewMode ? 'grid-cols-15' : 'grid-cols-12'}`}>
-              <span className={isNewMode ? 'col-span-3' : 'col-span-4'}>Sản phẩm</span>
-              <span className="col-span-2">{isNewMode ? 'Vị trí' : 'Vị trí & Lô'}</span>
+            <div className="grid flex-1 gap-3 py-3 pr-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 grid-cols-15">
+              <span className="col-span-3">Sản phẩm</span>
+              <span className="col-span-2">Vị trí</span>
               {isNewMode && <span className="col-span-2">Ngày SX</span>}
               {isNewMode && <span className="col-span-2">Hạn sử dụng</span>}
+              {!isNewMode && <span className="col-span-2">Lô hàng</span>}
               <span className="col-span-1">ĐVT</span>
               <span className="col-span-1">SL</span>
               <span className="col-span-2">Đơn giá</span>
@@ -790,10 +638,12 @@ export default function InboundLineItemsTable({
             >
               <InboundLotSelectionCards
                 lots={lotModal.productId ? lotsByProduct.get(lotModal.productId) : []}
-                currentLotId={fields[lotModal.index]?.lotId}
+                currentLotId={items?.[lotModal.index]?.lotId}
                 onSelect={(lot) => {
                   setValue(`${name}.${lotModal.index}.lotCode`, lot.lotCode);
                   setValue(`${name}.${lotModal.index}.lotId`, lot.id);
+                  if (lot.mfgDate) setValue(`${name}.${lotModal.index}.mfgDate`, lot.mfgDate);
+                  if (lot.expDate) setValue(`${name}.${lotModal.index}.expDate`, lot.expDate);
                 }}
                 onClose={() => setLotModal({ open: false, index: null, productId: null })}
               />
@@ -810,10 +660,12 @@ export default function InboundLineItemsTable({
               <div className="mt-4 max-h-[60vh] overflow-y-auto pr-2">
                 <InboundLotSelectionCards
                   lots={lotModal.productId ? lotsByProduct.get(lotModal.productId) : []}
-                  currentLotId={fields[lotModal.index]?.lotId}
+                  currentLotId={items?.[lotModal.index]?.lotId}
                   onSelect={(lot) => {
                     setValue(`${name}.${lotModal.index}.lotCode`, lot.lotCode);
                     setValue(`${name}.${lotModal.index}.lotId`, lot.id);
+                    if (lot.mfgDate) setValue(`${name}.${lotModal.index}.mfgDate`, lot.mfgDate);
+                    if (lot.expDate) setValue(`${name}.${lotModal.index}.expDate`, lot.expDate);
                   }}
                   onClose={() => setLotModal({ open: false, index: null, productId: null })}
                 />
@@ -823,122 +675,130 @@ export default function InboundLineItemsTable({
         )}
 
         {/* Modal/Drawer chọn sản phẩm */}
-        {productModal.open && (
-          isMobile ? (
+        {productModal.open && (() => {
+          const isSingle = productModal.index != null;
+          const handleProductAdd = (pids) => {
+            if (isSingle) {
+              // Replacing product on an existing row
+              const pid = pids[0];
+              setValue(`${name}.${productModal.index}.productId`, pid);
+              setValue(`${name}.${productModal.index}.lotCode`, '');
+              setValue(`${name}.${productModal.index}.lotId`, undefined);
+              if (!isNewMode) {
+                setValue(`${name}.${productModal.index}.locationId`, undefined);
+              }
+            } else {
+              // Adding new rows (checkbox multi)
+              handleAddProducts(pids);
+            }
+          };
+          const closeModal = () => setProductModal({ open: false, index: null });
+
+          const content = (
+            <ProductCheckboxList
+              productOptions={productOptions}
+              selectedProductIds={existingProductIds}
+              onAdd={handleProductAdd}
+              onClose={closeModal}
+              singleMode={isSingle}
+            />
+          );
+
+          return isMobile ? (
             <Drawer
-              open={productModal.open}
-              onClose={() => setProductModal({ open: false, index: null })}
+              open
+              onClose={closeModal}
               placement="bottom"
-              height="80vh"
-              title={<span className="text-base font-bold text-ink">Chọn sản phẩm</span>}
+              height="85vh"
+              title={<span className="text-base font-bold text-ink">{isSingle ? 'Đổi sản phẩm' : 'Chọn sản phẩm nhập'}</span>}
               styles={{ body: { padding: '16px' } }}
               className="rounded-t-2xl"
             >
-              <ProductSelectionList
-                productOptions={productOptions}
-                currentProductId={fields[productModal.index]?.productId}
-                onSelect={(pid) => {
-                  setValue(`${name}.${productModal.index}.productId`, pid);
-                  setValue(`${name}.${productModal.index}.lotCode`, '');
-                  setValue(`${name}.${productModal.index}.lotId`, undefined);
-                  if (!isNewMode) {
-                    setValue(`${name}.${productModal.index}.locationId`, undefined);
-                  }
-                }}
-                onClose={() => setProductModal({ open: false, index: null })}
-              />
+              {content}
             </Drawer>
           ) : (
             <Modal
-              open={productModal.open}
-              onCancel={() => setProductModal({ open: false, index: null })}
-              title={<span className="text-lg font-bold text-slate-800">Chọn sản phẩm</span>}
+              open
+              onCancel={closeModal}
+              title={<span className="text-lg font-bold text-slate-800">{isSingle ? 'Đổi sản phẩm' : 'Chọn sản phẩm nhập'}</span>}
               footer={null}
-              width={500}
+              width={560}
               centered
             >
-              <div className="mt-4">
-                <ProductSelectionList
-                  productOptions={productOptions}
-                  currentProductId={fields[productModal.index]?.productId}
-                  onSelect={(pid) => {
-                    setValue(`${name}.${productModal.index}.productId`, pid);
-                    setValue(`${name}.${productModal.index}.lotCode`, '');
-                    setValue(`${name}.${productModal.index}.lotId`, undefined);
-                    if (!isNewMode) {
-                      setValue(`${name}.${productModal.index}.locationId`, undefined);
-                    }
-                  }}
-                  onClose={() => setProductModal({ open: false, index: null })}
-                />
-              </div>
+              <div className="mt-4">{content}</div>
             </Modal>
-          )
-        )}
+          );
+        })()}
 
-        {/* Modal/Drawer chọn vị trí */}
-        {locationModal.open && (
-          isMobile ? (
+        {/* Modal/Drawer chọn vị trí (sơ đồ kho) */}
+        {locationModal.open && (() => {
+          const handleLocationSelect = (locationId) => {
+            const idx = locationModal.index;
+            const pid = locationModal.productId;
+            setValue(`${name}.${idx}.locationId`, locationId);
+
+            // Restock mode: auto-fill lot if only 1 matching lot at this location
+            if (!isNewMode && pid && inventoryCells.length > 0) {
+              const matchingCells = inventoryCells.filter(c => c.locationId === locationId && c.productId === pid);
+              if (matchingCells.length === 1) {
+                const cell = matchingCells[0];
+                setValue(`${name}.${idx}.lotId`, cell.lotId);
+                setValue(`${name}.${idx}.lotCode`, cell.lotCode);
+                if (cell.mfgDate) setValue(`${name}.${idx}.mfgDate`, cell.mfgDate);
+                if (cell.expDate) setValue(`${name}.${idx}.expDate`, cell.expDate);
+              } else {
+                // Multiple lots or none → open lot modal
+                setTimeout(() => setLotModal({ open: true, index: idx, productId: pid }), 200);
+              }
+            }
+
+            setLocationModal({ open: false, index: null, productId: null, lotId: null });
+          };
+
+          // Build pickedLocations from other rows
+          const picked = (items ?? [])
+            .map((it, i) => ({ locationId: it?.locationId, productId: it?.productId, rowIndex: i, productName: productOptions.find(p => p.value === it?.productId)?.label }))
+            .filter((p, i) => p.locationId && i !== locationModal.index);
+
+          const mapContent = (
+            <StorageMapSelector
+              selectionMode="location"
+              highlightEmpty={isNewMode}
+              currentValue={items?.[locationModal.index]?.locationId}
+              currentProductId={locationModal.productId}
+              inventoryCells={inventoryCells}
+              pickedLocations={picked}
+              onSelect={handleLocationSelect}
+            />
+          );
+
+          return isMobile ? (
             <Drawer
-              open={locationModal.open}
+              open
               onClose={() => setLocationModal({ open: false, index: null, productId: null, lotId: null })}
               placement="bottom"
-              height="80vh"
+              height="85vh"
               title={<span className="text-base font-bold text-ink">Chọn vị trí kho</span>}
               styles={{ body: { padding: '8px 16px 16px' } }}
               className="rounded-t-2xl"
             >
-              <LocationSelectionGrid
-                locationOptions={locationOptions}
-                currentLocationId={fields[locationModal.index]?.locationId}
-                currentProductId={locationModal.productId}
-                currentLotId={locationModal.lotId}
-                isNewMode={isNewMode}
-                inventoryCells={inventoryCells}
-                onSelect={(locId, cellData) => {
-                  setValue(`${name}.${locationModal.index}.locationId`, locId);
-                  if (cellData) {
-                    setValue(`${name}.${locationModal.index}.lotId`, cellData.lotId);
-                    setValue(`${name}.${locationModal.index}.lotCode`, cellData.lotCode);
-                    if (cellData.mfgDate) setValue(`${name}.${locationModal.index}.mfgDate`, cellData.mfgDate);
-                    if (cellData.expDate) setValue(`${name}.${locationModal.index}.expDate`, cellData.expDate);
-                  }
-                }}
-                onClose={() => setLocationModal({ open: false, index: null, productId: null, lotId: null })}
-              />
+              {mapContent}
             </Drawer>
           ) : (
             <Modal
-              open={locationModal.open}
+              open
               onCancel={() => setLocationModal({ open: false, index: null, productId: null, lotId: null })}
               title={<span className="text-lg font-bold text-slate-800">Chọn vị trí kho</span>}
               footer={null}
-              width={700}
+              width={900}
               centered
             >
-              <div className="mt-4">
-                <LocationSelectionGrid
-                  locationOptions={locationOptions}
-                  currentLocationId={fields[locationModal.index]?.locationId}
-                  currentProductId={locationModal.productId}
-                  currentLotId={locationModal.lotId}
-                  isNewMode={isNewMode}
-                  inventoryCells={inventoryCells}
-                  onSelect={(locId, cellData) => {
-                    setValue(`${name}.${locationModal.index}.locationId`, locId);
-                    if (cellData) {
-                      setValue(`${name}.${locationModal.index}.lotId`, cellData.lotId);
-                      setValue(`${name}.${locationModal.index}.lotCode`, cellData.lotCode);
-                      if (cellData.mfgDate) setValue(`${name}.${locationModal.index}.mfgDate`, cellData.mfgDate);
-                      if (cellData.expDate) setValue(`${name}.${locationModal.index}.expDate`, cellData.expDate);
-                    }
-                  }}
-                  onClose={() => setLocationModal({ open: false, index: null, productId: null, lotId: null })}
-                />
+              <div className="mt-4 max-h-[70vh] overflow-y-auto pr-2">
+                {mapContent}
               </div>
             </Modal>
-          )
-        )}
+          );
+        })()}
       </Card>
     </>
   );
