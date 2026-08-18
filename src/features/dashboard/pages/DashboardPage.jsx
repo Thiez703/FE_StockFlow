@@ -464,7 +464,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Bảng điều khiển"
-        subtitle="Tổng quan hoạt động kho hàng hôm nay, 18/07/2026"
+        subtitle="Tổng quan hoạt động kho hàng hôm nay"
         breadcrumb={[{ title: 'Tổng quan' }, { title: 'Bảng điều khiển' }]}
       />
 
