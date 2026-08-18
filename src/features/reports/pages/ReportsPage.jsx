@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DatePicker, Button, Input, Tabs, Alert, App, Spin, Table } from 'antd';
+import { Button, Input, Tabs, Alert, App, Spin, Table } from 'antd';
 import {
   FileExcelOutlined,
   SearchOutlined,
   ImportOutlined,
   ExportOutlined,
   WalletOutlined,
-  SwapOutlined,
   AuditOutlined,
   DiffOutlined,
 } from '@ant-design/icons';
@@ -232,20 +231,20 @@ export default function ReportsPage() {
     }
 
     const totalValue = top5Value.reduce((sum, item) => sum + item.value, 0) || 1;
-    let currentAngle = 0;
-    const donutData = top5Value.map((item, index) => {
+    const donutData = top5Value.reduce((acc, item, index) => {
       const percentage = (item.value / totalValue) * 100;
       const angle = (percentage / 100) * 360;
-      const data = {
+      const startAngle = acc.currentAngle;
+      acc.currentAngle += angle;
+      acc.data.push({
         ...item,
         percentage,
-        startAngle: currentAngle,
-        endAngle: currentAngle + angle,
+        startAngle,
+        endAngle: acc.currentAngle,
         color: COLORS[index % COLORS.length]
-      };
-      currentAngle += angle;
-      return data;
-    });
+      });
+      return acc;
+    }, { currentAngle: 0, data: [] }).data;
 
     // 2. Bar Chart Data: Top 5 products by total movement
     const sortedByMovement = [...nxtItems].sort((a, b) => 
@@ -277,19 +276,19 @@ export default function ReportsPage() {
       { name: 'Dư thừa', value: over, color: '#f59e0b' }
     ].filter(d => d.value > 0);
 
-    let currentAngle = 0;
-    const donutData = summaryData.map(item => {
+    const donutData = summaryData.reduce((acc, item) => {
       const percentage = (item.value / total) * 100;
       const angle = (percentage / 100) * 360;
-      const data = {
+      const startAngle = acc.currentAngle;
+      acc.currentAngle += angle;
+      acc.data.push({
         ...item,
         percentage,
-        startAngle: currentAngle,
-        endAngle: currentAngle + angle,
-      };
-      currentAngle += angle;
-      return data;
-    });
+        startAngle,
+        endAngle: acc.currentAngle,
+      });
+      return acc;
+    }, { currentAngle: 0, data: [] }).data;
 
     const prodDiffMap = {};
     varianceItems.forEach(item => {
@@ -367,7 +366,7 @@ export default function ReportsPage() {
     });
 
     return buckets;
-  }, [range, inboundsQuery.data, outboundsQuery.data]);
+  }, [inboundsQuery.data, outboundsQuery.data, from, to]);
 
   const isMobile = useIsMobile();
 

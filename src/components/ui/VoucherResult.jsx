@@ -1,5 +1,5 @@
 import { Button, Result } from 'antd';
-import { PrinterOutlined, EditOutlined, UnorderedListOutlined, PlusOutlined } from '@ant-design/icons';
+import { PrinterOutlined, UnorderedListOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import VoucherPaper from '@/components/ui/VoucherPaper';
 import VoucherMobileView from '@/components/ui/VoucherMobileView';
@@ -17,7 +17,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
  * @param {Function} onNew     Lập tờ mới (reset form).
  * @param {string}   listPath  Đường dẫn danh sách để quay về.
  */
-export default function VoucherResult({ voucher, title, onEdit, onNew, listPath }) {
+export default function VoucherResult({ voucher, title, onNew, listPath }) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 

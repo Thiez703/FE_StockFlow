@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useDragControls, useMotionValue, animate } from 'framer-motion';
 import { 
   RobotOutlined, 
@@ -8,7 +8,6 @@ import {
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import dayjs from 'dayjs';
 import { chatApi } from '@/api/chat';
 import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
@@ -79,6 +78,7 @@ export default function FloatingChatWidget() {
     if (!isOpen) {
       startButtonIdleTimer();
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       clearButtonIdleTimer();
     }
     return () => {
@@ -138,6 +138,7 @@ export default function FloatingChatWidget() {
     if (isOpen && messages.length === 1 && messages[0].id === 'welcome') {
       initConversation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleSend = async () => {

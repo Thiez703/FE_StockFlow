@@ -1,5 +1,3 @@
-import React from 'react';
-import { useSelector } from 'react-redux';
 import { VOUCHER_KINDS } from '@/constants/voucher';
 import { formatNumber } from '@/utils/formatCurrency';
 import { totalQuantity, stocktakeTotals } from '@/utils/voucher';
@@ -35,7 +33,7 @@ function LetterRow({ count }) {
 }
 
 /** Nhập / xuất kho: số lượng — đơn giá — thành tiền. */
-function MoneyTable({ cfg, items, minRows, defaultUnit }) {
+function MoneyTable({ cfg, items, minRows }) {
   const fillers = Math.max(0, minRows - items.length);
 
   return (
@@ -94,7 +92,7 @@ function MoneyTable({ cfg, items, minRows, defaultUnit }) {
 }
 
 /** Kiểm kê: theo sổ sách — thực tế — chênh lệch thừa / thiếu (mẫu 05-VT). */
-function CountTable({ items, minRows, defaultUnit }) {
+function CountTable({ items, minRows }) {
   const fillers = Math.max(0, minRows - items.length);
   const sum = stocktakeTotals(items);
 
@@ -174,7 +172,7 @@ function CountTable({ items, minRows, defaultUnit }) {
 }
 
 /** Hàng bất thường: số lượng — tình trạng — nguyên nhân. */
-function IncidentTable({ items, minRows, defaultUnit }) {
+function IncidentTable({ items, minRows }) {
   const fillers = Math.max(0, minRows - items.length);
 
   return (
@@ -236,8 +234,7 @@ function IncidentTable({ items, minRows, defaultUnit }) {
  */
 export default function VoucherItemsTable({ kind, items = [], minRows = MIN_ROWS }) {
   const cfg = VOUCHER_KINDS[kind];
-  const defaultUnit = useSelector((state) => state.settings.defaultUnit);
-  if (cfg.layout === 'count') return <CountTable items={items} minRows={minRows} defaultUnit={defaultUnit} />;
-  if (cfg.layout === 'incident') return <IncidentTable items={items} minRows={minRows} defaultUnit={defaultUnit} />;
-  return <MoneyTable cfg={cfg} items={items} minRows={minRows} defaultUnit={defaultUnit} />;
+  if (cfg.layout === 'count') return <CountTable items={items} minRows={minRows} />;
+  if (cfg.layout === 'incident') return <IncidentTable items={items} minRows={minRows} />;
+  return <MoneyTable cfg={cfg} items={items} minRows={minRows} />;
 }

@@ -1,12 +1,11 @@
 import { createElement, useCallback, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Tooltip, Badge, Dropdown, Avatar } from 'antd';
+import { Tooltip, Dropdown, Avatar } from 'antd';
 import { motion } from 'framer-motion';
 import WarehouseScene from '@/components/illustrations/WarehouseScene';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  DownOutlined,
   RightOutlined,
   CustomerServiceOutlined,
   LockOutlined,
@@ -14,7 +13,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { useSelector } from 'react-redux';
-import { SIDEBAR_GROUPS, getVisibleSidebarGroups } from '@/constants/navigation';
+import { getVisibleSidebarGroups } from '@/constants/navigation';
 import Logo from '@/components/ui/Logo';
 import { useLogout } from '@/features/auth/hooks/useLogout';
 import ChangePasswordModal from '@/features/auth/components/ChangePasswordModal';

@@ -84,7 +84,7 @@ function OccupantStatusBadge({ status }) {
 
 export function DashboardWarehouseMap() {
   const navigate = useNavigate();
-  const { role, canManageMasterData } = usePermissions();
+  const { canManageMasterData } = usePermissions();
   const expirySoonDays = useSelector((state) => state.settings.expirySoonDays);
   const [showConfig, setShowConfig] = useState(false);
 

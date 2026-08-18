@@ -110,7 +110,7 @@ export default function LogsPage() {
       title: 'Đối tượng',
       dataIndex: 'entityType',
       width: 160,
-      render: (type, r) => (
+      render: (type) => (
         <span className="text-ink">
           {ENTITY_TYPE_LABEL[type] ?? type}
         </span>

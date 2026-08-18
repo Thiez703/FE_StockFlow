@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import dayjs from 'dayjs';
-import { Card, Button, Select, InputNumber, Empty, Popconfirm, Drawer, Modal, DatePicker } from 'antd';
+import { Card, Button, InputNumber, Empty, Popconfirm, Drawer, Modal, DatePicker } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useFormContext, useFieldArray, Controller, useWatch } from 'react-hook-form';
 import { formatCurrency } from '@/utils/formatCurrency';
@@ -61,7 +61,7 @@ function InboundLotSelectionCards({ lots, currentLotId, onSelect, onClose }) {
   );
 }
 
-function ItemRow({ name, index, control, errors, setValue, onRemove, removable, productOptions, lotsByProduct, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal, defaultUnit }) {
+function ItemRow({ name, index, control, errors, onRemove, removable, productOptions, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal }) {
   const [productId, lotId, lotCode, quantity, unitPrice] = useWatch({
     control,
     name: [
@@ -74,16 +74,6 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
   });
   const lineTotal = (Number(quantity) || 0) * (Number(unitPrice) || 0);
   const rowErr = errors?.[name]?.[index];
-
-  const lotOptions = useMemo(() => {
-    if (!productId) return [];
-    const lots = lotsByProduct.get(productId) ?? [];
-    return lots.map((l) => ({
-      value: l.lotCode,
-      lotId: l.id,
-      label: `${l.lotCode}${l.expDate ? ` — HSD: ${formatDate(l.expDate)}` : ''}`,
-    }));
-  }, [productId, lotsByProduct]);
 
   const baseUnit = useMemo(() => {
     if (!productId) return '';
@@ -278,23 +268,13 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
   );
 }
 
-function MobileItemRow({ name, index, control, errors, setValue, onRemove, removable, productOptions, lotsByProduct, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal, defaultUnit }) {
+function MobileItemRow({ name, index, control, errors, onRemove, removable, productOptions, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal }) {
   const [productId, lotId, lotCode, quantity, unitPrice] = useWatch({
     control,
     name: [`${name}.${index}.productId`, `${name}.${index}.lotId`, `${name}.${index}.lotCode`, `${name}.${index}.quantity`, `${name}.${index}.unitPrice`],
   });
   const lineTotal = (Number(quantity) || 0) * (Number(unitPrice) || 0);
   const rowErr = errors?.[name]?.[index];
-
-  const lotOptions = useMemo(() => {
-    if (!productId) return [];
-    const lots = lotsByProduct.get(productId) ?? [];
-    return lots.map((l) => ({
-      value: l.lotCode,
-      lotId: l.id,
-      label: `${l.lotCode}${l.expDate ? ` — HSD: ${formatDate(l.expDate)}` : ''}`,
-    }));
-  }, [productId, lotsByProduct]);
 
   const baseUnit = useMemo(() => {
     if (!productId) return '';
@@ -591,7 +571,7 @@ export default function InboundLineItemsTable({
           <div className="py-12 flex flex-col items-center gap-3">
             <Empty description={false} />
             <p className="m-0 text-sm text-slate-400">Chưa có sản phẩm nào</p>
-            <Button type="primary" ghost icon={<PlusOutlined />} onClick={handleAdd}>
+            <Button type="primary" ghost icon={<PlusOutlined />} onClick={() => setProductModal({ open: true, index: null })}>
               Thêm sản phẩm đầu tiên
             </Button>
           </div>

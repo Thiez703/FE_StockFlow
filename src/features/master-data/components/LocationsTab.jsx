@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, InputNumber, Select, Tooltip, App, Modal } from 'antd';
+import { Button, Input, InputNumber, Select, Tooltip, App } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Select, InputNumber, App, Popconfirm, Modal, Drawer } from 'antd';
+import { Button, InputNumber, App, Popconfirm, Modal, Drawer } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, SwapOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -37,16 +37,10 @@ export default function TransferCreatePage() {
   const [note, setNote] = useState('');
   const [mapModal, setMapModal] = useState({ open: false, rowId: null, type: null, productId: null, fromLocationId: null });
 
-  const { cells, isLoading: loadingSnap } = useInventorySnapshot();
+  const { cells } = useInventorySnapshot();
 
   const cellByKey = useMemo(() => new Map(cells.map((c) => [c.key, c])), [cells]);
 
-  // Distinct products from inventory
-  const productOptions = useMemo(() => {
-    const map = new Map();
-    cells.forEach(c => { if (!map.has(c.productId)) map.set(c.productId, { value: c.productId, label: `${c.productCode} — ${c.productName}` }); });
-    return [...map.values()];
-  }, [cells]);
 
   const patchRow = (id, patch) => setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
   const removeRow = (id) => setRows(prev => prev.filter(r => r.id !== id));

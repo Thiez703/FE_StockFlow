@@ -1,7 +1,6 @@
 import { Card, Button, Spin, Empty, Badge } from 'antd';
 import {
   AuditOutlined,
-  RightOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';

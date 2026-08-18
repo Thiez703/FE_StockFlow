@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Card, App, Popconfirm } from 'antd';
-import { ArrowLeftOutlined, CheckOutlined, FileTextOutlined } from '@ant-design/icons';
+import { Alert, Button, App, Popconfirm } from 'antd';
+import { ArrowLeftOutlined, CheckOutlined } from '@ant-design/icons';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';

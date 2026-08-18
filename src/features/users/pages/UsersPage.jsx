@@ -29,8 +29,6 @@ import { formatDateTime } from '@/utils/date';
 const USERS_KEY = ['users'];
 const PAGE_SIZE = 8;
 
-const initials = (name = '') =>
-  name.trim().split(/\s+/).slice(-2).map((w) => w[0] ?? '').join('').toUpperCase() || '?';
 
 // Backend lọc/phân trang phía server nên mọi bộ lọc đều nằm trong queryKey.
 export default function UsersPage() {

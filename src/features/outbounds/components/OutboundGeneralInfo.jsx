@@ -1,4 +1,4 @@
-import { Card, Form, Input, Select } from 'antd';
+import { Form, Input, Select } from 'antd';
 import { DISPOSAL_REASON_OPTIONS } from '@/features/outbounds/constants/issueTypes';
 import { formatDate, today } from '@/utils/date';
 

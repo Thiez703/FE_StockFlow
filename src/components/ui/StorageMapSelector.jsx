@@ -143,7 +143,7 @@ export default function StorageMapSelector({
     
     // Determine which occupant to display/select
     const occupants = cell.occupants || [];
-    let displayOcc = null;
+    let displayOcc;
     if (selectionMode === 'cell') {
       displayOcc = productIdFilter 
         ? occupants.find(o => o.productId === productIdFilter)
@@ -165,7 +165,7 @@ export default function StorageMapSelector({
       : (pickedByLocation[cell.locationId] || []);
 
     let isSelectable = false;
-    let isSelected = false;
+    let isSelected;
     let theme = STATUS_THEME[cell.status] || STATUS_THEME.EMPTY;
     let subtitle = '';
 

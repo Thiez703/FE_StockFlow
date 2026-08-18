@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Button, App } from 'antd';
+import { Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 
@@ -27,8 +27,8 @@ export default function TransfersPage() {
     placeholderData: keepPreviousData,
   });
 
-  const rows = data?.content ?? [];
-  const total = data?.totalElements ?? 0;
+  const rows = data?.data?.content ?? data?.content ?? [];
+  const total = data?.data?.totalElements ?? data?.totalElements ?? 0;
 
   const columns = [
     {

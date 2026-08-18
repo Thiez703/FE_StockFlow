@@ -70,9 +70,9 @@ export default function StocktakesPage() {
       const okStatus = !status || r.status === status;
       return okKw && okStatus;
     });
-    setPage(1);
     return sortRows(filtered);
   }, [rows, keyword, status, sortRows]);
+
 
   const onDecided = (label) => {
     queryClient.invalidateQueries({ queryKey: STOCKTAKES_KEY });
@@ -216,7 +216,10 @@ export default function StocktakesPage() {
           placeholder="Tìm mã phiếu..."
           className="w-full sm:w-64"
           value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            setPage(1);
+          }}
         />
         <Select
           allowClear
@@ -224,7 +227,10 @@ export default function StocktakesPage() {
           className="w-full sm:w-44"
           options={statusOptions(APPROVAL_STATUSES)}
           value={status}
-          onChange={setStatus}
+          onChange={(v) => {
+            setStatus(v);
+            setPage(1);
+          }}
         />
       </FilterBar>
 

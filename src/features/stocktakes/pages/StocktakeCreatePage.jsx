@@ -9,11 +9,10 @@ import {
   Button,
   Empty,
   Spin,
-  Checkbox,
   App,
   Popconfirm,
 } from 'antd';
-import { ArrowLeftOutlined, DeleteOutlined, CheckOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DeleteOutlined, CheckOutlined, SearchOutlined } from '@ant-design/icons';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import MobileQuantityInput from '@/components/ui/MobileQuantityInput';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -28,7 +27,6 @@ import { toStocktakeRecord } from '@/features/stocktakes/utils/mapStocktake';
 import { stocktakeApi } from '@/api/stocktakes';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 import { getErrorMessage } from '@/utils/getErrorMessage';
-import { formatNumber } from '@/utils/formatCurrency';
 import { formatDate, today } from '@/utils/date';
 import { toVoucher } from '@/utils/voucher';
 
@@ -66,7 +64,7 @@ export default function StocktakeCreatePage() {
   const fullName = useSelector((state) => state.auth.user?.fullName);
   const { canCreateStocktake } = usePermissions();
 
-  const { cells, isLoading, isError, error, isFetching, refetch } = useInventorySnapshot(undefined, {
+  const { cells, isLoading, isError, error, refetch } = useInventorySnapshot(undefined, {
     enabled: canCreateStocktake,
   });
 

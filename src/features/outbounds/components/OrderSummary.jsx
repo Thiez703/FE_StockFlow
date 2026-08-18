@@ -1,4 +1,3 @@
-import { Card } from 'antd';
 import { CalculatorOutlined } from '@ant-design/icons';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
 

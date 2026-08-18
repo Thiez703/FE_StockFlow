@@ -10,11 +10,6 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/ui/PageHeader';
-import AlertsPanel from '@/features/dashboard/components/AlertsPanel';
-import RecentActivities from '@/features/dashboard/components/RecentActivities';
-import StatCard from '@/features/dashboard/components/StatCard';
-import { formatNumber } from '@/utils/formatCurrency';
-import { FileSyncOutlined } from '@ant-design/icons';
 
 export default function StaffDashboard() {
   const navigate = useNavigate();

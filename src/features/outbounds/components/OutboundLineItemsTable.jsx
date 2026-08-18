@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Card, Button, Select, InputNumber, Input, Empty, Spin, Popconfirm, Tag, Tooltip, Drawer, Modal, Segmented } from 'antd';
+import { Card, Button, InputNumber, Input, Empty, Spin, Popconfirm, Tag, Tooltip, Drawer, Modal, Segmented } from 'antd';
 import { PlusOutlined, DeleteOutlined, CheckCircleFilled, UnorderedListOutlined, AppstoreOutlined, WarningOutlined } from '@ant-design/icons';
 import { formatCurrency, formatNumber } from '@/utils/formatCurrency';
 import { formatDate } from '@/utils/date';
@@ -86,14 +86,9 @@ export default function OutboundLineItemsTable({
   onRemoveRow,
 }) {
   const isMobile = useIsMobile();
-  const [manualLotSelection, setManualLotSelection] = useState({});
-  // Modal/Drawer state cho lot selection (dùng chung cho mobile & desktop)
   const [lotModal, setLotModal] = useState({ open: false, rowKey: null, productId: null });
   const [productModal, setProductModal] = useState({ open: false, rowKey: null });
   const [lotViewMode, setLotViewMode] = useState('map'); // 'list' | 'map'
-  const toggleManualLot = (rowKey, show) => {
-    setManualLotSelection((prev) => ({ ...prev, [rowKey]: show }));
-  };
 
   const productOptions = useMemo(() => {
     const map = new Map();
@@ -120,18 +115,6 @@ export default function OutboundLineItemsTable({
     return map;
   }, [cells, fefoLotIdByProduct]);
 
-  const cellOptions = useMemo(() => cells.map((c) => {
-    const isFefo = fefoLotIdByProduct.get(c.productId) === c.lotId;
-    return {
-      value: c.key,
-      productId: c.productId,
-      label:
-        `${c.locationCode} · ${c.lotCode}` +
-        (c.expDate ? ` · HSD ${formatDate(c.expDate)}` : '') +
-        ` — ${c.productName} (tồn ${formatNumber(c.quantity)})` +
-        (isFefo ? ' · FEFO' : ''),
-    };
-  }), [cells, fefoLotIdByProduct]);
 
   const totalAmount = rows.reduce(
     (sum, r) => sum + (r.cellKey ? (r.quantity || 0) * (r.unitPrice || 0) : 0),
@@ -331,8 +314,6 @@ export default function OutboundLineItemsTable({
   // ─── DESKTOP: giữ nguyên grid-based layout ───
   const renderDesktopRow = (r) => {
     const { cell, isOverride, overrideErr, latestInboundPrice, priceBelowInbound } = renderRowData(r);
-    const isManual = manualLotSelection[r.key];
-    const lotOptionsForProduct = cell ? cellOptions.filter((o) => o.productId === cell.productId) : cellOptions;
 
     return (
       <div key={r.key} className="border-b border-slate-100 last:border-b-0">
@@ -513,7 +494,7 @@ export default function OutboundLineItemsTable({
               <StorageMapSelector
                 productIdFilter={lotModal.productId}
                 currentValue={rows.find((r) => r.key === lotModal.rowKey)?.cellKey}
-                pickedLocations={rows.filter(r => r.key !== lotModal.rowKey && r.cellKey).map((r, i) => {
+                pickedLocations={rows.filter(r => r.key !== lotModal.rowKey && r.cellKey).map((r) => {
                   const c = cellByKey.get(r.cellKey);
                   return { locationId: c?.locationId, cellKey: r.cellKey, rowIndex: rows.indexOf(r), productName: c?.productName };
                 })}

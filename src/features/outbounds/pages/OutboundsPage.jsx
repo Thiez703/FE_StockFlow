@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Button, Input, Select, DatePicker, Tag, Tooltip, Modal, App, Dropdown } from 'antd';
+import { Alert, Button, Input, Select, Tag, Tooltip, Modal, App, Dropdown } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -95,10 +95,9 @@ export default function OutboundsPage() {
       const okDate = from == null || (at != null && at >= from && at <= to);
       return okKw && okType && okStatus && okDate;
     });
-    // Reset trang khi filter thay đổi làm giảm số lượng kết quả
-    setPage(1);
     return sortRows(filtered);
   }, [rows, keyword, issueType, status, range, sortRows]);
+
 
   const detailRecord = useMemo(() => rows.find((r) => r.id === detailId) ?? null, [rows, detailId]);
   const detailVoucher = useMemo(() => toVoucher('outbound', detailRecord), [detailRecord]);
@@ -235,31 +234,43 @@ export default function OutboundsPage() {
         <Input
           allowClear
           prefix={<SearchOutlined className="text-slate-400" />}
-          placeholder="Tìm mã phiếu, đối tác..."
+          placeholder="Tìm mã phiếu..."
           className="w-full sm:w-64"
           value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            setPage(1);
+          }}
         />
         <Select
           allowClear
           placeholder="Loại xuất"
-          className="w-full sm:w-40"
+          className="w-full sm:w-44"
           options={ISSUE_TYPE_OPTIONS}
           value={issueType}
-          onChange={setIssueType}
+          onChange={(v) => {
+            setIssueType(v);
+            setPage(1);
+          }}
         />
         <Select
           allowClear
           placeholder="Trạng thái"
-          className="w-full sm:w-40"
+          className="w-full sm:w-44"
           options={statusOptions(OUTBOUND_STATUSES)}
           value={status}
-          onChange={setStatus}
+          onChange={(v) => {
+            setStatus(v);
+            setPage(1);
+          }}
         />
         <DateRangeSelectGroup
           className="w-full sm:w-auto"
           value={range}
-          onChange={(dates) => setRange(dates?.[0] || dates?.[1] ? dates : null)}
+          onChange={(dates) => {
+             setRange(dates?.[0] || dates?.[1] ? dates : null);
+             setPage(1);
+          }}
         />
       </FilterBar>
 
