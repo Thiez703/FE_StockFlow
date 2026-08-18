@@ -104,8 +104,8 @@ export default function ReportsPage() {
 
   // NXT data
   const nxtQuery = useQuery({
-    queryKey: ['reports', 'inventory-summary', from, to],
-    queryFn: () => reportApi.getInventorySummary({ from, to, ...BIG_PAGE }),
+    queryKey: ['reports', 'inventory-summary', DEFAULT_WAREHOUSE_ID, from, to],
+    queryFn: () => reportApi.getInventorySummary({ warehouseId: DEFAULT_WAREHOUSE_ID, from, to, ...BIG_PAGE }),
     enabled: !!from && !!to,
   });
   
@@ -122,16 +122,41 @@ export default function ReportsPage() {
     enabled: !!from && !!to,
   });
 
-  // Variance data (fetch tất cả trong 1 lần như nxt để làm tính toán + lọc diff client-side)
+  // Variance data
   const varianceQuery = useQuery({
-    queryKey: ['reports', 'stocktake-variance', from, to],
-    queryFn: () => reportApi.getStocktakeVariance({ from, to, ...BIG_PAGE }),
+    queryKey: ['reports', 'stocktake-variance', DEFAULT_WAREHOUSE_ID, from, to],
+    queryFn: () => reportApi.getStocktakeVariance({ warehouseId: DEFAULT_WAREHOUSE_ID, from, to, ...BIG_PAGE }),
     enabled: !!from && !!to,
   });
-  const varianceTotalElements = varianceQuery.data?.totalElements ?? 0;
+  const nxtItems = useMemo(() => {
+    let d = nxtQuery.data;
+    if (d?.data) d = d.data;
+    if (Array.isArray(d)) return d;
+    if (d?.content && Array.isArray(d.content)) return d.content;
+    if (d?.rows && Array.isArray(d.rows)) return d.rows;
+    return [];
+  }, [nxtQuery.data]);
 
-  const nxtItems = useMemo(() => nxtQuery.data?.content ?? [], [nxtQuery.data?.content]);
-  const varianceItems = useMemo(() => varianceQuery.data?.content ?? [], [varianceQuery.data?.content]);
+  const varianceItems = useMemo(() => {
+    let d = varianceQuery.data;
+    if (d?.data) d = d.data;
+    if (Array.isArray(d)) return d;
+    if (d?.content && Array.isArray(d.content)) return d.content;
+    if (d?.rows && Array.isArray(d.rows)) return d.rows;
+    return [];
+  }, [varianceQuery.data]);
+
+  const varianceTotalElements = useMemo(() => {
+    let d = varianceQuery.data;
+    if (d?.data) d = d.data;
+    if (d?.totalElements != null) return d.totalElements;
+    if (Array.isArray(d)) return d.length;
+    if (d?.content && Array.isArray(d.content)) return d.content.length;
+    if (d?.rows && Array.isArray(d.rows)) return d.rows.length;
+    return 0;
+  }, [varianceQuery.data]);
+
+  console.log('[ReportsPage] varianceData:', varianceQuery.data, 'extractedItems:', varianceItems.length);
 
   // Aggregates for overview
   const aggregates = useMemo(() => {
@@ -361,7 +386,7 @@ export default function ReportsPage() {
     }
     setExporting(true);
     try {
-      const res = await reportApi.exportInventorySummary({ from, to });
+      const res = await reportApi.exportInventorySummary({ warehouseId: DEFAULT_WAREHOUSE_ID, from, to });
       const blob = new Blob([res.data], {
         type: res.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
@@ -408,7 +433,7 @@ export default function ReportsPage() {
     { title: 'Lô', dataIndex: 'lotCode', width: 100, render: (v) => <span className="mono text-ink-sub">{v}</span> },
     ...(!isMobile ? [{ title: 'Vị trí', dataIndex: 'locationCode', width: 100, render: (v) => <span className="mono text-ink-sub">{v}</span> }] : []),
     { title: 'Sổ sách', dataIndex: 'systemQty', align: 'right', width: 70, render: (v) => <span className="mono">{formatNumber(v)}</span> },
-    { title: 'Thực tế', dataIndex: 'actualQty', align: 'right', width: 70, render: (v) => <span className="mono">{formatNumber(v)}</span> },
+    { title: 'Thực tế', dataIndex: 'actualQty', align: 'right', width: 70, render: (v) => <span className="mono">{v == null ? '—' : formatNumber(v)}</span> },
     {
       title: sortableTitle('CL', 'diffQty'),
       dataIndex: 'diffQty',

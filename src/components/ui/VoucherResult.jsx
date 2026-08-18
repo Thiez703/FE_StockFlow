@@ -37,9 +37,6 @@ export default function VoucherResult({ voucher, title, onEdit, onNew, listPath 
         <Button key="print" type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>
           In phiếu
         </Button>,
-        <Button key="edit" icon={<EditOutlined />} onClick={onEdit}>
-          Sửa lại
-        </Button>,
         <Button key="new" icon={<PlusOutlined />} onClick={onNew}>
           Lập phiếu mới
         </Button>,

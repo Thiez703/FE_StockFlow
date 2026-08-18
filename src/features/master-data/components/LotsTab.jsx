@@ -387,6 +387,9 @@ export default function LotsTab() {
                 ({ getFieldValue }) => ({
                   validator(_, value) {
                     if (!value) return Promise.resolve();
+                    if (value.isAfter(dayjs().endOf('day'))) {
+                      return Promise.reject(new Error('Không lớn hơn hiện tại'));
+                    }
                     const expDate = getFieldValue('expDate');
                     if (expDate && value.isAfter(expDate, 'day')) {
                       return Promise.reject(new Error('Phải trước HSD'));
@@ -401,7 +404,8 @@ export default function LotsTab() {
                 format="DD/MM/YYYY" 
                 disabledDate={(current) => {
                   const expDate = form.getFieldValue('expDate');
-                  return expDate ? current && current.isAfter(expDate, 'day') : false;
+                  const isAfterExp = expDate ? current && current.isAfter(expDate, 'day') : false;
+                  return isAfterExp || (current && current.isAfter(dayjs().endOf('day')));
                 }}
               />
             </Form.Item>
@@ -414,6 +418,9 @@ export default function LotsTab() {
                 ({ getFieldValue }) => ({
                   validator(_, value) {
                     if (!value) return Promise.resolve();
+                    if (value.isBefore(dayjs().startOf('day'))) {
+                      return Promise.reject(new Error('Không nhỏ hơn hiện tại'));
+                    }
                     const mfgDate = getFieldValue('mfgDate');
                     if (mfgDate && value.isBefore(mfgDate, 'day')) {
                       return Promise.reject(new Error('Phải sau NSX'));
@@ -428,7 +435,8 @@ export default function LotsTab() {
                 format="DD/MM/YYYY" 
                 disabledDate={(current) => {
                   const mfgDate = form.getFieldValue('mfgDate');
-                  return mfgDate ? current && current.isBefore(mfgDate, 'day') : false;
+                  const isBeforeMfg = mfgDate ? current && current.isBefore(mfgDate, 'day') : false;
+                  return isBeforeMfg || (current && current.isBefore(dayjs().startOf('day')));
                 }}
               />
             </Form.Item>

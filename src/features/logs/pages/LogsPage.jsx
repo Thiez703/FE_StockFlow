@@ -113,14 +113,20 @@ export default function LogsPage() {
       render: (type, r) => (
         <span className="text-ink">
           {ENTITY_TYPE_LABEL[type] ?? type}
-          {r.entityId != null && <span className="mono text-ink-sub"> #{r.entityId}</span>}
         </span>
       ),
     },
     {
       title: 'Chi tiết',
       dataIndex: 'detail',
-      render: (d) => <span className="text-ink-sub">{d || '—'}</span>,
+      render: (d, r) => {
+        if (r.action?.startsWith('API_')) {
+          const actionName = r.action === 'API_POST' ? 'Tạo mới' : (r.action === 'API_DELETE' ? 'Xóa' : 'Cập nhật');
+          const entityName = ENTITY_TYPE_LABEL[r.entityType] || r.entityType;
+          return <span className="text-ink-sub">{`${actionName} ${entityName.toLowerCase()}`}</span>;
+        }
+        return <span className="text-ink-sub">{d || '—'}</span>;
+      },
     },
   ];
 

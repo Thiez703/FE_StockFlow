@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Select, InputNumber, App, Popconfirm, Modal, Drawer } from 'antd';
 import { ArrowLeftOutlined, PlusOutlined, DeleteOutlined, SwapOutlined, EnvironmentOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import PageHeader from '@/components/ui/PageHeader';
 import StorageMapSelector from '@/components/ui/StorageMapSelector';
@@ -21,9 +21,19 @@ export default function TransferCreatePage() {
   const isMobile = useIsMobile();
   const { message } = App.useApp();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
-  const [rows, setRows] = useState([emptyRow()]);
+  const [rows, setRows] = useState(() => {
+    const prefill = location.state?.prefill;
+    if (prefill && Array.isArray(prefill)) {
+      return prefill.map(p => ({
+        ...emptyRow(),
+        ...p,
+      }));
+    }
+    return [emptyRow()];
+  });
   const [note, setNote] = useState('');
   const [mapModal, setMapModal] = useState({ open: false, rowId: null, type: null, productId: null, fromLocationId: null });
 

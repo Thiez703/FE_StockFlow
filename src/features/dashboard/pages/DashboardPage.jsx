@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Popover, Spin, Alert, Button } from 'antd';
-import { WarningOutlined, FileSyncOutlined, AppstoreOutlined, ExportOutlined, PlusOutlined, ImportOutlined, SettingOutlined, DeleteOutlined } from '@ant-design/icons';
+import { WarningOutlined, FileSyncOutlined, AppstoreOutlined, ExportOutlined, PlusOutlined, ImportOutlined, SettingOutlined, DeleteOutlined, SwapOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/ui/PageHeader';
 import AlertsPanel from '@/features/dashboard/components/AlertsPanel';
@@ -14,9 +14,7 @@ import { useSelector } from 'react-redux';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getErrorMessage } from '@/utils/getErrorMessage';
-import AccountantDashboard from '@/features/dashboard/pages/AccountantDashboard';
 import StaffDashboard from '@/features/dashboard/pages/StaffDashboard';
-
 // Style theo trạng thái ô (enum trả về từ BE). Giữ nguyên bảng màu đã có sẵn
 // của khối sơ đồ (emerald/rose/amber) khi còn 4 state; EXPIRED là state mới,
 // dùng tông đỏ đậm (red-600/700, tương đương semantic.danger #DC2626) để phân
@@ -52,9 +50,9 @@ const STATUS_THEME = {
 function getCapacityInfo(used, capacity) {
   if (capacity == null) return null;
   const pct = Math.min(100, Math.round((used / capacity) * 100));
-  const color = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
-  const label = pct >= 90 ? 'Gần đầy' : pct >= 70 ? 'Khá đầy' : pct >= 40 ? 'Vừa phải' : 'Còn trống';
-  const bgFill = pct >= 90 ? 'from-red-500/10' : pct >= 70 ? 'from-amber-500/10' : 'from-emerald-500/10';
+  const color = pct >= 100 ? 'bg-rose-600' : pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500';
+  const label = pct >= 100 ? 'Đã đầy' : pct >= 90 ? 'Gần đầy' : pct >= 70 ? 'Khá đầy' : pct >= 40 ? 'Vừa phải' : 'Còn trống';
+  const bgFill = pct >= 100 ? 'from-rose-600/10' : pct >= 90 ? 'from-red-500/10' : pct >= 70 ? 'from-amber-500/10' : 'from-emerald-500/10';
   return { pct, color, label, bgFill };
 }
 
@@ -65,12 +63,12 @@ function CapacityBar({ used, capacity }) {
     <div className="mt-2">
       <div className="flex justify-between text-[10px] text-slate-400 font-bold mb-0.5">
         <span>{formatNumber(used)}/{formatNumber(capacity)} Thùng</span>
-        <span className={info.pct >= 90 ? 'text-red-500 font-black' : info.pct >= 70 ? 'text-amber-500 font-black' : ''}>{info.pct}%</span>
+        <span className={info.pct >= 100 ? 'text-rose-600 font-black' : info.pct >= 90 ? 'text-red-500 font-black' : info.pct >= 70 ? 'text-amber-500 font-black' : ''}>{info.pct}%</span>
       </div>
       <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${info.color}`} style={{ width: `${info.pct}%` }} />
       </div>
-      <div className={`text-[9px] font-bold mt-0.5 text-center ${info.pct >= 90 ? 'text-red-500' : info.pct >= 70 ? 'text-amber-500' : 'text-emerald-500'}`}>
+      <div className={`text-[9px] font-bold mt-0.5 text-center ${info.pct >= 100 ? 'text-rose-600' : info.pct >= 90 ? 'text-red-500' : info.pct >= 70 ? 'text-amber-500' : 'text-emerald-500'}`}>
         {info.label}
       </div>
     </div>
@@ -84,9 +82,9 @@ function OccupantStatusBadge({ status }) {
   return null;
 }
 
-function DashboardWarehouseMap() {
+export function DashboardWarehouseMap() {
   const navigate = useNavigate();
-  const { canManageMasterData } = usePermissions();
+  const { role, canManageMasterData } = usePermissions();
   const expirySoonDays = useSelector((state) => state.settings.expirySoonDays);
   const [showConfig, setShowConfig] = useState(false);
 
@@ -142,19 +140,24 @@ function DashboardWarehouseMap() {
               )}
               {occ.status === 'EXPIRED' ? (
                 <Button size="small" block icon={<DeleteOutlined />} type="primary" danger className="mt-2"
-                  onClick={() => navigate('/outbounds/create/disposal', { state: { prefill: [{ lotId: occ.lotId, lotCode: occ.lotCode, productId: occ.productId, productName: occ.productName, locationId: cell.locationId, quantity: occ.quantity }] } })}>
+                  onClick={() => navigate('/outbounds/create/disposal', { state: { prefill: [{ cellKey: `${occ.lotId}-${cell.locationId}`, quantity: occ.quantity }] } })}>
                   Hủy lô
                 </Button>
               ) : (
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 grid grid-cols-3 gap-2">
                   <Button size="small" type="primary" icon={<ExportOutlined />}
-                    onClick={() => navigate('/outbounds/create/retail', { state: { prefill: [{ cellKey: `${occ.lotId}-${cell.locationId}` }] } })}>
+                    onClick={() => navigate('/outbounds/create/retail', { state: { prefill: [{ cellKey: `${occ.lotId}-${cell.locationId}`, quantity: occ.quantity }] } })}>
                     Xuất
                   </Button>
                   <Button size="small" icon={<ImportOutlined />}
                     className="border-emerald-500 text-emerald-600 hover:text-emerald-500"
                     onClick={() => navigate('/inbounds/create/old', { state: { prefill: [{ productId: occ.productId, lotCode: occ.lotCode, lotId: occ.lotId, locationId: cell.locationId }] } })}>
-                    Nhập thêm
+                    Nhập
+                  </Button>
+                  <Button size="small" icon={<SwapOutlined />}
+                    className="border-blue-500 text-blue-600 hover:text-blue-500"
+                    onClick={() => navigate('/transfers/create', { state: { prefill: [{ productId: occ.productId, lotId: occ.lotId, fromLocationId: cell.locationId, fromLocationCode: cell.locationCode, quantity: occ.quantity }] } })}>
+                    Chuyển
                   </Button>
                 </div>
               )}
@@ -182,7 +185,9 @@ function DashboardWarehouseMap() {
             className="absolute bottom-0 left-0 right-0 transition-all duration-500 opacity-20 pointer-events-none"
             style={{
               height: `${capInfo.pct}%`,
-              background: capInfo.pct >= 90
+              background: capInfo.pct >= 100
+                ? 'linear-gradient(to top, rgb(225 29 72), transparent)'
+                : capInfo.pct >= 90
                 ? 'linear-gradient(to top, rgb(239 68 68), transparent)'
                 : capInfo.pct >= 70
                   ? 'linear-gradient(to top, rgb(245 158 11), transparent)'
@@ -198,8 +203,8 @@ function DashboardWarehouseMap() {
                 {cell.locationCode}
               </span>
               {occupants.length === 1 ? (
-                <span className="text-[11px] font-bold bg-black/20 px-2 py-0.5 rounded-full truncate max-w-[65%] shadow-inner tracking-wide" title={`Lô: ${firstOcc.lotCode}`}>
-                  {firstOcc.lotCode}
+                <span className="text-[11px] font-bold bg-black/20 px-2 py-0.5 rounded-full truncate max-w-[65%] shadow-inner tracking-wide" title={`Lô: ${firstOcc.lotCode || firstOcc.lot || 'N/A'}`}>
+                  {firstOcc.lotCode || firstOcc.lot || 'N/A'}
                 </span>
               ) : (
                 <span className="text-[11px] font-bold bg-black/20 px-2 py-0.5 rounded-full shadow-inner tracking-wide">
@@ -420,9 +425,15 @@ function DashboardWarehouseMap() {
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-5 h-5 rounded border border-red-200 relative overflow-hidden">
-                <div className="absolute bottom-0 left-0 right-0 h-full bg-red-400/30" />
+                <div className="absolute bottom-0 left-0 right-0 h-[90%] bg-red-400/30" />
               </div>
-              <span>&ge;90%</span>
+              <span>90-99%</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-rose-600 font-bold">
+              <div className="w-5 h-5 rounded border border-rose-300 relative overflow-hidden">
+                <div className="absolute bottom-0 left-0 right-0 h-full bg-rose-500/30" />
+              </div>
+              <span>100%</span>
             </div>
           </div>
         </div>
@@ -442,10 +453,6 @@ function DashboardWarehouseMap() {
 
 export default function DashboardPage() {
   const { role, canViewStorageMap } = usePermissions();
-
-  if (role === 'ACCOUNTANT' || role === 'ROLE_ACCOUNTANT') {
-    return <AccountantDashboard />;
-  }
 
   console.log('[DashboardPage] Current role:', role);
 

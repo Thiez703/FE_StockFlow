@@ -24,7 +24,7 @@ export function toStocktakeRecord(res) {
     note: res.note,
     warehouse: res.warehouseCode,
     // Tổng chênh lệch, ưu tiên diffQty do backend tính.
-    diff: details.reduce((sum, d) => sum + (d.diffQty ?? d.actualQty - d.systemQty), 0),
+    diff: details.reduce((sum, d) => sum + (d.diffQty ?? d.systemQty - d.actualQty), 0),
     items: details.map((d) => ({
       productCode: d.productCode,
       productName: d.productName,

@@ -1,8 +1,8 @@
-import { Form, InputNumber, Button, message, Card, Typography, Divider, Tabs } from 'antd';
+import { Form, InputNumber, Button, message, Card, Typography, Divider, Tabs, Select, Input } from 'antd';
 import { useDispatch, useSelector } from 'react-redux';
-import { setExpirySoonDays } from '@/store/settingsSlice';
+import { setExpirySoonDays, setDefaultUnit } from '@/store/settingsSlice';
 import { usePermissions } from '@/hooks/usePermissions';
-import { SettingOutlined, SaveOutlined, WarningOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { SettingOutlined, SaveOutlined, WarningOutlined, EnvironmentOutlined, TagsOutlined } from '@ant-design/icons';
 import { useEffect } from 'react';
 import LocationsTab from '@/features/master-data/components/LocationsTab';
 
@@ -59,6 +59,52 @@ function AlertSettingsTab() {
   );
 }
 
+function UnitsSettingsTab() {
+  const dispatch = useDispatch();
+  const [form] = Form.useForm();
+  const defaultUnit = useSelector((state) => state.settings.defaultUnit);
+
+  useEffect(() => {
+    form.setFieldsValue({ defaultUnit });
+  }, [defaultUnit, form]);
+
+  const onFinish = (values) => {
+    const validUnit = values.defaultUnit?.trim() || 'Thùng';
+    dispatch(setDefaultUnit(validUnit));
+    form.setFieldsValue({ defaultUnit: validUnit });
+    message.success('Đã lưu cấu hình đơn vị tính thành công!');
+  };
+
+  return (
+    <Card className="shadow-sm rounded-xl border-slate-200" title={<span className="font-semibold text-slate-700">Đơn vị tính mặc định</span>}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        initialValues={{ defaultUnit }}
+        className="max-w-md"
+      >
+        <Form.Item
+          name="defaultUnit"
+          label={<span className="font-medium text-slate-700">Đơn vị tính</span>}
+          rules={[{ required: true, message: 'Vui lòng nhập đơn vị tính' }]}
+          extra="Đơn vị tính này sẽ được tự động điền làm mặc định trên toàn hệ thống (ví dụ: khi thêm Sản phẩm mới)."
+        >
+          <Input disabled placeholder="Thùng" />
+        </Form.Item>
+
+        <Divider />
+
+        <Form.Item className="mb-0">
+          <Button type="primary" htmlType="submit" icon={<SaveOutlined />} className="bg-royal-600 hover:bg-royal-500">
+            Lưu cấu hình
+          </Button>
+        </Form.Item>
+      </Form>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { isAdmin } = usePermissions();
 
@@ -88,6 +134,16 @@ export default function SettingsPage() {
         </span>
       ),
       children: <AlertSettingsTab />,
+    },
+    {
+      key: 'units',
+      label: (
+        <span className="flex items-center gap-1.5">
+          <TagsOutlined />
+          Đơn vị tính
+        </span>
+      ),
+      children: <UnitsSettingsTab />,
     },
     {
       key: 'locations',

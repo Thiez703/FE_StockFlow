@@ -114,26 +114,6 @@ export default function StaffDashboard() {
           </div>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="flex flex-col gap-4">
-          <StatCard
-            title="Phiếu chờ duyệt"
-            value={formatNumber(0)}
-            suffix="phiếu"
-            icon={<FileSyncOutlined />}
-            tone="blue"
-            hint="Nhập / xuất / kiểm kê cần xử lý"
-          />
-          <div className="flex-1">
-            <AlertsPanel />
-          </div>
-        </div>
-        
-        <div className="lg:col-span-2">
-          <RecentActivities />
-        </div>
-      </div>
     </>
   );
 }

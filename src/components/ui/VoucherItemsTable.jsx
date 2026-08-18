@@ -1,3 +1,5 @@
+import React from 'react';
+import { useSelector } from 'react-redux';
 import { VOUCHER_KINDS } from '@/constants/voucher';
 import { formatNumber } from '@/utils/formatCurrency';
 import { totalQuantity, stocktakeTotals } from '@/utils/voucher';
@@ -33,7 +35,7 @@ function LetterRow({ count }) {
 }
 
 /** Nhập / xuất kho: số lượng — đơn giá — thành tiền. */
-function MoneyTable({ cfg, items, minRows }) {
+function MoneyTable({ cfg, items, minRows, defaultUnit }) {
   const fillers = Math.max(0, minRows - items.length);
 
   return (
@@ -69,7 +71,7 @@ function MoneyTable({ cfg, items, minRows }) {
             <td className="text-center">{i + 1}</td>
             <td className="break-words">{it.productName}</td>
             <td className="text-center">{it.lot || '—'}</td>
-            <td className="text-center">{it.unit}</td>
+            <td className="text-center">{'Thùng'}</td>
             <td className="text-right">{formatNumber(it.quantity)}</td>
             <td className="text-right">{formatNumber(it.unitPrice)}</td>
             <td className="text-right">{formatNumber(it.quantity * it.unitPrice)}</td>
@@ -92,7 +94,7 @@ function MoneyTable({ cfg, items, minRows }) {
 }
 
 /** Kiểm kê: theo sổ sách — thực tế — chênh lệch thừa / thiếu (mẫu 05-VT). */
-function CountTable({ items, minRows }) {
+function CountTable({ items, minRows, defaultUnit }) {
   const fillers = Math.max(0, minRows - items.length);
   const sum = stocktakeTotals(items);
 
@@ -107,6 +109,7 @@ function CountTable({ items, minRows }) {
         <col className="w-[78px]" />
         <col className="w-[64px]" />
         <col className="w-[64px]" />
+        <col className="w-[100px]" />
       </colgroup>
       <thead>
         <tr>
@@ -119,22 +122,23 @@ function CountTable({ items, minRows }) {
             tính
           </th>
           <th rowSpan={2}>
-            Theo sổ
+            Tồn
             <br />
-            kế toán
+            hệ thống
           </th>
           <th rowSpan={2}>
-            Theo
+            Số lượng
             <br />
-            kiểm kê
+            thực tế
           </th>
           <th colSpan={2}>Chênh lệch</th>
+          <th rowSpan={2}>Ghi chú</th>
         </tr>
         <tr>
           <th>Thừa</th>
           <th>Thiếu</th>
         </tr>
-        <LetterRow count={8} />
+        <LetterRow count={9} />
       </thead>
       <tbody>
         {items.map((it, i) => {
@@ -144,15 +148,16 @@ function CountTable({ items, minRows }) {
               <td className="text-center">{i + 1}</td>
               <td className="break-words">{it.productName}</td>
               <td className="text-center">{it.lot || '—'}</td>
-              <td className="text-center">{it.unit}</td>
+              <td className="text-center">{'Thùng'}</td>
               <td className="text-right">{formatNumber(it.systemQty)}</td>
               <td className="text-right">{formatNumber(it.countedQty)}</td>
               <td className="text-right">{diff > 0 ? formatNumber(diff) : ''}</td>
               <td className="text-right">{diff < 0 ? formatNumber(-diff) : ''}</td>
+              <td className="break-words">{it.note || ''}</td>
             </tr>
           );
         })}
-        <FillerRows count={fillers} from={items.length + 1} cols={8} />
+        <FillerRows count={fillers} from={items.length + 1} cols={9} />
         <tr className="font-bold">
           <td colSpan={4} className="text-right">
             Cộng
@@ -161,6 +166,7 @@ function CountTable({ items, minRows }) {
           <td className="text-right">{formatNumber(sum.counted)}</td>
           <td className="text-right">{sum.surplus ? formatNumber(sum.surplus) : ''}</td>
           <td className="text-right">{sum.shortage ? formatNumber(sum.shortage) : ''}</td>
+          <td />
         </tr>
       </tbody>
     </table>
@@ -168,7 +174,7 @@ function CountTable({ items, minRows }) {
 }
 
 /** Hàng bất thường: số lượng — tình trạng — nguyên nhân. */
-function IncidentTable({ items, minRows }) {
+function IncidentTable({ items, minRows, defaultUnit }) {
   const fillers = Math.max(0, minRows - items.length);
 
   return (
@@ -204,7 +210,7 @@ function IncidentTable({ items, minRows }) {
             <td className="text-center">{i + 1}</td>
             <td className="break-words">{it.productName}</td>
             <td className="text-center">{it.lot || '—'}</td>
-            <td className="text-center">{it.unit}</td>
+            <td className="text-center">{'Thùng'}</td>
             <td className="text-right">{formatNumber(it.quantity)}</td>
             <td className="text-center">{it.condition}</td>
             <td className="break-words">{it.reason}</td>
@@ -230,7 +236,8 @@ function IncidentTable({ items, minRows }) {
  */
 export default function VoucherItemsTable({ kind, items = [], minRows = MIN_ROWS }) {
   const cfg = VOUCHER_KINDS[kind];
-  if (cfg.layout === 'count') return <CountTable items={items} minRows={minRows} />;
-  if (cfg.layout === 'incident') return <IncidentTable items={items} minRows={minRows} />;
-  return <MoneyTable cfg={cfg} items={items} minRows={minRows} />;
+  const defaultUnit = useSelector((state) => state.settings.defaultUnit);
+  if (cfg.layout === 'count') return <CountTable items={items} minRows={minRows} defaultUnit={defaultUnit} />;
+  if (cfg.layout === 'incident') return <IncidentTable items={items} minRows={minRows} defaultUnit={defaultUnit} />;
+  return <MoneyTable cfg={cfg} items={items} minRows={minRows} defaultUnit={defaultUnit} />;
 }

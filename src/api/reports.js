@@ -21,11 +21,11 @@ export const reportApi = {
     axiosClient.get('/reports/stocktake-variance', { params }),
 
   // Xuất Excel: trả blob, không parse JSON.
-  exportInventorySummary: ({ from, to, productId }) => {
+  exportInventorySummary: ({ warehouseId, from, to, productId }) => {
     const BASE_URL = import.meta.env.VITE_API_BASE_URL;
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
     return axios.get(`${BASE_URL}/reports/inventory-summary/export`, {
-      params: { from, to, ...(productId ? { productId } : {}) },
+      params: { warehouseId, from, to, ...(productId ? { productId } : {}) },
       responseType: 'blob',
       headers: { Authorization: `Bearer ${token}` },
     });

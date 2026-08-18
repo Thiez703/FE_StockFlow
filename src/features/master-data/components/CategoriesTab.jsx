@@ -385,7 +385,7 @@ export default function CategoriesTab() {
             <Select options={parentOptions} disabled={!!editing} />
           </Form.Item>
           <Form.Item name="name" label="Tên danh mục" rules={[{ required: true, message: 'Nhập tên danh mục' }]}>
-            <Input placeholder="VD: Bia lon" />
+            <Input placeholder="VD: Thùng bia" />
           </Form.Item>
         </Form>
       </Modal>

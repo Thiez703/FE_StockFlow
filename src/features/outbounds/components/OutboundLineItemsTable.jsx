@@ -73,6 +73,7 @@ function LotSelectionCards({ cells, productId, fefoLotIdByProduct, riskLotIds, c
 }
 
 export default function OutboundLineItemsTable({
+  issueType,
   rows,
   cells,
   cellByKey,
@@ -81,7 +82,7 @@ export default function OutboundLineItemsTable({
   inboundPriceMap = new Map(),
   isLoading,
   onPatchRow,
-  onAddRow,
+  onAddMultipleRows,
   onRemoveRow,
 }) {
   const isMobile = useIsMobile();
@@ -240,7 +241,7 @@ export default function OutboundLineItemsTable({
         )}
 
         {/* Đơn giá + thành tiền */}
-        {cell && (
+        {cell && issueType !== 'DISPOSAL' && (
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <span className="mb-1 block text-xs font-semibold text-slate-400">Đơn giá</span>
@@ -336,30 +337,27 @@ export default function OutboundLineItemsTable({
     return (
       <div key={r.key} className="border-b border-slate-100 last:border-b-0">
         <div className="grid grid-cols-12 items-start gap-3 px-4 py-3">
-          <div className="col-span-12 md:col-span-4">
-            {!isManual ? (
-              <Button
-                type="dashed"
+          <div className={`col-span-12 ${issueType === 'DISPOSAL' ? 'md:col-span-8' : 'md:col-span-4'}`}>
+            <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Sản phẩm</span>
+            <div className="flex w-full overflow-hidden rounded-lg bg-slate-50 ring-1 ring-slate-200">
+              <div
+                className="flex flex-1 cursor-pointer items-center justify-between px-3 py-2 transition-colors hover:bg-slate-100"
                 onClick={() => setProductModal({ open: true, rowKey: r.key })}
-                className="w-full text-left flex justify-between min-h-[40px] items-center px-3"
               >
-                <span className="truncate">{productOptions.find(p => p.value === cell?.productId)?.label || 'Bấm chọn sản phẩm...'}</span>
-              </Button>
-            ) : (
-              <div className="flex flex-col items-start gap-2">
-                <Button 
-                  type="dashed" 
-                  onClick={() => setLotModal({ open: true, rowKey: r.key, productId: cell.productId })}
-                  className="w-full text-left flex justify-between"
-                >
-                  <span className="text-slate-500">Bấm để chọn lô hàng khác...</span>
-                </Button>
+                <div className="flex flex-col">
+                  {cell ? (
+                    <span className="font-semibold text-ink line-clamp-1">{productOptions.find((p) => p.value === cell.productId)?.label || 'Unknown Product'}</span>
+                  ) : (
+                    <span className="text-slate-400 font-medium">Bấm để chọn...</span>
+                  )}
+                </div>
+                <AppstoreOutlined className="text-slate-400 ml-2" />
               </div>
-            )}
+            </div>
 
             {cell && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-sub">
-                <span className="font-medium px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">Lô: {cell.lotCode}</span>
+                <span className="font-medium px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">Lô: {cell.lotCode || cell.lot || 'N/A'}</span>
                 <span className="font-medium px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">Vị trí: {cell.locationCode}</span>
                 {isOverride ? (
                   <Tag color="orange" bordered={false} className="!mr-0 !text-[11px] ml-1">Không phải lô FEFO</Tag>
@@ -371,48 +369,39 @@ export default function OutboundLineItemsTable({
                     <Tag color="red" bordered={false} className="!mr-0 !text-[11px] ml-1">Cảnh báo hết hạn</Tag>
                   </Tooltip>
                 )}
-                {!isManual ? (
-                  <span className="text-blue-500 hover:text-blue-600 cursor-pointer text-[11px] ml-auto font-medium" onClick={() => toggleManualLot(r.key, true)}>
-                    Chọn lô khác
-                  </span>
-                ) : (
-                  <span className="text-slate-400 hover:text-slate-600 cursor-pointer text-[11px] ml-auto font-medium" onClick={() => {
-                    toggleManualLot(r.key, false);
-                    const fefoKey = fefoCellKeyByProduct.get(cell.productId);
-                    if (fefoKey && fefoKey !== r.cellKey) {
-                      const next = cellByKey.get(fefoKey);
-                      onPatchRow(r.key, { cellKey: fefoKey, quantity: Math.min(r.quantity || 1, next?.quantity ?? 1), overrideReason: '' });
-                    }
-                  }}>
-                    Hủy chọn lô khác
-                  </span>
-                )}
+                <span className="text-blue-500 hover:text-blue-600 cursor-pointer text-[11px] ml-auto font-medium" onClick={() => setLotModal({ open: true, rowKey: r.key, productId: cell.productId })}>
+                  Chọn lô khác
+                </span>
               </div>
             )}
           </div>
 
-          <div className="col-span-6 md:col-span-2">
+          <div className={`col-span-6 ${issueType === 'DISPOSAL' ? 'md:col-span-3' : 'md:col-span-2'}`}>
             <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Số lượng</span>
             <InputNumber min={1} max={cell?.quantity ?? undefined} value={r.quantity} onChange={(v) => onPatchRow(r.key, { quantity: v ?? 1 })} className="w-full" disabled={!cell} />
             {cell && <div className="mt-1 text-right text-xs text-ink-sub">Tồn: {formatNumber(cell.quantity)}</div>}
           </div>
 
-          <div className="col-span-6 md:col-span-2">
-            <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Đơn giá</span>
-            <InputNumber min={0} step={1000} value={r.unitPrice} onChange={(v) => onPatchRow(r.key, { unitPrice: v ?? 0 })} className="w-full" disabled={!cell} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} parser={(v) => v?.replace(/\./g, '')} status={priceBelowInbound ? 'error' : ''} />
-            {priceBelowInbound && (
-              <Tooltip title={`Giá nhập gần nhất: ${formatCurrency(latestInboundPrice)}`}>
-                <p className="m-0 mt-1 text-[11px] text-rose-500 flex items-center gap-1">
-                  <WarningOutlined /> Thấp hơn giá nhập
-                </p>
-              </Tooltip>
-            )}
-          </div>
+          {issueType !== 'DISPOSAL' && (
+            <div className="col-span-6 md:col-span-2">
+              <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Đơn giá</span>
+              <InputNumber min={0} step={1000} value={r.unitPrice} onChange={(v) => onPatchRow(r.key, { unitPrice: v ?? 0 })} className="w-full" disabled={!cell} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')} parser={(v) => v?.replace(/\./g, '')} status={priceBelowInbound ? 'error' : ''} />
+              {priceBelowInbound && (
+                <Tooltip title={`Giá nhập gần nhất: ${formatCurrency(latestInboundPrice)}`}>
+                  <p className="m-0 mt-1 text-[11px] text-rose-500 flex items-center gap-1">
+                    <WarningOutlined /> Thấp hơn giá nhập
+                  </p>
+                </Tooltip>
+              )}
+            </div>
+          )}
 
-          <div className="col-span-8 self-center md:col-span-3 md:text-right">
-            <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Thành tiền</span>
-            <span className="font-semibold text-ink">{formatCurrency((r.quantity || 0) * (r.unitPrice || 0))}</span>
-          </div>
+          {issueType !== 'DISPOSAL' && (
+            <div className="col-span-8 self-center md:col-span-3 md:text-right">
+              <span className="mb-1 block text-xs font-medium text-slate-400 md:hidden">Thành tiền</span>
+              <span className="font-semibold text-ink">{formatCurrency((r.quantity || 0) * (r.unitPrice || 0))}</span>
+            </div>
+          )}
 
           <div className="col-span-4 flex justify-end self-center md:col-span-1">
             {r.cellKey ? (
@@ -445,7 +434,7 @@ export default function OutboundLineItemsTable({
         className="border-0 shadow-sm ring-1 ring-slate-200/60 rounded-2xl bg-white overflow-hidden [&_.ant-card-head-title]:!whitespace-normal [&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-y-2"
         styles={{ header: { borderBottom: '1px solid #f8fafc', padding: '16px 24px' }, body: { padding: isMobile ? 12 : 0 } }}
         extra={
-          <Button type="primary" size={isMobile ? 'large' : 'middle'} ghost icon={<PlusOutlined />} disabled={!cells.length} onClick={onAddRow} className={isMobile ? 'min-h-[44px]' : ''}>
+          <Button type="primary" size={isMobile ? 'large' : 'middle'} ghost icon={<PlusOutlined />} disabled={!cells.length} onClick={() => setProductModal({ open: true, rowKey: null })} className={isMobile ? 'min-h-[44px]' : ''}>
             Thêm dòng
           </Button>
         }
@@ -453,10 +442,10 @@ export default function OutboundLineItemsTable({
         {/* Desktop header */}
         {!isMobile && (
           <div className="hidden grid-cols-12 gap-3 border-b border-slate-100 bg-slate-50/80 px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-slate-500 md:grid">
-            <span className="col-span-4">Vị trí · Lô · Sản phẩm</span>
-            <span className="col-span-2 text-right">Số lượng</span>
-            <span className="col-span-2 text-right">Đơn giá</span>
-            <span className="col-span-3 text-right">Thành tiền</span>
+            <span className={issueType === 'DISPOSAL' ? 'col-span-8' : 'col-span-4'}>Vị trí · Lô · Sản phẩm</span>
+            <span className={`text-right ${issueType === 'DISPOSAL' ? 'col-span-3' : 'col-span-2'}`}>Số lượng</span>
+            {issueType !== 'DISPOSAL' && <span className="col-span-2 text-right">Đơn giá</span>}
+            {issueType !== 'DISPOSAL' && <span className="col-span-3 text-right">Thành tiền</span>}
             <span className="col-span-1" />
           </div>
         )}
@@ -477,10 +466,12 @@ export default function OutboundLineItemsTable({
           rows.map(renderDesktopRow)
         )}
 
-        <div className={`flex items-center justify-between border-t border-slate-100 px-4 py-3 ${isMobile ? 'mt-3' : ''}`}>
-          <span className="text-sm text-ink-sub">Tổng giá trị phiếu</span>
-          <span className="font-semibold text-ink">{formatCurrency(totalAmount)}</span>
-        </div>
+        {issueType !== 'DISPOSAL' && (
+          <div className={`flex items-center justify-between border-t border-slate-100 px-4 py-3 ${isMobile ? 'mt-3' : ''}`}>
+            <span className="text-sm text-ink-sub">Tổng giá trị phiếu</span>
+            <span className="font-semibold text-ink">{formatCurrency(totalAmount)}</span>
+          </div>
+        )}
       </Card>
 
       {/* Mobile/Desktop: Modal/Drawer chọn lô */}
@@ -584,14 +575,25 @@ export default function OutboundLineItemsTable({
 
       {/* Modal/Drawer chọn sản phẩm */}
       {productModal.open && (() => {
+        const isSingle = productModal.rowKey != null;
         const closeModal = () => setProductModal({ open: false, rowKey: null });
+        const existingProductIds = new Set(rows.map(r => cellByKey.get(r.cellKey)?.productId).filter(Boolean));
+
+        const handleProductAdd = (pids) => {
+            if (isSingle) {
+                handleSelectProduct(productModal.rowKey, pids[0]);
+            } else {
+                onAddMultipleRows(pids);
+            }
+        };
+
         const content = (
           <ProductCheckboxList
             productOptions={productOptions}
-            selectedProductIds={new Set()}
-            onAdd={(pids) => handleSelectProduct(productModal.rowKey, pids[0])}
+            selectedProductIds={existingProductIds}
+            onAdd={handleProductAdd}
             onClose={closeModal}
-            singleMode
+            singleMode={isSingle}
           />
         );
 

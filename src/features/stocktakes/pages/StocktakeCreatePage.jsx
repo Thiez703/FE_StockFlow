@@ -32,11 +32,6 @@ import { formatNumber } from '@/utils/formatCurrency';
 import { formatDate, today } from '@/utils/date';
 import { toVoucher } from '@/utils/voucher';
 
-function DiffCell({ value }) {
-  const cls = value === 0 ? 'text-ink-sub' : value > 0 ? 'text-[#15803d]' : 'text-[#b91c1c]';
-  return <span className={`mono font-semibold ${cls}`}>{value > 0 ? `+${value}` : value}</span>;
-}
-
 const DRAFT_STORAGE_KEY = 'stockflow.stocktake.draft';
 
 function saveDraft(counts, excluded, note, damagedCounts, notes) {
@@ -83,7 +78,6 @@ export default function StocktakeCreatePage() {
 
   const [note, setNote] = useState(() => draft?.note || inherited?.note || '');
   const [keyword, setKeyword] = useState('');
-  const [diffOnly, setDiffOnly] = useState(false);
   const [counts, setCounts] = useState(() => {
     if (inherited?.items) {
       const init = {};
@@ -108,7 +102,7 @@ export default function StocktakeCreatePage() {
     }
   }, [counts, excluded, note, damagedCounts, notes]);
 
-  const countOf = (cell) => counts[cell.key] ?? cell.quantity ?? 0;
+  const countOf = (cell) => counts[cell.key];
 
   const rows = useMemo(
     () => cells.filter((c) => !excluded.includes(c.key)),
@@ -123,13 +117,10 @@ export default function StocktakeCreatePage() {
         [c.productName, c.productCode, c.lotCode, c.locationCode].some((v) =>
           String(v ?? '').toLowerCase().includes(kw),
         );
-      const okDiff = !diffOnly || countOf(c) !== c.quantity;
-      return okKw && okDiff;
+      return okKw;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, keyword, diffOnly, counts]);
-
-  const totalDiff = rows.reduce((sum, c) => sum + (countOf(c) - (c.quantity ?? 0)), 0);
+  }, [rows, keyword, counts]);
 
   const { mutate: save, isPending: isSaving } = useMutation({
     mutationFn: (payload) => stocktakeApi.create(payload),
@@ -156,17 +147,13 @@ export default function StocktakeCreatePage() {
       message.error('Cần kiểm kê ít nhất 1 vị trí.');
       return;
     }
-    if (countedCount === 0) {
-      message.error('Chưa có vị trí nào được đếm. Vui lòng nhập số đếm thực tế.');
-      return;
-    }
     save({
       warehouseId: DEFAULT_WAREHOUSE_ID,
       note: note.trim() || null,
       details: rows.map((c) => ({
         lotId: c.lotId,
         locationId: c.locationId,
-        actualQty: countOf(c),
+        actualQty: countOf(c) ?? null,
         damagedQty: damagedCounts[c.key] ?? 0,
         note: notes[c.key]?.trim() || null,
       })),
@@ -199,7 +186,6 @@ export default function StocktakeCreatePage() {
         <VoucherResult
           voucher={toVoucher('stocktake', created)}
           title="Đã lưu biên bản kiểm kê, chờ duyệt"
-          onEdit={() => setCreated(null)}
           onNew={startNew}
           listPath="/stocktakes"
         />
@@ -225,7 +211,7 @@ export default function StocktakeCreatePage() {
           className="mb-4"
           type="error"
           showIcon
-          message="Không tải được tồn kho hiện tại"
+          message="Không tải được tồn kho ban đầu"
           // Spring trả 403 với body chỉ có chữ "Forbidden" — nói rõ nguyên nhân
           // để người dùng khỏi tưởng là lỗi mạng.
           description={
@@ -283,30 +269,22 @@ export default function StocktakeCreatePage() {
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
-              <Checkbox checked={diffOnly} onChange={(e) => setDiffOnly(e.target.checked)}>
-                Chỉ dòng lệch
-              </Checkbox>
-              <Button size="small" icon={<ReloadOutlined />} loading={isFetching} onClick={() => refetch()}>
-                Tải lại tồn
-              </Button>
             </div>
           }
         >
-          <div className="hidden grid-cols-[3fr_1.5fr_1fr_1fr_1fr_1fr_1fr_2fr_auto] gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
+          <div className="hidden grid-cols-[2.5fr_1.5fr_1fr_1.2fr_1fr_2fr_auto] gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
             <span>Sản phẩm</span>
             <span>Lô</span>
             <span>Vị trí</span>
-            <span className="text-right">Tồn HT</span>
-            <span className="text-right">Thực tế</span>
-            <span className="text-right">Hư hỏng</span>
-            <span className="text-right">Lệch</span>
+            <span className="text-right whitespace-nowrap">Số lượng thực tế</span>
+            <span className="text-center">Hư hỏng</span>
             <span>Ghi chú</span>
             <span className="w-8"></span>
           </div>
 
           {isLoading ? (
             <div className="flex justify-center py-12">
-              <Spin tip="Đang tải tồn kho hiện tại..." />
+              <Spin tip="Đang tải tồn kho ban đầu..." />
             </div>
           ) : visibleRows.length === 0 ? (
             <div className="py-10">
@@ -331,7 +309,6 @@ export default function StocktakeCreatePage() {
 
               {visibleRows.map((c, idx) => {
                 const counted = countOf(c);
-                const diff = counted - (c.quantity ?? 0);
                 const isActive = idx === activeRowIdx;
 
                 return (
@@ -348,24 +325,19 @@ export default function StocktakeCreatePage() {
                       <div className="text-sm font-bold text-ink">{c.productName}</div>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-ink-sub mt-0.5">
                         <span className="mono">{c.productCode}</span>
-                        <span>· Lô: <strong>{c.lotCode}</strong></span>
+                        <span>· Lô: <strong>{c.lotCode || c.lot || 'N/A'}</strong></span>
                         <span>· {c.locationCode}</span>
                       </div>
                     </div>
 
-                    {/* System qty + count input + diff */}
+                    {/* count input */}
                     <div className="flex items-center gap-3">
-                      <div className="shrink-0 text-center">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase">Hệ thống</div>
-                        <div className="mono text-lg font-bold text-ink-sub">{formatNumber(c.quantity)}</div>
-                      </div>
-
                       <div className="flex-1">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Đếm thực tế</div>
+                        <div className="text-[10px] font-semibold text-slate-400 uppercase mb-1">Số lượng thực tế</div>
                         <MobileQuantityInput
                           value={counted}
                           onChange={(v) => {
-                            setCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }));
+                            setCounts((prev) => ({ ...prev, [c.key]: v ?? undefined }));
                             if (idx < visibleRows.length - 1) {
                               setTimeout(() => {
                                 setActiveRowIdx(idx + 1);
@@ -375,11 +347,6 @@ export default function StocktakeCreatePage() {
                           }}
                           min={0}
                         />
-                      </div>
-
-                      <div className="shrink-0 text-center">
-                        <div className="text-[10px] font-semibold text-slate-400 uppercase">Lệch</div>
-                        <div className="text-lg"><DiffCell value={diff} /></div>
                       </div>
                     </div>
 
@@ -432,13 +399,13 @@ export default function StocktakeCreatePage() {
               return (
                 <div
                   key={c.key}
-                  className="grid grid-cols-[3fr_1.5fr_1fr_1fr_1fr_1fr_1fr_2fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
+                  className="grid grid-cols-[2.5fr_1.5fr_1fr_1.2fr_1fr_2fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
                 >
                   <div>
                     <div className="font-medium text-ink">{c.productName}</div>
                     <div className="text-xs text-ink-sub">
                       {c.productCode}
-                      {c.unit ? ` · ${c.unit}` : ''}
+                      {' — Thùng'}
                     </div>
                   </div>
                   <div>
@@ -447,14 +414,11 @@ export default function StocktakeCreatePage() {
                   <div>
                     <span className="mono text-ink-sub">{c.locationCode}</span>
                   </div>
-                  <div className="text-right">
-                    <span className="mono text-ink-sub">{formatNumber(c.quantity)}</span>
-                  </div>
                   <div>
                     <InputNumber
                       min={0}
                       value={counted}
-                      onChange={(v) => setCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }))}
+                      onChange={(v) => setCounts((prev) => ({ ...prev, [c.key]: v ?? undefined }))}
                       className="w-full"
                     />
                   </div>
@@ -466,9 +430,6 @@ export default function StocktakeCreatePage() {
                       onChange={(v) => setDamagedCounts((prev) => ({ ...prev, [c.key]: v ?? 0 }))}
                       className="w-full"
                     />
-                  </div>
-                  <div className="text-right">
-                    <DiffCell value={counted - (c.quantity ?? 0)} />
                   </div>
                   <div>
                     <Input
@@ -497,10 +458,9 @@ export default function StocktakeCreatePage() {
 
           <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
             <span className="text-sm text-ink-sub">
-              Tổng chênh lệch — {countedCount}/{rows.length} vị trí đã đếm
+              {countedCount}/{rows.length} vị trí đã đếm
               {excluded.length > 0 && `, ${excluded.length} vị trí đã bỏ`}
             </span>
-            <DiffCell value={totalDiff} />
           </div>
         </Card>
 
@@ -529,7 +489,11 @@ export default function StocktakeCreatePage() {
           </Button>
           <Popconfirm
             title={<span className="font-bold text-indigo-700 uppercase">LƯU BIÊN BẢN KIỂM KÊ?</span>}
-            description="Biên bản sẽ được gửi đi chờ duyệt."
+            description={
+              countedCount < rows.length
+                ? `Còn ${rows.length - countedCount} vị trí chưa kiểm. Phiếu vẫn sẽ được lưu, các lô chưa kiểm sẽ hiển thị là chưa kiểm tra số lượng. Bạn chắc chắn muốn lưu?`
+                : "Biên bản sẽ được gửi đi chờ duyệt."
+            }
             onConfirm={submit}
             okText="Xác nhận"
             cancelText="Hủy"

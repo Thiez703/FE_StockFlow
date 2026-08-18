@@ -97,20 +97,42 @@ export default function StorageMapSelector({
     });
   }
 
-  // Build product set per location for max-product enforcement (location mode)
+  // Build product and occupant sets per location for max enforcement (location mode)
   const productsAtLocation = {};
+  const occupantsAtLocation = {};
+  
   if (selectionMode === 'location') {
+    // Fill existing occupants from map data
+    rows.forEach(r => {
+      r.cells.forEach(c => {
+        if (!occupantsAtLocation[c.locationId]) occupantsAtLocation[c.locationId] = new Set();
+        if (c.occupants) {
+          c.occupants.forEach(occ => {
+            if (occ.lotId) occupantsAtLocation[c.locationId].add(`lot-${occ.lotId}`);
+          });
+        }
+      });
+    });
+
     if (inventoryCells) {
       inventoryCells.forEach((c) => {
         if (!productsAtLocation[c.locationId]) productsAtLocation[c.locationId] = new Set();
         if (c.productId) productsAtLocation[c.locationId].add(c.productId);
       });
     }
-    // Also count products from pickedLocations (other rows being added in this voucher)
+
+    // Also count from pickedLocations (other rows being added in this voucher)
     pickedLocations.forEach((p) => {
-      if (p.locationId && p.productId) {
+      if (p.locationId) {
         if (!productsAtLocation[p.locationId]) productsAtLocation[p.locationId] = new Set();
-        productsAtLocation[p.locationId].add(p.productId);
+        if (p.productId) productsAtLocation[p.locationId].add(p.productId);
+
+        if (!occupantsAtLocation[p.locationId]) occupantsAtLocation[p.locationId] = new Set();
+        if (p.lotId) {
+          occupantsAtLocation[p.locationId].add(`lot-${p.lotId}`);
+        } else {
+          occupantsAtLocation[p.locationId].add(`row-${p.rowIndex}`);
+        }
       }
     });
   }
@@ -118,7 +140,24 @@ export default function StorageMapSelector({
   const renderCell = (cell) => {
     const isEmpty = cell.status === 'EMPTY';
     const isExcluded = excludeLocationIds?.has(cell.locationId);
-    const cellKey = `${cell.lotId}-${cell.locationId}`;
+    
+    // Determine which occupant to display/select
+    const occupants = cell.occupants || [];
+    let displayOcc = null;
+    if (selectionMode === 'cell') {
+      displayOcc = productIdFilter 
+        ? occupants.find(o => o.productId === productIdFilter)
+        : occupants[0];
+    } else {
+      displayOcc = occupants[0];
+    }
+
+    const cellLotId = displayOcc?.lotId;
+    const cellLotCode = displayOcc?.lotCode || displayOcc?.lot;
+    const cellQuantity = displayOcc?.quantity || cell.usedQuantity;
+    const cellProductId = displayOcc?.productId;
+
+    const cellKey = cellLotId ? `${cellLotId}-${cell.locationId}` : `empty-${cell.locationId}`;
 
     // Find picks for this cell
     const picksHere = selectionMode === 'cell'
@@ -131,8 +170,8 @@ export default function StorageMapSelector({
     let subtitle = '';
 
     if (selectionMode === 'cell') {
-      const isMatchingProduct = productIdFilter ? cell.productId === productIdFilter : true;
-      isSelectable = !isEmpty && isMatchingProduct && !isExcluded;
+      const isMatchingProduct = productIdFilter ? cellProductId === productIdFilter : true;
+      isSelectable = !isEmpty && isMatchingProduct && !isExcluded && !!displayOcc;
       isSelected = currentValue === cellKey;
 
       if (!isMatchingProduct && !isEmpty) {
@@ -142,22 +181,28 @@ export default function StorageMapSelector({
         theme = 'border-slate-200 bg-slate-100 text-slate-300 opacity-40';
       }
 
-      if (!isEmpty && isMatchingProduct) {
-        subtitle = `Lô: ${cell.lotCode} · Tồn: ${formatNumber(cell.quantity)}`;
+      if (!isEmpty && isMatchingProduct && displayOcc) {
+        const lotInfo = cellLotCode ? `Lô: ${cellLotCode} · ` : '';
+        subtitle = `${lotInfo}Tồn: ${formatNumber(cellQuantity)}`;
       }
     } else {
       isSelected = currentValue === cell.locationId;
 
-      // Check max products per location
+      // Check max products and lots per location
       const existingProducts = productsAtLocation[cell.locationId];
       const productCount = existingProducts ? existingProducts.size : 0;
       const isCurrentProductAlreadyHere = currentProductId && existingProducts?.has(currentProductId);
-      const isFull = productCount >= MAX_PRODUCTS_PER_LOCATION && !isCurrentProductAlreadyHere;
+      
+      const existingOccupants = occupantsAtLocation[cell.locationId];
+      const occupantCount = existingOccupants ? existingOccupants.size : 0;
+      
+      // Full if it reaches max lots, OR if it reaches max products and we are adding a NEW product
+      const isFull = occupantCount >= MAX_PRODUCTS_PER_LOCATION || (productCount >= MAX_PRODUCTS_PER_LOCATION && !isCurrentProductAlreadyHere);
 
       if (isExcluded || isFull) {
         isSelectable = false;
         theme = 'border-slate-200 bg-slate-100 text-slate-300 opacity-40';
-        subtitle = isFull ? `Đã đầy (${productCount}/${MAX_PRODUCTS_PER_LOCATION} SP)` : 'Không chọn được';
+        subtitle = isFull ? `Đã đầy (${occupantCount}/${MAX_PRODUCTS_PER_LOCATION} lô)` : 'Không chọn được';
       } else if (isEmpty) {
         if (highlightEmpty) {
           isSelectable = true;
@@ -172,13 +217,13 @@ export default function StorageMapSelector({
         isSelectable = true;
         const invHere = invByLocation[cell.locationId];
         if (invHere) {
-          subtitle = productCount > 1
-            ? `${productCount}/${MAX_PRODUCTS_PER_LOCATION} SP`
+          subtitle = occupantCount > 1
+            ? `${occupantCount}/${MAX_PRODUCTS_PER_LOCATION} lô`
             : invHere[0]?.productName?.slice(0, 15) || '';
         } else {
-          subtitle = productCount > 0
-            ? `${productCount}/${MAX_PRODUCTS_PER_LOCATION} SP`
-            : cell.lotCode ? `Lô: ${cell.lotCode}` : 'Có hàng';
+          subtitle = occupantCount > 0
+            ? `${occupantCount}/${MAX_PRODUCTS_PER_LOCATION} lô`
+            : cellLotCode ? `Lô: ${cellLotCode}` : 'Có hàng';
         }
       }
     }
@@ -231,6 +276,7 @@ export default function StorageMapSelector({
       </div>
     );
   };
+
 
   // Collect unique pick colors for legend
   const pickIndices = [...new Set(pickedLocations.map((p) => p.rowIndex))];
@@ -301,7 +347,7 @@ export default function StorageMapSelector({
         <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded border-2 border-red-300 bg-red-50" /> Hết hạn</span>
         <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded border-2 border-royal bg-blue-50" /> Đang chọn</span>
         {selectionMode === 'location' && (
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded border-2 border-slate-200 bg-slate-100 opacity-40" /> Đã đầy ({MAX_PRODUCTS_PER_LOCATION} SP)</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded border-2 border-slate-200 bg-slate-100 opacity-40" /> Đã đầy (tối đa {MAX_PRODUCTS_PER_LOCATION} lô)</span>
         )}
         {pickIndices.length > 0 && (
           <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-500" /> Đã chọn (dòng khác)</span>

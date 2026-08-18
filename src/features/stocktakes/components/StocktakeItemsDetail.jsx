@@ -5,6 +5,7 @@ import DocCode from '@/components/ui/DocCode';
  * Dùng cả ở cột "Tổng chênh lệch" và trong bảng chi tiết dòng hàng bên dưới.
  */
 export function DiffValue({ value }) {
+  if (value == null || isNaN(value)) return <span className="text-ink-sub">—</span>;
   const cls = value === 0 ? 'text-ink-sub' : value > 0 ? 'text-[#15803d]' : 'text-[#b91c1c]';
   return <span className={`mono font-semibold ${cls}`}>{value > 0 ? `+${value}` : value}</span>;
 }
@@ -28,11 +29,11 @@ export default function StocktakeItemsDetail({ items, note }) {
             <tr className="text-left text-xs uppercase tracking-wide text-ink-sub">
               <th className="px-3 py-2 font-semibold">Sản phẩm</th>
               <th className="px-3 py-2 font-semibold">Lô</th>
+              <th className="px-3 py-2 font-semibold">Vị trí</th>
               <th className="px-3 py-2 text-right font-semibold">Tồn hệ thống</th>
-              <th className="px-3 py-2 text-right font-semibold">Đếm thực tế</th>
-              <th className="px-3 py-2 text-right font-semibold">Chênh lệch</th>
+              <th className="px-3 py-2 text-right font-semibold whitespace-nowrap">Số lượng thực tế</th>
               <th className="px-3 py-2 text-right font-semibold">Hư hỏng</th>
-              <th className="px-3 py-2 text-right font-semibold">Còn tốt</th>
+              <th className="px-3 py-2 text-right font-semibold">Lệch</th>
               <th className="px-3 py-2 font-semibold">Ghi chú</th>
             </tr>
           </thead>
@@ -41,9 +42,17 @@ export default function StocktakeItemsDetail({ items, note }) {
               <tr key={i} className="border-t border-slate-200/70">
                 <td className="px-3 py-2 text-ink">{it.productName}</td>
                 <td className="px-3 py-2"><DocCode muted>{it.lot}</DocCode></td>
+                <td className="px-3 py-2"><span className="mono text-ink-sub">{it.location}</span></td>
                 <td className="px-3 py-2 text-right mono">{it.systemQty}</td>
-                <td className="px-3 py-2 text-right mono">{it.countedQty}</td>
-                <td className="px-3 py-2 text-right"><DiffValue value={it.countedQty - it.systemQty} /></td>
+                <td className="px-3 py-2 text-right">
+                  {it.countedQty != null ? (
+                    <span className="mono">{it.countedQty}</span>
+                  ) : (
+                    <span className="text-orange-600 bg-orange-50 px-2 py-0.5 rounded text-[11px] font-medium border border-orange-200">
+                      Chưa kiểm tra số lượng thực tế
+                    </span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-right mono">
                   {it.damagedQty > 0 ? (
                     <span className="text-[#b91c1c] font-semibold">{it.damagedQty}</span>
@@ -51,10 +60,12 @@ export default function StocktakeItemsDetail({ items, note }) {
                     <span className="text-ink-sub">0</span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-right mono">
-                  <span className={it.remainingQty < it.countedQty ? 'text-[#b45309] font-semibold' : ''}>
-                    {it.remainingQty}
-                  </span>
+                <td className="px-3 py-2 text-right">
+                  {it.countedQty != null ? (
+                    <DiffValue value={it.systemQty - it.countedQty} />
+                  ) : (
+                    <span className="text-ink-sub">—</span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-ink-sub max-w-[200px] truncate">{it.note || '—'}</td>
               </tr>

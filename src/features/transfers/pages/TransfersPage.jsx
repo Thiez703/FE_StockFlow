@@ -12,12 +12,14 @@ import FadeSection from '@/components/ui/FadeSection';
 import { transferApi } from '@/api/transfers';
 import { formatDate } from '@/utils/date';
 import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const PAGE_SIZE = 10;
 
 export default function TransfersPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(0);
+  const { canCreateTransfer } = usePermissions();
 
   const { data, isLoading } = useQuery({
     queryKey: ['transfers', page],
@@ -98,9 +100,11 @@ export default function TransfersPage() {
         subtitle="Quản lý phiếu điều chuyển hàng giữa các vị trí trong kho"
         breadcrumb={[{ title: 'Kiểm soát' }, { title: 'Điều chuyển' }]}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/transfers/create')}>
-            Tạo phiếu điều chuyển
-          </Button>
+          canCreateTransfer && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/transfers/create')}>
+              Tạo phiếu điều chuyển
+            </Button>
+          )
         }
       />
 

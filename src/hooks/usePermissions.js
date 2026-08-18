@@ -19,6 +19,7 @@ export function usePermissions() {
     isAdmin: role === 'ADMIN',
     canCreateInbound:    can('MANAGER', 'STAFF'),
     canCreateOutbound:   can('MANAGER', 'STAFF'),
+    canCreateTransfer:   can('MANAGER', 'STAFF'),
     // Phiếu nhập/xuất không sửa được, sai thì huỷ — và người huỷ phải khác người lập.
     // Backend chỉ cho ADMIN / ACCOUNTANT huỷ, MANAGER và STAFF đều không được.
     canVoidInbound:      can('ACCOUNTANT'),

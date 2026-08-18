@@ -216,6 +216,39 @@ function OutboundCreateForm({ issueType }) {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const removeRow = (key) =>
     setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.key !== key) : prev));
+  
+  const addMultipleRows = (productIds) => {
+    setRows((prev) => {
+      const emptyIndices = [];
+      prev.forEach((r, i) => { if (!r.cellKey) emptyIndices.push(i); });
+      
+      const nextRows = [...prev];
+      for (let i = emptyIndices.length - 1; i >= 0; i--) {
+        if (nextRows.length - emptyIndices.length + productIds.length > 0) {
+          nextRows.splice(emptyIndices[i], 1);
+        }
+      }
+      
+      const newRows = productIds.map((pid) => {
+        const r = newRow();
+        const fefoLotId = fefoLotIdByProduct.get(pid);
+        let fefoKey = null;
+        if (fefoLotId) {
+          const fefoCell = cells.find(c => c.productId === pid && c.lotId === fefoLotId);
+          if (fefoCell) fefoKey = fefoCell.key;
+        }
+        
+        if (fefoKey) {
+          const next = cellByKey.get(fefoKey);
+          r.cellKey = fefoKey;
+          r.quantity = Math.min(1, next?.quantity ?? 1);
+        }
+        return r;
+      });
+      
+      return [...nextRows, ...newRows];
+    });
+  };
 
   const { mutate: save, isPending: isSaving } = useMutation({
     mutationFn: (payload) => outboundApi.create(payload),
@@ -288,7 +321,7 @@ function OutboundCreateForm({ issueType }) {
           locationId: cell.locationId,
           quantity: r.quantity,
           overrideReason: r.overrideReason.trim() || null,
-          unitPrice: r.unitPrice || 0,
+          unitPrice: issueType === 'DISPOSAL' ? null : (r.unitPrice || 0),
         };
       }),
     });
@@ -320,7 +353,6 @@ function OutboundCreateForm({ issueType }) {
         <VoucherResult
           voucher={toVoucher('outbound', created)}
           title="Đã ghi sổ phiếu xuất kho"
-          onEdit={() => setCreated(null)}
           onNew={startNew}
           listPath="/outbounds"
         />
@@ -386,6 +418,7 @@ function OutboundCreateForm({ issueType }) {
 
         {/* Bảng hàng hoá — full width */}
         <OutboundLineItemsTable
+          issueType={issueType}
           rows={rows}
           cells={cells}
           cellByKey={cellByKey}
@@ -394,7 +427,7 @@ function OutboundCreateForm({ issueType }) {
           inboundPriceMap={inboundPriceMap}
           isLoading={isLoading}
           onPatchRow={patchRow}
-          onAddRow={() => setRows((p) => [...p, newRow()])}
+          onAddMultipleRows={addMultipleRows}
           onRemoveRow={removeRow}
         />
       </div>

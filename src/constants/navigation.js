@@ -182,14 +182,14 @@ export const NAV_GROUPS = [
         label: 'Nhật ký hoạt động',
         icon: HistoryOutlined,
         desc: 'Theo dõi lịch sử',
-        permission: 'canViewLogs',
+        roles: ['ADMIN'], // Tương đương permission: 'canViewLogs'
       },
       {
         key: '/settings',
         label: 'Cấu hình',
         icon: SettingOutlined,
         desc: 'Cấu hình hệ thống',
-        permission: 'isAdmin',
+        roles: ['ADMIN'], // Tương đương permission: 'isAdmin'
       },
     ],
   },

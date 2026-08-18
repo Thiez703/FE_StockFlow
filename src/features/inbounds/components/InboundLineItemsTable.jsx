@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import { Card, Button, Select, InputNumber, Empty, Popconfirm, Drawer, Modal, DatePicker } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -60,7 +61,7 @@ function InboundLotSelectionCards({ lots, currentLotId, onSelect, onClose }) {
   );
 }
 
-function ItemRow({ name, index, control, errors, setValue, onRemove, removable, productOptions, lotsByProduct, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal }) {
+function ItemRow({ name, index, control, errors, setValue, onRemove, removable, productOptions, lotsByProduct, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal, defaultUnit }) {
   const [productId, lotId, lotCode, quantity, unitPrice] = useWatch({
     control,
     name: [
@@ -86,8 +87,8 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
 
   const baseUnit = useMemo(() => {
     if (!productId) return '';
-    return productOptions.find((p) => p.value === productId)?.unit ?? '';
-  }, [productId, productOptions]);
+    return 'Thùng';
+  }, [productId]);
 
   return (
     <div className="group flex items-start border-b border-slate-100 last:border-b-0 hover:bg-blue-50/30 transition-colors">
@@ -170,6 +171,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
                     className="w-full h-[36px]"
                     value={field.value ? dayjs(field.value) : null}
                     onChange={(date) => field.onChange(date ? date.format('YYYY-MM-DD') : null)}
+                    disabledDate={(current) => current && current > dayjs().endOf('day')}
                     status={rowErr?.mfgDate ? 'error' : ''}
                   />
                 )}
@@ -187,6 +189,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
                     className="w-full h-[36px]"
                     value={field.value ? dayjs(field.value) : null}
                     onChange={(date) => field.onChange(date ? date.format('YYYY-MM-DD') : null)}
+                    disabledDate={(current) => current && current < dayjs().startOf('day')}
                     status={rowErr?.expDate ? 'error' : ''}
                   />
                 )}
@@ -275,7 +278,7 @@ function ItemRow({ name, index, control, errors, setValue, onRemove, removable, 
   );
 }
 
-function MobileItemRow({ name, index, control, errors, setValue, onRemove, removable, productOptions, lotsByProduct, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal }) {
+function MobileItemRow({ name, index, control, errors, setValue, onRemove, removable, productOptions, lotsByProduct, locationOptions, isNewMode, onOpenLotModal, onOpenProductModal, onOpenLocationModal, defaultUnit }) {
   const [productId, lotId, lotCode, quantity, unitPrice] = useWatch({
     control,
     name: [`${name}.${index}.productId`, `${name}.${index}.lotId`, `${name}.${index}.lotCode`, `${name}.${index}.quantity`, `${name}.${index}.unitPrice`],
@@ -295,8 +298,8 @@ function MobileItemRow({ name, index, control, errors, setValue, onRemove, remov
 
   const baseUnit = useMemo(() => {
     if (!productId) return '';
-    return productOptions.find((p) => p.value === productId)?.unit ?? '';
-  }, [productId, productOptions]);
+    return 'Thùng';
+  }, [productId]);
 
   return (
     <div className={`rounded-xl border bg-white p-3 ${productId ? 'border-blue-100 shadow-sm' : 'border-slate-200'}`}>
@@ -381,6 +384,7 @@ function MobileItemRow({ name, index, control, errors, setValue, onRemove, remov
                     className="w-full h-[44px]"
                     value={field.value ? dayjs(field.value) : null}
                     onChange={(date) => field.onChange(date ? date.format('YYYY-MM-DD') : null)}
+                    disabledDate={(current) => current && current > dayjs().endOf('day')}
                     status={rowErr?.mfgDate ? 'error' : ''}
                   />
                 )}
@@ -398,6 +402,7 @@ function MobileItemRow({ name, index, control, errors, setValue, onRemove, remov
                     className="w-full h-[44px]"
                     value={field.value ? dayjs(field.value) : null}
                     onChange={(date) => field.onChange(date ? date.format('YYYY-MM-DD') : null)}
+                    disabledDate={(current) => current && current < dayjs().startOf('day')}
                     status={rowErr?.expDate ? 'error' : ''}
                   />
                 )}
@@ -499,6 +504,7 @@ export default function InboundLineItemsTable({
   isNewMode = false,
 }) {
   const isMobile = useIsMobile();
+  const defaultUnit = useSelector((state) => state.settings.defaultUnit);
   const [lotModal, setLotModal] = useState({ open: false, index: null, productId: null });
   const [productModal, setProductModal] = useState({ open: false, index: null });
   const [locationModal, setLocationModal] = useState({ open: false, index: null, productId: null });
@@ -608,6 +614,7 @@ export default function InboundLineItemsTable({
                 onOpenLotModal={(index, productId) => setLotModal({ open: true, index, productId })}
                 onOpenProductModal={(index) => setProductModal({ open: true, index })}
                 onOpenLocationModal={(index, productId, lotId) => setLocationModal({ open: true, index, productId, lotId })}
+                defaultUnit={defaultUnit}
               />
             ))}
           </div>

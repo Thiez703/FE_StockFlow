@@ -371,12 +371,12 @@ export default function AlertsPage() {
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-sub">
                           {agg.stockDeficit > 0 && (
                             <span>
-                              Thiếu <span className="font-semibold text-ink">{formatNumber(agg.stockDeficit)}</span> đơn vị
+                              Thiếu <span className="font-semibold text-ink">{formatNumber(agg.stockDeficit)}</span> thùng
                             </span>
                           )}
                           {agg.expiryQty > 0 && (
                             <span>
-                              Tồn trong lô cận hạn <span className="font-semibold text-ink">{formatNumber(agg.expiryQty)}</span> đơn vị
+                              Tồn trong lô cận hạn <span className="font-semibold text-ink">{formatNumber(agg.expiryQty)}</span> thùng
                             </span>
                           )}
                         </div>

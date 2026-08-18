@@ -125,11 +125,9 @@ export default function ProductsTab() {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-ink">{name}</span>
-            {r.unit && (
-              <Tag bordered={false} className="!m-0">
-                {r.unit}
-              </Tag>
-            )}
+            <Tag bordered={false} className="!m-0">
+              Thùng
+            </Tag>
           </div>
           <div className="mono text-xs text-ink-sub">{r.code}</div>
         </div>

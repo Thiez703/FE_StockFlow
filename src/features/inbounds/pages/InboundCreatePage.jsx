@@ -79,7 +79,7 @@ function OrderSummary({ control, theme }) {
         </div>
         <div className="flex items-center justify-between text-[14px]">
           <span className="text-slate-500 font-medium">Tổng số lượng</span>
-          <span className="font-semibold text-slate-700">{formatNumber(totalQty)} đơn vị</span>
+          <span className="font-semibold text-slate-700">{formatNumber(totalQty)} thùng</span>
         </div>
       </div>
       <div className="mt-auto flex items-center justify-between border-t border-dashed border-slate-200 pt-5">
@@ -238,7 +238,6 @@ export default function InboundCreatePage() {
         <VoucherResult
           voucher={toVoucher('inbound', created)}
           title="Đã ghi sổ phiếu nhập kho"
-          onEdit={() => setCreated(null)}
           onNew={startNew}
           listPath="/inbounds"
         />

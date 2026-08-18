@@ -121,7 +121,7 @@ export default function InventoryPage() {
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard title="Số dòng tồn" value={formatNumber(totalElements)} suffix="dòng" icon={<DatabaseOutlined />} tone="blue" compact />
-        <StatCard title="Tổng tồn (trang này)" value={formatNumber(totalQty)} suffix="đơn vị" icon={<DatabaseOutlined />} tone="green" compact />
+        <StatCard title="Tổng tồn (trang này)" value={formatNumber(totalQty)} suffix="thùng" icon={<DatabaseOutlined />} tone="green" compact />
         <StatCard title="Trang" value={`${page + 1} / ${totalPages || 1}`} icon={<DatabaseOutlined />} tone="blue" compact />
       </div>
 
@@ -308,7 +308,7 @@ export default function InventoryPage() {
                             <div className="text-[11px] font-bold uppercase tracking-widest text-blue-400 mb-1">Hiện có trong kho</div>
                             <div className="flex items-baseline gap-2">
                               <span className="mono text-5xl font-black text-blue-600 tracking-tighter">{formatNumber(selected.quantity)}</span>
-                              <span className="text-sm font-semibold text-slate-400">đơn vị</span>
+                              <span className="text-sm font-semibold text-slate-400">thùng</span>
                             </div>
                           </div>
                           <div className="h-16 w-16 rounded-full bg-blue-100/50 flex items-center justify-center text-blue-500 text-3xl group-hover:scale-110 transition-transform duration-500">
