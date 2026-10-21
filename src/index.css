@@ -63,15 +63,13 @@
     width: 100% !important;
   }
 
-  /* Buộc scrollbar THẬT luôn hiện (thay vì chỉ giữ gutter ảo bằng scrollbar-gutter)
-     — để AntD đo đúng độ rộng scrollbar trước khi khoá cuộn cho modal và tự bù
-     padding chính xác. `scrollbar-gutter: stable` không dùng được ở đây vì khi
-     modal khoá cuộn bằng overflow trên <body>, trình duyệt "propagate" overflow
-     đó lên viewport nhưng không mang theo scrollbar-gutter, khiến gutter ảo bị bỏ
-     qua và layout nhảy — đã kiểm chứng bằng cách đo html.clientWidth trước/sau khi
-     mở modal. */
+  /* Giữ chỗ (gutter) cho scrollbar ngay cả khi nội dung chưa tràn — tránh layout
+     nhảy khi AntD Modal thêm overflow:hidden vào <body>. Vì <html> khai báo
+     overflow-y tường minh, trình duyệt không propagate overflow của <body> lên
+     viewport nên scrollbar-gutter hoạt động đúng. */
   html {
-    overflow-y: scroll;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   body {

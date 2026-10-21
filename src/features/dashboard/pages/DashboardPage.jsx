@@ -315,8 +315,8 @@ export function DashboardWarehouseMap() {
   }));
 
   return (
-    <div className="p-3 md:p-6 bg-slate-50 border border-slate-200 rounded-xl shadow-inner flex-1 w-full">
-      <div className="w-full bg-white p-3 md:p-6 rounded-lg shadow-sm border border-slate-300 relative mx-auto">
+    <div className="p-1.5 md:p-2 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+      <div className="bg-white p-3 md:p-4 rounded-lg shadow-sm border border-slate-300 relative w-full overflow-x-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex-1" />
           <div className="inline-block px-4 md:px-8 py-1.5 bg-slate-100 rounded-b-lg border-b-2 border-x-2 border-slate-200 font-bold text-slate-400 tracking-widest uppercase text-[10px] md:text-xs -mt-3 md:-mt-6">
@@ -336,49 +336,59 @@ export function DashboardWarehouseMap() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 md:gap-4">
-          {rows.map(row => {
-            const cellCount = row.cells.length;
-            const half = Math.ceil(cellCount / 2);
-            const leftCells = row.cells.slice(0, half);
-            const rightCells = row.cells.slice(half);
+        {(() => {
+          // Global max column across ALL rows — ensures every row renders
+          // the same number of grid columns so the map stays spatially aligned.
+          let globalMaxCol = 0;
+          for (const row of rows) {
+            for (const c of row.cells) {
+              if (c.colIndex > globalMaxCol) globalMaxCol = c.colIndex;
+            }
+          }
 
-            return (
-              <div key={row.rowLabel} className="flex flex-col lg:flex-row gap-3 lg:gap-4 bg-slate-50 lg:bg-transparent p-3 lg:p-0 rounded-xl lg:rounded-none border lg:border-none border-slate-200">
-                <div className="w-full lg:w-8 flex lg:flex-col items-center justify-center font-black text-slate-500 lg:bg-slate-50 rounded-xl border-b lg:border border-slate-200 text-sm shadow-sm py-2 lg:py-0 bg-white">
-                  <span className="lg:hidden mr-2">DÃY</span>
-                  <span>{row.rowLabel}</span>
-                </div>
-                <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-8 relative">
-                  {rightCells.length > 0 && (
-                    <div className="hidden lg:flex absolute left-1/2 top-0 bottom-0 w-6 -ml-3 items-center justify-center border-x-2 border-dashed border-slate-200 bg-slate-50/50" />
-                  )}
-                  <div className="flex-1 flex flex-wrap gap-3">
-                    {leftCells.map((cell) => (
-                      <div key={cell.locationCode} className="flex-1 min-w-[160px]">
-                        {renderCell(cell)}
+          return (
+            <div>
+              <div className="flex flex-col gap-6 md:gap-4">
+                {rows.map(row => {
+                  const cellMap = {};
+                  for (const c of row.cells) {
+                    cellMap[c.colIndex] = c;
+                  }
+
+                  return (
+                    <div key={row.rowLabel} className="flex flex-col lg:flex-row gap-3 lg:gap-2 bg-slate-50 lg:bg-transparent p-3 lg:p-0 rounded-xl lg:rounded-none border lg:border-none border-slate-200">
+                      <div className="w-full lg:w-8 shrink-0 flex lg:flex-col items-center justify-center font-black text-slate-500 lg:bg-slate-50 rounded-xl border-b lg:border border-slate-200 text-sm shadow-sm py-2 lg:py-0 bg-white">
+                        <span className="lg:hidden mr-2">DÃY</span>
+                        <span>{row.rowLabel}</span>
                       </div>
-                    ))}
-                  </div>
-                  {rightCells.length > 0 && (
-                    <>
-                      <div className="lg:hidden flex items-center justify-center text-[10px] uppercase text-slate-400 font-bold border-y border-dashed border-slate-200 py-1.5 bg-white rounded-lg">
-                        Lối đi giữa
+                      <div
+                        className="grid gap-3 flex-1 min-w-0"
+                        style={{ gridTemplateColumns: `repeat(${globalMaxCol}, minmax(150px, 1fr))` }}
+                      >
+                        {Array.from({ length: globalMaxCol }, (_, i) => {
+                          const col = i + 1;
+                          const cell = cellMap[col];
+
+                          if (!cell) {
+                            return (
+                              <div key={col} className="min-h-[135px] rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/30" />
+                            );
+                          }
+
+                          return (
+                            <div key={cell.locationCode}>
+                              {renderCell(cell)}
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="flex-1 flex flex-wrap gap-3">
-                        {rightCells.map((cell) => (
-                          <div key={cell.locationCode} className="flex-1 min-w-[160px]">
-                            {renderCell(cell)}
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })()}
 
         <div className="mt-8 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner">
           <div className="flex flex-wrap items-center justify-center gap-6 text-[13px] font-medium text-slate-700">
@@ -491,7 +501,7 @@ export default function DashboardPage() {
 
         {/* Sơ đồ vị trí lưu trữ — ADMIN/MANAGER/ACCOUNTANT only, STAFF nhận 403 nên ẩn hẳn khối */}
         {canViewStorageMap && (
-          <div className="hidden w-full lg:block">
+          <div className="w-full max-w-full">
             <h3 className="mb-3 text-base font-semibold text-ink flex items-center gap-2">
               <AppstoreOutlined className="text-blue-600" /> Bản đồ lưu trữ & Tình trạng lô
             </h3>

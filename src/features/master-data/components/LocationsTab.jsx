@@ -1,276 +1,399 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, InputNumber, Select, Tooltip, App } from 'antd';
+import { Button, InputNumber, App, Popconfirm, Spin, Alert } from 'antd';
 import {
   PlusOutlined,
-  SearchOutlined,
-  DeleteOutlined,
-  ExclamationCircleFilled,
+  CloseOutlined,
+  CheckOutlined,
 } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
-import DataTable from '@/components/ui/DataTable';
-import TableEmptyState from '@/components/ui/TableEmptyState';
-import StatusPill from '@/components/ui/StatusPill';
-import FadeSection from '@/components/ui/FadeSection';
-import DocCode from '@/components/ui/DocCode';
-import { storageLocationApi, warehouseApi } from '@/api/warehouses';
+import { storageLocationApi } from '@/api/warehouses';
+import { formatNumber } from '@/utils/formatCurrency';
 import { getErrorMessage } from '@/utils/getErrorMessage';
+import { DEFAULT_WAREHOUSE_ID } from '@/constants/warehouse';
 
 const LOCATIONS_KEY = ['storage-locations'];
-const WAREHOUSES_KEY = ['warehouses'];
 
-/**
- * Calculate the next rowLabel + colIndex for a given warehouse.
- *
- * Storage grid layout: rows A, B, C, … with dynamic columns per row.
- * Finds the max column count across existing rows and uses that as the row width.
- * e.g. A-1, A-2, …, A-N, B-1, B-2, …
- */
-function getNextSlot(existingLocations, warehouseId) {
-  const wLocations = existingLocations.filter((l) => l.warehouseId === warehouseId);
-
-  if (wLocations.length === 0) return { rowLabel: 'A', colIndex: 1 };
-
-  // Find max columns per row and the last occupied slot
-  let maxRowOrd = 0;
-  let maxColInRow = 0;
-  let maxColsPerRow = 0;
-
-  for (const loc of wLocations) {
-    const rowOrd = (loc.rowLabel ?? 'A').charCodeAt(0) - 65;
-    if (loc.colIndex > maxColsPerRow) maxColsPerRow = loc.colIndex;
-    if (rowOrd > maxRowOrd || (rowOrd === maxRowOrd && loc.colIndex > maxColInRow)) {
-      maxRowOrd = rowOrd;
-      maxColInRow = loc.colIndex;
-    }
-  }
-
-  const colLimit = maxColsPerRow || 6;
-
-  // Next slot
-  if (maxColInRow < colLimit) {
-    return { rowLabel: String.fromCharCode(65 + maxRowOrd), colIndex: maxColInRow + 1 };
-  }
-  // Move to next row
-  return { rowLabel: String.fromCharCode(65 + maxRowOrd + 1), colIndex: 1 };
+function getCapacityColor(capacity) {
+  if (capacity == null) return 'border-slate-200 bg-slate-50';
+  return 'border-emerald-200 bg-emerald-50';
 }
 
 export default function LocationsTab() {
-  const { message, modal } = App.useApp();
+  const { message } = App.useApp();
   const { canManageMasterData } = usePermissions();
   const queryClient = useQueryClient();
+  const [editingCell, setEditingCell] = useState(null);
+  const [capacityValue, setCapacityValue] = useState(null);
+  const [newRowCount, setNewRowCount] = useState(6);
+  // Preview state: { rowLabel, count, selected: Set<colIndex> }
+  const [preview, setPreview] = useState(null);
 
-  const [keyword, setKeyword] = useState('');
-  const [filterWarehouseId, setFilterWarehouseId] = useState(null);
-  const [addWarehouseId, setAddWarehouseId] = useState(null);
-
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: allLocations = [], isLoading, isError, error } = useQuery({
     queryKey: LOCATIONS_KEY,
     queryFn: storageLocationApi.getAll,
   });
 
-  const { data: warehouses = [] } = useQuery({
-    queryKey: WAREHOUSES_KEY,
-    queryFn: warehouseApi.getAll,
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
+    queryClient.invalidateQueries({ queryKey: ['dashboard', 'storage-map'] });
+  };
+
+  const { mutate: updateCapacity, isPending: isUpdating } = useMutation({
+    mutationFn: ({ id, rowLabel, colIndex, capacity }) =>
+      storageLocationApi.update(id, { rowLabel, colIndex, capacity }),
+    onSuccess: () => {
+      invalidateAll();
+      message.success('Cập nhật sức chứa thành công');
+      setEditingCell(null);
+    },
+    onError: (err) => message.error(getErrorMessage(err)),
   });
 
   const { mutate: addLocation, isPending: isAdding } = useMutation({
     mutationFn: (values) => storageLocationApi.create(values),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
-      message.success('Đã thêm vị trí mới');
+      invalidateAll();
     },
-    onError: (error) => message.error(getErrorMessage(error)),
-  });
-
-  const { mutate: updateLocation } = useMutation({
-    mutationFn: ({ id, ...body }) => storageLocationApi.update(id, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
-      message.success('Đã cập nhật vị trí');
-    },
-    onError: (error) => message.error(getErrorMessage(error)),
+    onError: (err) => message.error(getErrorMessage(err)),
   });
 
   const { mutate: deleteLocation } = useMutation({
     mutationFn: (id) => storageLocationApi.remove(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
-      message.success('Đã xóa vị trí');
+      invalidateAll();
+      message.success('Xoá vị trí thành công');
     },
-    onError: (error) => message.error(getErrorMessage(error)),
+    onError: (err) => message.error(getErrorMessage(err)),
   });
 
-  const warehouseOptions = warehouses.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` }));
-  const warehouseName = useMemo(
-    () => Object.fromEntries(warehouses.map((w) => [w.id, w.name])),
-    [warehouses],
-  );
+  // Group flat locations into grid rows, build a colIndex→cell map per row
+  const { rows, maxCols } = useMemo(() => {
+    const wLocations = allLocations.filter((l) => l.warehouseId === DEFAULT_WAREHOUSE_ID);
 
-  const data = useMemo(() => {
-    const kw = keyword.trim().toLowerCase();
-    return rows.filter((l) => {
-      const okKw = !kw || [l.locationCode, l.rowLabel].some((v) => String(v ?? '').toLowerCase().includes(kw));
-      const okWarehouse = !filterWarehouseId || l.warehouseId === filterWarehouseId;
-      return okKw && okWarehouse;
-    });
-  }, [rows, keyword, filterWarehouseId]);
+    const rowMap = {};
+    let mc = 0;
+    for (const loc of wLocations) {
+      const label = loc.rowLabel ?? 'A';
+      if (!rowMap[label]) rowMap[label] = {};
+      rowMap[label][loc.colIndex] = loc;
+      if (loc.colIndex > mc) mc = loc.colIndex;
+    }
 
-  const handleAdd = () => {
-    const wId = addWarehouseId ?? warehouses[0]?.id;
-    if (!wId) return;
-    const { rowLabel, colIndex } = getNextSlot(rows, wId);
-    addLocation({ warehouseId: wId, rowLabel, colIndex });
+    const sortedRows = Object.keys(rowMap)
+      .sort()
+      .map((label) => ({
+        rowLabel: label,
+        cellMap: rowMap[label],
+        maxCol: Math.max(...Object.keys(rowMap[label]).map(Number)),
+      }));
+
+    return { rows: sortedRows, maxCols: mc };
+  }, [allLocations]);
+
+  const lastRowLabel = rows.length > 0 ? rows[rows.length - 1].rowLabel : null;
+  const nextRowLabel = lastRowLabel ? String.fromCharCode(lastRowLabel.charCodeAt(0) + 1) : 'A';
+
+  // Add a single cell at the end of a row
+  const handleAddCell = (rowLabel) => {
+    const row = rows.find((r) => r.rowLabel === rowLabel);
+    const nextCol = row ? row.maxCol + 1 : 1;
+    addLocation({ warehouseId: DEFAULT_WAREHOUSE_ID, rowLabel, colIndex: nextCol });
   };
 
-  const handleDelete = (location) => {
-    modal.confirm({
-      title: 'Xác nhận xóa vị trí',
-      icon: <ExclamationCircleFilled />,
-      content: `Bạn có chắc chắn muốn xóa vị trí "${location.locationCode}"?`,
-      okText: 'Xóa',
-      okType: 'danger',
-      cancelText: 'Huỷ',
-      onOk: () => deleteLocation(location.id),
+  // Show preview row
+  const handleShowPreview = () => {
+    const count = newRowCount || 1;
+    const selected = new Set();
+    for (let i = 1; i <= count; i++) selected.add(i);
+    setPreview({ rowLabel: nextRowLabel, count, selected });
+  };
+
+  // Toggle a preview cell selection
+  const togglePreviewCell = (colIndex) => {
+    setPreview((prev) => {
+      if (!prev) return prev;
+      const next = new Set(prev.selected);
+      if (next.has(colIndex)) next.delete(colIndex);
+      else next.add(colIndex);
+      return { ...prev, selected: next };
     });
   };
 
-  const columns = [
-    {
-      title: 'Mã vị trí',
-      dataIndex: 'locationCode',
-      width: 160,
-      render: (c) => <DocCode>{c}</DocCode>,
-    },
-    {
-      title: 'Hàng',
-      dataIndex: 'rowLabel',
-      width: 100,
-      align: 'center',
-      render: (r) => <span className="font-semibold text-ink">{r}</span>,
-    },
-    {
-      title: 'Cột',
-      dataIndex: 'colIndex',
-      width: 100,
-      align: 'center',
-      render: (c) => <span className="text-ink">{c}</span>,
-    },
-    {
-      title: 'Kho',
-      dataIndex: 'warehouseId',
-      width: 220,
-      render: (id) => <span className="text-ink">{warehouseName[id] ?? '—'}</span>,
-    },
-    {
-      title: 'Sức chứa (Thùng)',
-      dataIndex: 'capacity',
-      width: 160,
-      align: 'center',
-      render: (val, record) => (
-        <InputNumber
-          min={1}
-          placeholder="Không giới hạn"
-          value={val}
-          disabled={!canManageMasterData}
-          className="w-full"
-          onChange={(v) => updateLocation({
-            id: record.id,
-            rowLabel: record.rowLabel,
-            colIndex: record.colIndex,
-            capacity: v || null,
-          })}
-        />
-      ),
-    },
-    {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      align: 'center',
-      width: 130,
-      render: (s) => <StatusPill status={s ?? 'ACTIVE'} />,
-    },
-    {
-      title: '',
-      key: 'action',
-      align: 'center',
-      width: 64,
-      render: (_, r) => (
-        <Tooltip title="Xóa vị trí">
-          <Button
-            type="text"
-            danger
-            icon={<DeleteOutlined />}
-            disabled={!canManageMasterData}
-            onClick={() => handleDelete(r)}
-          />
-        </Tooltip>
-      ),
-    },
-  ];
+  // Confirm preview — create only selected cells
+  const handleConfirmPreview = () => {
+    if (!preview || preview.selected.size === 0) {
+      message.warning('Vui lòng chọn ít nhất 1 vị trí');
+      return;
+    }
+    for (const colIndex of Array.from(preview.selected).sort((a, b) => a - b)) {
+      addLocation({ warehouseId: DEFAULT_WAREHOUSE_ID, rowLabel: preview.rowLabel, colIndex });
+    }
+    message.success(`Đã thêm ${preview.selected.size} vị trí vào dãy ${preview.rowLabel}`);
+    setPreview(null);
+  };
+
+  const handleSaveCapacity = (cell) => {
+    updateCapacity({
+      id: cell.id,
+      rowLabel: cell.rowLabel,
+      colIndex: cell.colIndex,
+      capacity: capacityValue || null,
+    });
+  };
+
+  const handleDeleteCell = (cell) => {
+    deleteLocation(cell.id);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[300px] bg-white rounded-xl border border-slate-200 shadow-sm">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <Alert type="error" showIcon message="Không tải được dữ liệu vị trí" description={getErrorMessage(error)} />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Top Filter Bar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex flex-wrap items-center gap-4">
-          <Input
-            allowClear
-            prefix={<SearchOutlined className="text-slate-400" />}
-            placeholder="Tìm theo mã vị trí..."
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            className="w-full sm:w-80"
-          />
-          <Select
-            allowClear
-            placeholder="Lọc theo kho"
-            className="w-full sm:w-64"
-            options={warehouseOptions}
-            value={filterWarehouseId}
-            onChange={setFilterWarehouseId}
-          />
-        </div>
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 md:p-6">
+      <div className="mb-4 text-sm text-slate-500">
+        Nhấn vào ô để cấu hình sức chứa. Nhấn <PlusOutlined className="text-[10px]" /> cuối dãy để thêm ô lẻ.
       </div>
 
-      {/* Nội dung chính */}
-      <div className="min-w-0 flex-1">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-ink-sub">{data.length} vị trí</span>
-          </div>
-          {canManageMasterData && (
-            <div className="flex items-center gap-2">
-              <Select
-                placeholder="Chọn kho"
-                className="w-48"
-                options={warehouseOptions}
-                value={addWarehouseId ?? warehouses[0]?.id ?? undefined}
-                onChange={setAddWarehouseId}
-              />
-              <Tooltip title={warehouses.length ? '' : 'Cần có ít nhất một kho trước'}>
+      {/* Grid config view */}
+      <div className="overflow-x-auto">
+        <div className="min-w-full">
+          {rows.map((row) => {
+            const totalCols = Math.max(row.maxCol, maxCols);
+            return (
+              <div key={row.rowLabel} className="flex gap-2 mb-2 items-stretch">
+                {/* Row label */}
+                <div className="w-8 flex items-center justify-center font-black text-slate-500 bg-slate-100 rounded-lg text-sm shrink-0">
+                  {row.rowLabel}
+                </div>
+
+                {/* Render each column slot */}
+                {Array.from({ length: totalCols }, (_, i) => {
+                  const col = i + 1;
+                  const cell = row.cellMap[col];
+
+                  // Empty slot — no location at this position
+                  if (!cell) {
+                    return (
+                      <div key={col} className="w-[140px] shrink-0 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50/30 p-2 flex flex-col items-center justify-center">
+                        {canManageMasterData ? (
+                          <button
+                            className="text-slate-300 hover:text-blue-500 transition-colors"
+                            onClick={() => addLocation({ warehouseId: DEFAULT_WAREHOUSE_ID, rowLabel: row.rowLabel, colIndex: col })}
+                            title={`Thêm vị trí ${row.rowLabel}-${col}`}
+                          >
+                            <PlusOutlined className="text-lg" />
+                          </button>
+                        ) : (
+                          <span className="text-[9px] text-slate-300">—</span>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const isEditing = editingCell === cell.id;
+
+                  return (
+                    <div
+                      key={col}
+                      className={`relative w-[140px] shrink-0 rounded-lg border-2 p-2 transition-all cursor-pointer hover:shadow-md group ${
+                        isEditing ? 'border-blue-400 bg-blue-50 shadow-lg ring-2 ring-blue-200' : getCapacityColor(cell.capacity)
+                      }`}
+                      onClick={() => {
+                        if (!isEditing && canManageMasterData) {
+                          setEditingCell(cell.id);
+                          setCapacityValue(cell.capacity);
+                        }
+                      }}
+                    >
+                      {/* Delete single cell button */}
+                      {canManageMasterData && !isEditing && (
+                        <Popconfirm
+                          title={`Xoá vị trí ${cell.locationCode}?`}
+                          onConfirm={(e) => { e.stopPropagation(); handleDeleteCell(cell); }}
+                          onCancel={(e) => e.stopPropagation()}
+                          okText="Xoá"
+                          okType="danger"
+                          cancelText="Huỷ"
+                        >
+                          <button
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-[9px] opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-red-600 z-10"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <CloseOutlined />
+                          </button>
+                        </Popconfirm>
+                      )}
+
+                      <div className="text-[11px] font-mono font-bold text-slate-600 mb-1">{cell.locationCode}</div>
+
+                      {isEditing ? (
+                        <div className="flex flex-col gap-1.5">
+                          <InputNumber
+                            size="small"
+                            min={1}
+                            placeholder="Sức chứa"
+                            value={capacityValue}
+                            onChange={setCapacityValue}
+                            className="w-full"
+                            autoFocus
+                            onPressEnter={() => handleSaveCapacity(cell)}
+                          />
+                          <div className="flex gap-1">
+                            <Button
+                              size="small"
+                              type="primary"
+                              className="flex-1 text-[10px]"
+                              loading={isUpdating}
+                              onClick={(e) => { e.stopPropagation(); handleSaveCapacity(cell); }}
+                            >
+                              Lưu
+                            </Button>
+                            <Button
+                              size="small"
+                              className="flex-1 text-[10px]"
+                              onClick={(e) => { e.stopPropagation(); setEditingCell(null); }}
+                            >
+                              Huỷ
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {cell.capacity != null ? (
+                            <div className="text-[10px] text-slate-500 text-center">
+                              Sức chứa: <span className="font-bold">{formatNumber(cell.capacity)}</span>
+                            </div>
+                          ) : (
+                            <div className="text-[9px] text-slate-300 text-center italic">Chưa cấu hình</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Add cell button at end of row */}
+                {canManageMasterData && (
+                  <button
+                    className="w-10 min-h-[60px] rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all shrink-0"
+                    onClick={() => handleAddCell(row.rowLabel)}
+                    title={`Thêm ô vào cuối dãy ${row.rowLabel}`}
+                  >
+                    <PlusOutlined />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Preview row — chưa lưu, cho user chọn vị trí */}
+          {preview && (
+            <div className="flex flex-wrap gap-2 mb-2 items-stretch">
+              <div className="w-8 flex items-center justify-center font-black text-blue-500 bg-blue-100 rounded-lg text-sm shrink-0">
+                {preview.rowLabel}
+              </div>
+
+              {Array.from({ length: preview.count }, (_, i) => {
+                const col = i + 1;
+                const selected = preview.selected.has(col);
+                return (
+                  <div
+                    key={col}
+                    className={`relative w-[140px] shrink-0 rounded-lg border-2 p-2 transition-all cursor-pointer ${
+                      selected
+                        ? 'border-blue-400 bg-blue-50 shadow-md ring-2 ring-blue-200'
+                        : 'border-dashed border-slate-300 bg-slate-50/50 opacity-50'
+                    }`}
+                    onClick={() => togglePreviewCell(col)}
+                  >
+                    {selected && (
+                      <div className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center text-[9px] shadow-sm z-10">
+                        <CheckOutlined />
+                      </div>
+                    )}
+                    <div className="text-[11px] font-mono font-bold text-slate-500 mb-1">
+                      {preview.rowLabel}-{col}
+                    </div>
+                    <div className="text-[10px] text-slate-400 text-center">
+                      {selected ? 'Đã chọn' : 'Bỏ qua'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Preview actions */}
+          {preview && (
+            <div className="flex gap-2 mb-4 ml-10">
+              <Button
+                type="primary"
+                size="small"
+                icon={<CheckOutlined />}
+                loading={isAdding}
+                onClick={handleConfirmPreview}
+              >
+                Xác nhận tạo {preview.selected.size} vị trí
+              </Button>
+              <Button
+                size="small"
+                onClick={() => setPreview(null)}
+              >
+                Huỷ
+              </Button>
+              <span className="text-[12px] text-slate-400 self-center ml-2">
+                Nhấn vào ô để chọn/bỏ chọn
+              </span>
+            </div>
+          )}
+
+          {/* Add new row — chỉ hiện khi không có preview */}
+          {canManageMasterData && !preview && (
+            <div className="flex gap-2 mb-2 items-center">
+              <div className="w-8 shrink-0" />
+              <div className="flex items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-3 py-2 hover:border-blue-300 transition-colors">
+                <span className="text-sm text-slate-500 whitespace-nowrap">Thêm dãy {nextRowLabel} với</span>
+                <InputNumber
+                  min={1}
+                  max={20}
+                  size="small"
+                  value={newRowCount}
+                  onChange={(v) => setNewRowCount(v || 1)}
+                  className="w-16"
+                />
+                <span className="text-sm text-slate-500">vị trí</span>
                 <Button
                   type="primary"
+                  size="small"
                   icon={<PlusOutlined />}
-                  loading={isAdding}
-                  disabled={!warehouses.length}
-                  onClick={handleAdd}
+                  onClick={handleShowPreview}
                 >
-                  Thêm vị trí
+                  Xem trước
                 </Button>
-              </Tooltip>
+              </div>
+            </div>
+          )}
+
+          {rows.length === 0 && !preview && !canManageMasterData && (
+            <div className="text-center text-slate-400 py-12">
+              Chưa có vị trí nào.
             </div>
           )}
         </div>
-
-        <FadeSection dataKey={data.map((l) => l.id).join(',')}>
-          <DataTable
-            columns={columns}
-            dataSource={data}
-            loading={isLoading}
-            locale={{ emptyText: <TableEmptyState message="Không tìm thấy vị trí phù hợp" /> }}
-          />
-        </FadeSection>
       </div>
     </div>
   );

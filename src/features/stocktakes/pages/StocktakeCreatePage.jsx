@@ -270,10 +270,11 @@ export default function StocktakeCreatePage() {
             </div>
           }
         >
-          <div className="hidden grid-cols-[2.5fr_1.5fr_1fr_1.2fr_1fr_2fr_auto] gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
+          <div className="hidden grid-cols-[2.5fr_1.5fr_1fr_0.8fr_1.2fr_1fr_2fr_auto] gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400 md:grid">
             <span>Sản phẩm</span>
             <span>Lô</span>
             <span>Vị trí</span>
+            <span className="text-right">Tồn đầu</span>
             <span className="text-right whitespace-nowrap">Số lượng thực tế</span>
             <span className="text-center">Hư hỏng</span>
             <span>Ghi chú</span>
@@ -326,6 +327,9 @@ export default function StocktakeCreatePage() {
                         <span>· Lô: <strong>{c.lotCode || c.lot || 'N/A'}</strong></span>
                         <span>· {c.locationCode}</span>
                       </div>
+                      <div className="mt-1 text-xs">
+                        Tồn đầu: <span className="font-bold text-ink">{c.totalInbound ?? 0}</span>
+                      </div>
                     </div>
 
                     {/* count input */}
@@ -335,7 +339,9 @@ export default function StocktakeCreatePage() {
                         <MobileQuantityInput
                           value={counted}
                           onChange={(v) => {
-                            setCounts((prev) => ({ ...prev, [c.key]: v ?? undefined }));
+                            const maxQty = c.totalInbound ?? 0;
+                            const clamped = v != null && v > maxQty ? maxQty : v;
+                            setCounts((prev) => ({ ...prev, [c.key]: clamped ?? undefined }));
                             if (idx < visibleRows.length - 1) {
                               setTimeout(() => {
                                 setActiveRowIdx(idx + 1);
@@ -344,6 +350,7 @@ export default function StocktakeCreatePage() {
                             }
                           }}
                           min={0}
+                          max={c.totalInbound ?? 0}
                         />
                       </div>
                     </div>
@@ -394,10 +401,11 @@ export default function StocktakeCreatePage() {
             visibleRows.map((c) => {
               const counted = countOf(c);
               const damaged = damagedCounts[c.key] ?? 0;
+              const maxQty = c.totalInbound ?? 0;
               return (
                 <div
                   key={c.key}
-                  className="grid grid-cols-[2.5fr_1.5fr_1fr_1.2fr_1fr_2fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
+                  className="grid grid-cols-[2.5fr_1.5fr_1fr_0.8fr_1.2fr_1fr_2fr_auto] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
                 >
                   <div>
                     <div className="font-medium text-ink">{c.productName}</div>
@@ -412,9 +420,13 @@ export default function StocktakeCreatePage() {
                   <div>
                     <span className="mono text-ink-sub">{c.locationCode}</span>
                   </div>
+                  <div className="text-right">
+                    <span className="font-bold text-ink">{maxQty}</span>
+                  </div>
                   <div>
                     <InputNumber
                       min={0}
+                      max={maxQty}
                       value={counted}
                       onChange={(v) => setCounts((prev) => ({ ...prev, [c.key]: v ?? undefined }))}
                       className="w-full"

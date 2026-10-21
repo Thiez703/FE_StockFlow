@@ -1,9 +1,9 @@
 import axiosClient from './axiosClient';
 
 // LotResponse { id, productId, productName, lotCode, mfgDate, expDate, status }
-// Tạo cần { productId*, lotCode*, expDate*, mfgDate } — hiện chưa dùng được vì
-// backend chưa có API sản phẩm để đổ danh sách chọn.
-// Sửa chỉ nhận { expDate*, mfgDate }, không đổi được mã lô và sản phẩm.
+// Tạo cần { productId*, lotCode*, expDate*, mfgDate }
+// Sửa nhận { expDate*, mfgDate, quantity }, không đổi được mã lô và sản phẩm.
+// quantity lấy từ inventory API (gộp theo lotId), không nằm trong lot response.
 export const lotApi = {
   getAll: () => axiosClient.get('/lots'),
   getByProduct: (productId) => axiosClient.get(`/lots/product/${productId}`),

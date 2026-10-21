@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { Button, Input, Select, Checkbox, Tooltip, Form, Modal, DatePicker, App } from 'antd';
+import { Button, Input, InputNumber, Select, Checkbox, Tooltip, Form, Modal, DatePicker, App } from 'antd';
 import { EditOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -15,8 +15,10 @@ import DocCode from '@/components/ui/DocCode';
 import StatusPill from '@/components/ui/StatusPill';
 import { lotApi } from '@/api/lots';
 import { productApi } from '@/api/products';
+import { inventoryApi } from '@/api/inventory';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { formatDate, daysUntil } from '@/utils/date';
+import { formatNumber } from '@/utils/formatCurrency';
 
 const LOTS_KEY = ['lots'];
 
@@ -58,6 +60,25 @@ export default function LotsTab() {
     queryFn: productApi.getAll,
   });
 
+  // Fetch tồn kho để lấy quantity theo lotId
+  const { data: inventoryRaw = [] } = useQuery({
+    queryKey: ['inventory', 'all-for-lots'],
+    queryFn: () => inventoryApi.getAll({ size: 9999 }),
+  });
+
+  // Gộp tồn kho theo lotId
+  const qtyByLotId = useMemo(() => {
+    const items = Array.isArray(inventoryRaw) ? inventoryRaw : (inventoryRaw?.content ?? []);
+    const map = new Map();
+    for (const inv of items) {
+      const lotId = inv.lotId;
+      if (lotId != null) {
+        map.set(lotId, (map.get(lotId) || 0) + (inv.quantity ?? 0));
+      }
+    }
+    return map;
+  }, [inventoryRaw]);
+
   const productOptions = products.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }));
 
   const closeModal = () => {
@@ -69,6 +90,7 @@ export default function LotsTab() {
     mutationFn: ({ id, values }) => (id ? lotApi.update(id, values) : lotApi.create(values)),
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: LOTS_KEY });
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'all-for-lots'] });
       message.success(id ? 'Đã cập nhật lô hàng' : 'Đã thêm lô hàng');
       closeModal();
     },
@@ -77,16 +99,17 @@ export default function LotsTab() {
 
   const flatData = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    const filtered = rows.filter((l) => {
-      const okKw = !kw || [l.lotCode, l.productName].some((v) => String(v ?? '').toLowerCase().includes(kw));
-      const okStatus = !status || l.status === status;
-      const okNear = !nearOnly || daysUntil(l.expDate) <= expirySoonDays;
-      return okKw && okStatus && okNear;
-    });
-    
-    // Sort logic inside groups can just use sortRows, but we'll apply it per group below
+    const filtered = rows
+      .map((l) => ({ ...l, quantity: qtyByLotId.get(l.id) ?? 0 }))
+      .filter((l) => {
+        const okKw = !kw || [l.lotCode, l.productName].some((v) => String(v ?? '').toLowerCase().includes(kw));
+        const okStatus = !status || l.status === status;
+        const okNear = !nearOnly || daysUntil(l.expDate) <= expirySoonDays;
+        return okKw && okStatus && okNear;
+      });
+
     return filtered;
-  }, [rows, keyword, status, nearOnly, expirySoonDays]);
+  }, [rows, keyword, status, nearOnly, expirySoonDays, qtyByLotId]);
 
   const groupedData = useMemo(() => {
     const map = new Map();
@@ -140,6 +163,7 @@ export default function LotsTab() {
       form.setFieldsValue({
         mfgDate: editing.mfgDate ? dayjs(editing.mfgDate) : null,
         expDate: editing.expDate ? dayjs(editing.expDate) : null,
+        quantity: editing.quantity ?? 0,
       });
     } else if (adding) {
       form.resetFields();
@@ -154,7 +178,9 @@ export default function LotsTab() {
     };
     saveLot({
       id: editing?.id,
-      values: editing ? dates : { productId: v.productId, lotCode: v.lotCode, ...dates },
+      values: editing
+        ? { ...dates, quantity: v.quantity }
+        : { productId: v.productId, lotCode: v.lotCode, ...dates },
     });
   };
 
@@ -222,6 +248,13 @@ export default function LotsTab() {
           </div>
         );
       },
+    },
+    {
+      title: sortableTitle('Tồn kho', 'quantity'),
+      dataIndex: 'quantity',
+      align: 'right',
+      width: isMobile ? 100 : 120,
+      render: (v) => <span className="mono font-medium text-ink">{formatNumber(v ?? 0)}</span>,
     },
     {
       title: 'TT',
@@ -441,6 +474,18 @@ export default function LotsTab() {
               />
             </Form.Item>
           </div>
+          {editing && (
+            <Form.Item
+              name="quantity"
+              label="Số lượng tồn hiện có"
+              rules={[
+                { required: true, message: 'Nhập số lượng' },
+                { type: 'number', min: 0, message: 'Không được âm' },
+              ]}
+            >
+              <InputNumber className="w-full" min={0} placeholder="Nhập số lượng tồn" />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
     </>
